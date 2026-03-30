@@ -9,6 +9,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 :root {
   --primary: #1e3a5f; --primary-light: #2563eb; --primary-bg: #eff6ff;
@@ -169,6 +172,25 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 
 .hidden{display:none!important}
 
+/* Login overlay */
+.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);z-index:1000;align-items:center;justify-content:center;opacity:1;transition:opacity .3s}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:12px;padding:40px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
+.login-box h2{font-size:1.4rem;font-weight:700;margin-bottom:8px;color:var(--primary)}
+.login-box p{font-size:.9rem;color:var(--gray-500);margin-bottom:24px}
+.login-form{display:flex;flex-direction:column;gap:14px}
+.login-form input{width:100%;padding:12px 14px;border:1px solid var(--gray-300);border-radius:6px;font-size:.95rem}
+.login-form input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.login-error{color:var(--danger);font-size:.85rem;margin-top:8px;display:none}
+.login-loading{opacity:.6;pointer-events:none}
+.login-form button{padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:600;cursor:pointer;transition:all .15s}
+.login-form button:hover:not(:disabled){background:#1d4ed8;transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.login-form button:disabled{opacity:.6;cursor:not-allowed}
+.login-signup{margin-top:16px;font-size:.85rem}
+.login-signup a{color:var(--primary-light);text-decoration:none;cursor:pointer}
+.login-signup a:hover{text-decoration:underline}
+.logout-btn{color:#fff}
+
 @media(max-width:768px){
   .header{padding:12px 16px}.header h1{font-size:1.05rem}
   .date-nav{padding:10px 16px;gap:8px}
@@ -187,14 +209,33 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 </head>
 <body>
 
+<!-- Login overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>NNC Inventory</h2>
+    <p>Sign in to your account</p>
+    <div class="login-form" id="loginFormContainer">
+      <input type="email" id="loginEmail" placeholder="Email address" onkeydown="if(event.key==='Enter')handleLogin()">
+      <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+      <div class="login-error" id="loginError"></div>
+      <button onclick="handleLogin()" id="loginBtn">Sign In</button>
+    </div>
+    <div class="login-signup">
+      Don't have an account? <a onclick="toggleSignUp()">Sign up</a>
+    </div>
+  </div>
+</div>
+
 <div class="header">
   <div>
     <h1>Naan N Curry Issaquah - Daily Ordering</h1>
     <div class="header-sub">Inventory Management System</div>
   </div>
   <div class="header-right">
+    <span id="userEmail" style="color:#fff;font-size:.85rem;margin-right:12px"></span>
     <button class="btn btn-ghost" onclick="sendReport()" title="Generate PDF and email report">Send Report</button>
     <button class="btn btn-ghost" onclick="promptSettings()">Settings</button>
+    <button class="btn btn-ghost logout-btn" onclick="handleLogout()" title="Sign out">Logout</button>
   </div>
 </div>
 
@@ -420,8 +461,24 @@ const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const CAT_LABELS = {kitchen:'NNC Main Kitchen',produce:'Issaquah Produce'};
 
+// ==================== FIREBASE ====================
+const firebaseConfig = {
+  apiKey: "AIzaSyAvOFC9jqt-nSk26uN6CVXoDr6O-JnXz3k",
+  authDomain: "nnc-inventory.firebaseapp.com",
+  projectId: "nnc-inventory",
+  storageBucket: "nnc-inventory.firebasestorage.app",
+  messagingSenderId: "315174538558",
+  appId: "1:315174538558:web:2c34c11ea6e99bfbb3706f"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+let currentUser = null;
+let firebaseReady = false;
+
 // ==================== PERSISTENCE ====================
 function loadData(){
+  // Load from local cache (synced from Firestore)
   let d;
   try{const r=localStorage.getItem(STORAGE_KEY);if(r){d=JSON.parse(r);items=d.items||JSON.parse(JSON.stringify(DEFAULT_ITEMS));}}catch(e){}
   if(!d){items=JSON.parse(JSON.stringify(DEFAULT_ITEMS));d={items,days:{},password:DEFAULT_PW,emails:[],inventoryPerson:''};}
@@ -452,12 +509,244 @@ function loadData(){
   }
   return d;
 }
-function saveData(d){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}}
+function saveData(d){
+  // Save to local cache
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
+  // Sync to Firestore if user is authenticated
+  if(currentUser&&firebaseReady){
+    syncDataToFirestore(d).catch(err=>console.error('Firestore sync error:',err));
+  }
+}
+async function syncDataToFirestore(d){
+  if(!currentUser)return;
+  try{
+    // Save config/settings
+    await db.collection('config').doc('settings').set({
+      items:d.items,
+      password:d.password,
+      emails:d.emails||[],
+      emailjs:d.emailjs||{},
+      inventoryPerson:d.inventoryPerson||'',
+      parVersion:d.parVersion||PAR_VERSION,
+      lastSync:new Date()
+    },{merge:true});
+    // Save each day's data
+    if(d.days){
+      Object.keys(d.days).forEach(dateKey=>{
+        if(dateKey!=='__meta'){
+          db.collection('days').doc(dateKey).set(d.days[dateKey],{merge:true}).catch(err=>console.error('Error saving day data:',err));
+        }
+      });
+    }
+  }catch(err){console.error('Firestore sync error:',err)}
+}
+async function loadDataFromFirestore(){
+  if(!currentUser)return null;
+  try{
+    const configDoc=await db.collection('config').doc('settings').get();
+    if(!configDoc.exists)return null;
+    const config=configDoc.data();
+    const daysSnap=await db.collection('days').get();
+    const days={};
+    daysSnap.forEach(doc=>{days[doc.id]=doc.data()});
+    return{
+      items:config.items||JSON.parse(JSON.stringify(DEFAULT_ITEMS)),
+      days,
+      password:config.password||DEFAULT_PW,
+      emails:config.emails||[],
+      emailjs:config.emailjs||{},
+      inventoryPerson:config.inventoryPerson||'',
+      parVersion:config.parVersion||PAR_VERSION
+    };
+  }catch(err){console.error('Error loading from Firestore:',err);return null}
+}
 function dk(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function getDayData(key){const d=loadData();return(d.days&&d.days[key])||{}}
 function setField(key,itemId,field,value){
   const d=loadData();if(!d.days)d.days={};if(!d.days[key])d.days[key]={};if(!d.days[key][itemId])d.days[key][itemId]={};
   d.days[key][itemId][field]=value;saveData(d);
+}
+
+// ==================== AUTHENTICATION ====================
+async function handleLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const errorEl=document.getElementById('loginError');
+  const btn=document.getElementById('loginBtn');
+
+  if(!email||!password){
+    errorEl.textContent='Please enter email and password.';
+    errorEl.style.display='block';
+    return;
+  }
+
+  btn.disabled=true;
+  btn.textContent='Signing in...';
+  errorEl.style.display='none';
+
+  try{
+    await auth.signInWithEmailAndPassword(email,password);
+    // Auth state listener will handle the rest
+  }catch(err){
+    errorEl.textContent=err.message;
+    errorEl.style.display='block';
+    btn.disabled=false;
+    btn.textContent='Sign In';
+  }
+}
+
+function toggleSignUp(){
+  const container=document.getElementById('loginFormContainer');
+  const isSignUp=container.dataset.mode==='signup';
+  if(isSignUp){
+    container.innerHTML=`
+      <input type="email" id="loginEmail" placeholder="Email address" onkeydown="if(event.key==='Enter')handleLogin()">
+      <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+      <div class="login-error" id="loginError"></div>
+      <button onclick="handleLogin()" id="loginBtn">Sign In</button>`;
+    document.querySelector('.login-signup').innerHTML='Don\'t have an account? <a onclick="toggleSignUp()">Sign up</a>';
+    container.dataset.mode='signin';
+  }else{
+    container.innerHTML=`
+      <input type="email" id="loginEmail" placeholder="Email address" onkeydown="if(event.key==='Enter')handleSignUp()">
+      <input type="password" id="loginPassword" placeholder="Password (min 6 chars)" onkeydown="if(event.key==='Enter')handleSignUp()">
+      <input type="password" id="loginPasswordConfirm" placeholder="Confirm password" onkeydown="if(event.key==='Enter')handleSignUp()">
+      <div class="login-error" id="loginError"></div>
+      <button onclick="handleSignUp()" id="loginBtn">Create Account</button>`;
+    document.querySelector('.login-signup').innerHTML='Have an account? <a onclick="toggleSignUp()">Sign in</a>';
+    container.dataset.mode='signup';
+  }
+  document.getElementById('loginError').style.display='none';
+}
+
+async function handleSignUp(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const confirmPassword=document.getElementById('loginPasswordConfirm').value;
+  const errorEl=document.getElementById('loginError');
+  const btn=document.getElementById('loginBtn');
+
+  if(!email||!password||!confirmPassword){
+    errorEl.textContent='Please fill in all fields.';
+    errorEl.style.display='block';
+    return;
+  }
+
+  if(password!==confirmPassword){
+    errorEl.textContent='Passwords do not match.';
+    errorEl.style.display='block';
+    return;
+  }
+
+  if(password.length<6){
+    errorEl.textContent='Password must be at least 6 characters.';
+    errorEl.style.display='block';
+    return;
+  }
+
+  btn.disabled=true;
+  btn.textContent='Creating account...';
+  errorEl.style.display='none';
+
+  try{
+    await auth.createUserWithEmailAndPassword(email,password);
+    // Auth state listener will handle the rest
+  }catch(err){
+    errorEl.textContent=err.message;
+    errorEl.style.display='block';
+    btn.disabled=false;
+    btn.textContent='Create Account';
+  }
+}
+
+function handleLogout(){
+  if(!confirm('Sign out?'))return;
+  auth.signOut().catch(err=>console.error('Logout error:',err));
+}
+
+// Set up auth state listener
+auth.onAuthStateChanged(async(user)=>{
+  currentUser=user;
+  const loginOverlay=document.getElementById('loginOverlay');
+  const userEmailEl=document.getElementById('userEmail');
+
+  if(user){
+    // User is logged in
+    currentUser=user;
+    firebaseReady=true;
+    loginOverlay.classList.add('hidden');
+    userEmailEl.textContent=user.email;
+
+    // Try to load data from Firestore
+    const fsData=await loadDataFromFirestore();
+    if(fsData){
+      // Update local cache with Firestore data
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(fsData))}catch(e){}
+      items=fsData.items;
+    }else{
+      // Fall back to existing local data
+      const d=loadData();
+      items=d.items;
+    }
+
+    // Set up real-time listeners
+    setupRealtimeListeners();
+
+    // Start the app
+    if(typeof render==='function'){render()}
+    if(typeof goToToday==='function'){goToToday()}
+  }else{
+    // User is logged out
+    currentUser=null;
+    firebaseReady=false;
+    loginOverlay.classList.remove('hidden');
+    userEmailEl.textContent='';
+    document.getElementById('loginEmail').value='';
+    document.getElementById('loginPassword').value='';
+    document.getElementById('loginError').style.display='none';
+    document.getElementById('loginBtn').disabled=false;
+    document.getElementById('loginBtn').textContent='Sign In';
+  }
+});
+
+function setupRealtimeListeners(){
+  if(!currentUser)return;
+  // Listen to config/settings changes
+  db.collection('config').doc('settings').onSnapshot(doc=>{
+    if(doc.exists){
+      const config=doc.data();
+      const d=loadData();
+      d.items=config.items||d.items;
+      d.emails=config.emails||d.emails;
+      d.password=config.password||d.password;
+      d.emailjs=config.emailjs||d.emailjs;
+      d.inventoryPerson=config.inventoryPerson||d.inventoryPerson;
+      items=d.items;
+      // Update local cache
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
+      // Re-render if needed
+      if(currentTab!=='history'&&currentTab!=='analytics'){renderTable()}
+    }
+  },err=>console.error('Config listener error:',err));
+
+  // Listen to days collection changes
+  db.collection('days').onSnapshot(snap=>{
+    snap.docChanges().forEach(change=>{
+      if(change.type==='added'||change.type==='modified'){
+        const dateKey=change.doc.id;
+        const d=loadData();
+        if(!d.days)d.days={};
+        d.days[dateKey]=change.doc.data();
+        // Update local cache
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
+      }
+    });
+    // Re-render if viewing current date
+    if(dk(currentDate)===snap.docs.find(doc=>doc.id===dk(currentDate))?.id){
+      if(typeof renderTable==='function'){renderTable()}
+      if(typeof renderStats==='function'){renderStats()}
+    }
+  },err=>console.error('Days listener error:',err));
 }
 function getPar(item,date){const dn=DAYS[date.getDay()];return(item.par&&item.par[dn])||0}
 function isSunday(date){return date.getDay()===0}
@@ -1396,7 +1685,8 @@ function sendReport(){
 }
 
 // ==================== INIT ====================
-loadData();goToToday();
+// Firebase auth state listener will handle initialization
+// The app will start once a user is authenticated
 </script>
 </body>
 </html>
