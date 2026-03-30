@@ -1305,35 +1305,7 @@ function generatePDF(){
   return doc;
 }
 
-function sendReport(){
-  const d=loadData();
-  const emails=d.emails||[];
-  const person=loadInventoryPerson();
-
-  if(!person){
-    alert('Please enter the inventory person name before sending the report.');
-    document.getElementById('inventoryPerson').focus();
-    return;
-  }
-
-  const doc=generatePDF();
-  const dateStr=dk(currentDate);
-  const filename=`NNC-Kitchen-Report-${dateStr}.pdf`;
-
-  // Download the PDF
-  doc.save(filename);
-
-  // Open email client with distribution list
-  if(emails.length){
-    const subject=encodeURIComponent(`NNC Kitchen Inventory Report - ${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getDate()}, ${currentDate.getFullYear()}`);
-    const body=encodeURIComponent(`Hi Team,\n\nPlease find attached the daily kitchen inventory report for ${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getDate()}, ${currentDate.getFullYear()}.\n\nInventory conducted by: ${person}\n\nPlease attach the downloaded PDF (${filename}) to this email.\n\nThank you.`);
-    const mailto=`mailto:${emails.join(',')}?subject=${subject}&body=${body}`;
-    setTimeout(()=>window.open(mailto,'_blank'),500);
-    showToast('PDF downloaded. Email client opening...');
-  }else{
-    showToast('PDF downloaded. Add emails in Settings to send reports.');
-  }
-}
+// sendReport is defined below with EmailJS + HTML table integration
 
 // ==================== PAR EDITOR ====================
 function renderParEditor(){
