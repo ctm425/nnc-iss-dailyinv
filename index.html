@@ -926,7 +926,7 @@ function renderTable(){
   filtered.forEach(item=>{if(groups[item.category])groups[item.category].push(item)});
 
   let html=`<table><thead><tr>
-    <th>Item</th><th>Today's Par</th><th>AM</th><th>Status</th><th>PM</th><th>Usage</th><th>Tmrw Par</th><th>Order</th><th>Extra</th><th class="total-order-head">Total Order</th><th>Reason</th>
+    <th>Item</th><th>Today's Par</th><th>AM</th><th>Status</th><th>PM</th><th>Usage</th><th>Order</th><th>Extra</th><th class="total-order-head">Total Order</th><th style="color:var(--gray-400)">Tmrw Par</th><th>Reason</th>
   </tr></thead><tbody>`;
 
   ['kitchen','produce'].forEach(cat=>{
@@ -1000,6 +1000,7 @@ function renderTable(){
       const reasonHtml=`<select class="reason-select" onchange="onReasonChange('${key}','${item.id}',this.value)" title="${currentReason==='other'?reasonOther:''}">
         <option value=""${!currentReason?' selected':''}>-</option>
         <option value="slow"${currentReason==='slow'?' selected':''}>Business Slow</option>
+        <option value="sufficient"${currentReason==='sufficient'?' selected':''}>Sufficient Qty on Hand</option>
         <option value="catering"${currentReason==='catering'?' selected':''}>Catering/Large Order</option>
         <option value="holiday"${currentReason==='holiday'?' selected':''}>Holiday</option>
         <option value="prep"${currentReason==='prep'?' selected':''}>Additional Prep Needed</option>
@@ -1014,11 +1015,11 @@ function renderTable(){
         <td><input type="number" value="${pm!==undefined?r2(pm):''}" step="0.5" min="0"
           onchange="onPMChange('${key}','${item.id}',this.value)"></td>
         <td><span class="usage-val ${usageCls}">${usage!==''?usage:'-'}</span></td>
-        <td><span class="par-val" style="color:#b45309">${r2(tomorrowPar)}</span></td>
         <td>${orderHtml}</td>
         <td><input type="number" class="extra-field" value="${extraOrderVal}" step="0.5" min="0" placeholder="0"
           onchange="setField('${key}','${item.id}','extraOrder',this.value===''?undefined:Number(this.value));render()"${orderDisabled}></td>
         <td class="total-order-cell"><strong>${totalDisplay}</strong></td>
+        <td style="color:var(--gray-400);font-size:.78rem;text-align:center">${r2(tomorrowPar)}</td>
         <td>${reasonHtml}</td>
       </tr>`;
     });
@@ -1072,19 +1073,57 @@ function onPMChange(key,itemId,val){
   renderTable();renderStats();
 }
 
+let historyView='both';
 function renderHistory(){
   document.getElementById('filterBar').style.display='flex';
   const dates=[];for(let i=6;i>=0;i--){const d=new Date(currentDate);d.setDate(d.getDate()-i);dates.push(d)}
-  let html=`<table style="font-size:.85rem"><thead><tr><th>Item</th>`;
-  dates.forEach(d=>{html+=`<th style="text-align:center">${(d.getMonth()+1)}/${d.getDate()}<br><span style="font-weight:400;font-size:.7rem">${DAY_SHORT[d.getDay()]}</span></th>`});
-  html+=`</tr></thead><tbody>`;
+  const showUsage=historyView==='usage'||historyView==='both';
+  const showOrder=historyView==='order'||historyView==='both';
+
+  let html=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <label style="font-weight:600;font-size:.85rem">Show:</label>
+    <button class="btn btn-sm ${historyView==='both'?'btn-primary':'btn-white'}" onclick="historyView='both';renderHistory()">Both</button>
+    <button class="btn btn-sm ${historyView==='usage'?'btn-primary':'btn-white'}" onclick="historyView='usage';renderHistory()">Usage Only</button>
+    <button class="btn btn-sm ${historyView==='order'?'btn-primary':'btn-white'}" onclick="historyView='order';renderHistory()">Total Order Only</button>
+  </div>`;
+
+  html+=`<table style="font-size:.85rem"><thead><tr><th>Item</th>`;
+  dates.forEach(d=>{
+    const dateLabel=`${(d.getMonth()+1)}/${d.getDate()}<br><span style="font-weight:400;font-size:.7rem">${DAY_SHORT[d.getDay()]}</span>`;
+    if(historyView==='both'){
+      html+=`<th style="text-align:center" colspan="2">${dateLabel}</th>`;
+    }else{
+      html+=`<th style="text-align:center">${dateLabel}</th>`;
+    }
+  });
+  html+=`</tr>`;
+  if(historyView==='both'){
+    html+=`<tr><th></th>`;
+    dates.forEach(()=>{
+      html+=`<th style="text-align:center;font-size:.65rem;color:var(--gray-400);padding:2px 4px">Use</th><th style="text-align:center;font-size:.65rem;color:var(--primary);padding:2px 4px">Order</th>`;
+    });
+    html+=`</tr>`;
+  }
+  html+=`</thead><tbody>`;
+
   items.forEach(item=>{
     if(searchQuery&&!item.name.toLowerCase().includes(searchQuery.toLowerCase()))return;
     html+=`<tr><td><span class="item-name">${item.name}</span> <span class="item-unit">(${item.unit})</span></td>`;
     dates.forEach(d=>{
       const dd=getDayData(dk(d))[item.id]||{};
-      const no=dd.normalOrder||0;const eo=dd.extraOrder||0;const total=no+eo;
-      html+=`<td style="text-align:center;font-weight:600;${total>0?'color:var(--primary)':''}">${total||'-'}</td>`;
+      if(showUsage){
+        const savedCurrent=new Date(currentDate);currentDate=d;
+        const am=calcAM(item.id);
+        currentDate=savedCurrent;
+        const pm=dd.pm;
+        const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):null;
+        const usageColor=usage!==null?(usage>0?'color:#16a34a':usage<0?'color:#dc2626':''):'color:var(--gray-300)';
+        html+=`<td style="text-align:center;font-size:.8rem;${usageColor}">${usage!==null?usage:'-'}</td>`;
+      }
+      if(showOrder){
+        const no=dd.normalOrder||0;const eo=dd.extraOrder||0;const total=no+eo;
+        html+=`<td style="text-align:center;font-weight:600;${total>0?'color:var(--primary)':''}">${total||'-'}</td>`;
+      }
     });
     html+=`</tr>`;
   });
@@ -1093,7 +1132,7 @@ function renderHistory(){
 }
 
 // ==================== ANALYTICS ====================
-const REASON_LABELS={slow:'Business Slow',catering:'Catering/Large Order',holiday:'Holiday',prep:'Additional Prep Needed',other:'Other'};
+const REASON_LABELS={slow:'Business Slow',sufficient:'Sufficient Qty on Hand',catering:'Catering/Large Order',holiday:'Holiday',prep:'Additional Prep Needed',other:'Other'};
 
 function getUniquePeople(){
   const d=loadData();
@@ -1848,7 +1887,7 @@ function exportDailyExcel(){
   const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
 
   const wb=XLSX.utils.book_new();
-  const header=['Category','Item','Unit','Today\'s Par','AM Count','PM Count','Usage','Tmrw Par','Normal Order','Extra Order','Total Order','Reason'];
+  const header=['Category','Item','Unit','Today\'s Par','AM Count','PM Count','Usage','Normal Order','Extra Order','Total Order','Tmrw Par','Reason'];
   const rows=[];
   items.forEach(item=>{
     const d=dd[item.id]||{};
@@ -1866,7 +1905,7 @@ function exportDailyExcel(){
     rows.push([
       CAT_LABELS[item.category],item.name,item.unit,
       par,am!==null?r2(am):'',pm!==undefined?r2(pm):'',
-      usage!==''?usage:'',tmrwPar,no!==null?r2(no):'',eo||'',total||'',reason
+      usage!==''?usage:'',no!==null?r2(no):'',eo||'',total||'',tmrwPar,reason
     ]);
   });
 
@@ -2030,12 +2069,12 @@ function buildReportHTML(){
       <td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600;font-size:13px">${item.name} <span style="color:#999;font-weight:400;font-size:11px">(${item.unit})</span></td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:#b45309;font-weight:600">${par}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${am!==null?r2(am):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${pm!==undefined?r2(pm):'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;background:#eff6ff;font-weight:600">${pm!==undefined?r2(pm):'-'}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:${usageColor};font-weight:600">${usage!==''?usage:'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:#b45309;font-weight:600">${tmrwPar}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${no!==null?r2(no):'-'}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${eo||'-'}</td>
       <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:center;font-size:15px;font-weight:800;background:${totalBg};color:${totalColor};letter-spacing:0.5px">${total||'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">${tmrwPar}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:11px;color:#666">${reasonText||'-'}</td>
     </tr>`;
   });
@@ -2058,12 +2097,12 @@ function sendReport(){
       <th style="padding:8px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Item</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Today's Par</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">AM</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">PM</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f;background:#2563eb;font-weight:700">PM</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Usage</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f;color:#fbbf24;font-weight:700">Tmrw Par</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Order</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Extra</th>
       <th style="padding:8px 10px;color:#fff;text-align:center;font-size:12px;text-transform:uppercase;font-weight:800;border:1px solid #1e3a5f;background:#b45309;letter-spacing:1px">TOTAL ORDER</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:10px;text-transform:uppercase;border:1px solid #1e3a5f;color:#94a3b8">Tmrw Par</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Reason</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
