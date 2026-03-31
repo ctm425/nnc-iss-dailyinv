@@ -1022,8 +1022,8 @@ function renderAnalytics(){
   });
   html+=`</select>
       <div style="margin-left:auto;display:flex;gap:8px">
-        <button class="btn btn-sm btn-primary" onclick="exportDailyExcel()">Export Daily Excel</button>
-        <button class="btn btn-sm btn-success" onclick="exportAnalyticsExcel()">Export Analytics Excel</button>
+        <button class="btn btn-sm btn-primary" onclick="exportCurrentViewExcel()">Export to Excel</button>
+        <button class="btn btn-sm btn-white" onclick="exportCurrentViewPDF()">Export to PDF</button>
       </div>
     </div>
     <div class="chart-container"><canvas id="analyticsCanvas"></canvas></div>
@@ -1111,6 +1111,107 @@ function updateAnalytics(){
   }
   pivotHtml+='</tbody></table>';
   document.getElementById('pivotTable').innerHTML=pivotHtml;
+}
+
+// ==================== ANALYTICS EXPORTS ====================
+function getAnalyticsExportData(){
+  const view=document.getElementById('analyticsView')?.value||'daily';
+  const itemSelect=document.getElementById('analyticsItem');
+  const itemId=itemSelect?.value||'__all__';
+  const itemLabel=itemSelect?.options[itemSelect.selectedIndex]?.text||'All Kitchen Items';
+  const rawData=getUsageData();
+  let labels=[],values=[],viewLabel='';
+
+  if(view==='daily'){
+    viewLabel='Daily Usage';
+    rawData.slice(-30).forEach(r=>{labels.push(r.date);values.push(r.usage)});
+  }else if(view==='weekly'){
+    viewLabel='Weekly Usage';
+    const weeks={};
+    rawData.forEach(r=>{
+      const d=new Date(r.date);const ws=new Date(d);ws.setDate(d.getDate()-d.getDay());
+      const wk=dk(ws);if(!weeks[wk])weeks[wk]={total:0,count:0};
+      weeks[wk].total+=r.usage;weeks[wk].count++;
+    });
+    Object.keys(weeks).sort().slice(-12).forEach(wk=>{labels.push(wk);values.push(weeks[wk].total)});
+  }else{
+    viewLabel='Monthly Usage';
+    const months={};
+    rawData.forEach(r=>{const mo=r.date.slice(0,7);if(!months[mo])months[mo]=0;months[mo]+=r.usage});
+    Object.keys(months).sort().slice(-12).forEach(mo=>{labels.push(mo);values.push(months[mo])});
+  }
+  const total=values.reduce((a,b)=>a+b,0);
+  const avg=values.length?(total/values.length).toFixed(1):0;
+  return {view,viewLabel,itemLabel,labels,values,total,avg};
+}
+
+function exportCurrentViewExcel(){
+  const {viewLabel,itemLabel,labels,values,total,avg}=getAnalyticsExportData();
+  const wb=XLSX.utils.book_new();
+  const header=['Period','Usage'];
+  const rows=labels.map((l,i)=>[l,values[i]]);
+  rows.push([]);
+  rows.push(['Total',total]);
+  rows.push(['Average',Number(avg)]);
+  const wsData=[
+    ['Naan N Curry Issaquah - '+viewLabel],
+    ['Item: '+itemLabel,'Generated: '+new Date().toLocaleDateString()],
+    [],
+    header,
+    ...rows
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:20},{wch:14}];
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:1}}];
+  XLSX.utils.book_append_sheet(wb,ws,viewLabel);
+  XLSX.writeFile(wb,'NNC-'+viewLabel.replace(/\s+/g,'-')+'-'+dk(new Date())+'.xlsx');
+  showToast(viewLabel+' exported to Excel');
+}
+
+function exportCurrentViewPDF(){
+  const {viewLabel,itemLabel,labels,values,total,avg}=getAnalyticsExportData();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter'});
+
+  // Header
+  doc.setFillColor(30,58,95);
+  doc.rect(0,0,216,20,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(14);doc.setFont('helvetica','bold');
+  doc.text('Naan N Curry Issaquah - '+viewLabel,14,10);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text('Item: '+itemLabel+'  |  Generated: '+new Date().toLocaleDateString(),14,16);
+
+  // Table
+  const rows=labels.map((l,i)=>[l,r2(values[i])]);
+  rows.push(['','']);
+  rows.push(['Total',r2(total)]);
+  rows.push(['Average',avg]);
+
+  doc.autoTable({
+    startY:25,
+    head:[['Period','Usage']],
+    body:rows,
+    theme:'grid',
+    headStyles:{fillColor:[30,58,95],textColor:255,fontStyle:'bold',fontSize:9,halign:'center'},
+    bodyStyles:{fontSize:9},
+    columnStyles:{0:{cellWidth:80},1:{halign:'center',cellWidth:40}},
+    margin:{left:14,right:14},
+    didParseCell:function(data){
+      if(data.section==='body'){
+        const txt=String(data.cell.raw||'');
+        if(txt==='Total'||txt==='Average'){data.cell.styles.fontStyle='bold';data.cell.styles.fillColor=[240,240,240]}
+      }
+    }
+  });
+
+  // Footer
+  const pageH=doc.internal.pageSize.getHeight();
+  doc.setFontSize(7);doc.setTextColor(150);
+  doc.text('Generated '+new Date().toLocaleString()+' | NNC Inventory System',14,pageH-6);
+
+  doc.save('NNC-'+viewLabel.replace(/\s+/g,'-')+'-'+dk(new Date())+'.pdf');
+  showToast(viewLabel+' exported to PDF');
 }
 
 // ==================== NAV ====================
