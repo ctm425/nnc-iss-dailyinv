@@ -807,8 +807,8 @@ function hasManualAM(itemId){
 
 function calcNormalOrder(item,pmVal){
   if(pmVal===undefined||pmVal===null||pmVal==='') return null;
-  // If Sunday and orders not enabled, return 0 (no Monday delivery)
-  if(isSunday(currentDate)&&!sundayOrdersEnabled) return 0;
+  // If Sunday and orders not enabled, return 0 for kitchen items (no Monday delivery)
+  if(isSunday(currentDate)&&!sundayOrdersEnabled&&item.category==='kitchen') return 0;
   const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
   const nextPar=getPar(item,nextDay);
   return Math.max(0, nextPar - Number(pmVal));
@@ -936,13 +936,14 @@ function renderTable(){
       const isManualAM=hasManualAM(item.id);
       const pm=d.pm;
       const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+      const itemSunBlock=sunNoOrder&&item.category==='kitchen';
       const autoOrder=calcNormalOrder(item,pm);
       const isManualOrdCheck=d.manualOrder===true;
       const normalOrder=isManualOrdCheck&&d.normalOrder!==undefined?Number(d.normalOrder):autoOrder;
       const extraOrder=d.extraOrder!==undefined?d.extraOrder:'';
       const usageCls=usage!==''?(usage>0?'positive':usage<0?'negative':''):'';
       const hasOrder=(normalOrder!==null&&normalOrder>0)||(Number(extraOrder)>0);
-      const totalOrder=sunNoOrder?0:r2((normalOrder||0)+Number(extraOrder||0));
+      const totalOrder=itemSunBlock?0:r2((normalOrder||0)+Number(extraOrder||0));
 
       // AM status: compare AM vs Today Par
       let amStatus='';
@@ -955,7 +956,7 @@ function renderTable(){
       const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
       const tomorrowPar=getPar(item,nextDay);
       let orderStatus='';
-      if(pm!==undefined&&!sunNoOrder&&tomorrowPar>0){
+      if(pm!==undefined&&!itemSunBlock&&tomorrowPar>0){
         const projected=r2(Number(pm)+totalOrder);
         if(projected>=tomorrowPar){orderStatus=`<div class="cell-ok" style="padding:3px 4px;text-align:center"><span class="surplus-hint">+${r2(projected-tomorrowPar)}</span></div>`}
         else{const gap=r2(tomorrowPar-projected);orderStatus=`<div class="cell-warn" style="padding:3px 4px;text-align:center"><span class="shortage-hint">${gap} short tmrw</span></div>`}
@@ -972,16 +973,16 @@ function renderTable(){
         ${isManualAM?`<button class="am-reset" onclick="resetAM('${key}','${item.id}')" title="Reset to auto-calculate">x</button>`:''}
       </div>`;
 
-      // Sunday: order fields disabled unless enabled
-      const orderDisabled=sunNoOrder?' disabled':'';
+      // Sunday: order fields disabled unless enabled (kitchen only)
+      const orderDisabled=itemSunBlock?' disabled':'';
       const isManualOrd=hasManualOrder(item.id);
-      const normalOrderVal=sunNoOrder?0:(isManualOrd?(d.normalOrder!==undefined?r2(d.normalOrder):''):(normalOrder!==null?r2(normalOrder):''));
-      const extraOrderVal=sunNoOrder?0:extraOrder;
-      const totalDisplay=sunNoOrder?0:(totalOrder||'-');
+      const normalOrderVal=itemSunBlock?0:(isManualOrd?(d.normalOrder!==undefined?r2(d.normalOrder):''):(normalOrder!==null?r2(normalOrder):''));
+      const extraOrderVal=itemSunBlock?0:extraOrder;
+      const totalDisplay=itemSunBlock?0:(totalOrder||'-');
 
       // Order: editable input, shows auto value but can be overridden (like AM)
       const orderClass=isManualOrd?'auto-field overridden':'auto-field';
-      const orderHtml=sunNoOrder?
+      const orderHtml=itemSunBlock?
         `<input type="number" class="auto-field" value="0" disabled>`:
         `<div class="am-cell">
           <input type="number" class="${orderClass}" value="${normalOrderVal}" step="0.5" min="0"
@@ -1001,7 +1002,7 @@ function renderTable(){
         <option value="other"${currentReason==='other'?' selected':''}>Other</option>
       </select>${currentReason==='other'?`<input type="text" class="reason-other-input" value="${reasonOther.replace(/"/g,'&quot;')}" placeholder="Specify..." onchange="setField('${key}','${item.id}','reasonOther',this.value);saveData(loadData())">`:'' }`;
 
-      html+=`<tr${hasOrder&&!sunNoOrder?' style="background:#fef2f2"':''}>
+      html+=`<tr${hasOrder&&!itemSunBlock?' style="background:#fef2f2"':''}>
         <td><span class="item-name">${item.name}</span> <span class="item-unit">(${item.unit})</span></td>
         <td><span class="par-val">${r2(par)}</span></td>
         <td>${amHtml}</td>
