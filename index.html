@@ -263,8 +263,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   <div class="stats-bar" id="statsBar"></div>
 
   <div class="tab-bar">
-    <div class="tab active" onclick="setTab(this,'all')">All Items</div>
-    <div class="tab" onclick="setTab(this,'kitchen')">NNC Main Kitchen</div>
+    <div class="tab active" onclick="setTab(this,'kitchen')">NNC Main Kitchen</div>
     <div class="tab" onclick="setTab(this,'produce')">Issaquah Produce</div>
     <div class="tab" onclick="setTab(this,'history')">7-Day History</div>
     <div class="tab" onclick="setTab(this,'analytics')">Analytics</div>
@@ -432,7 +431,7 @@ const DEFAULT_ITEMS = [
 
 // ==================== STATE ====================
 let currentDate = new Date();
-let currentTab = 'all';
+let currentTab = 'kitchen';
 let searchQuery = '';
 let activeFilters = new Set();
 let items = [];
@@ -802,6 +801,50 @@ function calcNormalOrder(item,pmVal){
   return Math.max(0, nextPar - Number(pmVal));
 }
 
+function hasManualOrder(itemId){
+  const key=dk(currentDate);
+  const todayData=getDayData(key)[itemId]||{};
+  return todayData.manualOrder===true;
+}
+
+function onOrderChange(key,itemId,val){
+  if(val===''){
+    // Clear manual override, revert to auto
+    const d=loadData();
+    if(d.days&&d.days[key]&&d.days[key][itemId]){
+      delete d.days[key][itemId].manualOrder;
+      // Recalculate from PM
+      const item=items.find(i=>i.id===itemId);
+      const pm=d.days[key][itemId].pm;
+      if(item&&pm!==undefined){
+        d.days[key][itemId].normalOrder=calcNormalOrder(item,pm);
+      }else{
+        delete d.days[key][itemId].normalOrder;
+      }
+      saveData(d);
+    }
+  }else{
+    setField(key,itemId,'normalOrder',Number(val));
+    setField(key,itemId,'manualOrder',true);
+  }
+  render();
+}
+
+function resetOrder(key,itemId){
+  const d=loadData();
+  if(d.days&&d.days[key]&&d.days[key][itemId]){
+    delete d.days[key][itemId].manualOrder;
+    const item=items.find(i=>i.id===itemId);
+    const pm=d.days[key][itemId].pm;
+    if(item&&pm!==undefined){
+      d.days[key][itemId].normalOrder=calcNormalOrder(item,pm);
+    }
+    saveData(d);
+  }
+  render();
+  showToast('Order reset to auto-calculate');
+}
+
 // ==================== SUNDAY ORDER TOGGLE ====================
 function toggleSundayOrders(){
   sundayOrdersEnabled=!sundayOrdersEnabled;
@@ -854,7 +897,7 @@ function renderTable(){
   const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
 
   let filtered=items.filter(item=>{
-    if(currentTab!=='all'&&item.category!==currentTab)return false;
+    if(item.category!==currentTab)return false;
     if(searchQuery&&!item.name.toLowerCase().includes(searchQuery.toLowerCase()))return false;
     if(activeFilters.has('needsOrder')){
       const d=dd[item.id]||{};const no=calcNormalOrder(item,d.pm);const eo=d.extraOrder||0;
@@ -872,10 +915,7 @@ function renderTable(){
 
   ['kitchen','produce'].forEach(cat=>{
     if(!groups[cat]||!groups[cat].length)return;
-    if(currentTab==='all'){
-      const cls=cat==='produce'?'section-header produce-header':'section-header';
-      html+=`<tr class="${cls}"><td colspan="9">${CAT_LABELS[cat]} (${groups[cat].length})</td></tr>`;
-    }
+    // Section headers not needed since categories are on separate tabs
     groups[cat].forEach(item=>{
       const d=dd[item.id]||{};
       const par=getPar(item,currentDate);
@@ -883,7 +923,9 @@ function renderTable(){
       const isManualAM=hasManualAM(item.id);
       const pm=d.pm;
       const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
-      const normalOrder=calcNormalOrder(item,pm);
+      const autoOrder=calcNormalOrder(item,pm);
+      const isManualOrdCheck=d.manualOrder===true;
+      const normalOrder=isManualOrdCheck&&d.normalOrder!==undefined?Number(d.normalOrder):autoOrder;
       const extraOrder=d.extraOrder!==undefined?d.extraOrder:'';
       const usageCls=usage!==''?(usage>0?'positive':usage<0?'negative':''):'';
       const hasOrder=(normalOrder!==null&&normalOrder>0)||(Number(extraOrder)>0);
@@ -919,9 +961,21 @@ function renderTable(){
 
       // Sunday: order fields disabled unless enabled
       const orderDisabled=sunNoOrder?' disabled':'';
-      const normalOrderVal=sunNoOrder?0:(normalOrder!==null?r2(normalOrder):'');
+      const isManualOrd=hasManualOrder(item.id);
+      const normalOrderVal=sunNoOrder?0:(isManualOrd?(d.normalOrder!==undefined?r2(d.normalOrder):''):(normalOrder!==null?r2(normalOrder):''));
       const extraOrderVal=sunNoOrder?0:extraOrder;
       const totalDisplay=sunNoOrder?0:(totalOrder||'-');
+
+      // Order: editable input, shows auto value but can be overridden (like AM)
+      const orderClass=isManualOrd?'auto-field overridden':'auto-field';
+      const orderHtml=sunNoOrder?
+        `<input type="number" class="auto-field" value="0" disabled>`:
+        `<div class="am-cell">
+          <input type="number" class="${orderClass}" value="${normalOrderVal}" step="0.5" min="0"
+            onchange="onOrderChange('${key}','${item.id}',this.value)"
+            title="${isManualOrd?'Manual override (click reset to auto-calc)':'Auto: next day par - PM'}">
+          ${isManualOrd?`<button class="am-reset" onclick="resetOrder('${key}','${item.id}')" title="Reset to auto-calculate">x</button>`:''}
+        </div>`;
 
       html+=`<tr${hasOrder&&!sunNoOrder?' style="background:#fef2f2"':''}>
         <td><span class="item-name">${item.name}</span> <span class="item-unit">(${item.unit})</span></td>
@@ -931,7 +985,7 @@ function renderTable(){
         <td><input type="number" value="${pm!==undefined?r2(pm):''}" step="0.5" min="0"
           onchange="onPMChange('${key}','${item.id}',this.value)"></td>
         <td><span class="usage-val ${usageCls}">${usage!==''?usage:'-'}</span></td>
-        <td><input type="number" class="auto-field" value="${normalOrderVal}" readonly tabindex="-1"${orderDisabled}></td>
+        <td>${orderHtml}</td>
         <td><input type="number" class="extra-field" value="${extraOrderVal}" step="0.5" min="0" placeholder="0"
           onchange="setField('${key}','${item.id}','extraOrder',this.value===''?undefined:Number(this.value));render()"${orderDisabled}></td>
         <td class="total-order-cell"><strong>${totalDisplay}</strong></td>
@@ -965,7 +1019,8 @@ function onPMChange(key,itemId,val){
   const item=items.find(i=>i.id===itemId);
   const numVal=val===''?undefined:Number(val);
   setField(key,itemId,'pm',numVal);
-  if(item&&numVal!==undefined){
+  // Only auto-recalculate order if not manually overridden
+  if(item&&numVal!==undefined&&!hasManualOrder(itemId)){
     const no=calcNormalOrder(item,numVal);
     setField(key,itemId,'normalOrder',no);
   }
@@ -1737,7 +1792,8 @@ function buildReportHTML(){
     const am=calcAM(item.id);
     const pm=d.pm;
     const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
-    const no=calcNormalOrder(item,pm);
+    const autoNo=calcNormalOrder(item,pm);
+    const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
     const eo=d.extraOrder||0;
     const total=sunNoOrder?0:r2((no||0)+Number(eo));
     const usageColor=usage!==''?(usage<0?'#dc2626':usage>0?'#16a34a':'#333'):'#999';
