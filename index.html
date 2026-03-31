@@ -1021,6 +1021,13 @@ function renderAnalytics(){
     html+=`<option value="${item.id}">${item.name}</option>`;
   });
   html+=`</select>
+      <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
+        <label style="font-weight:600;font-size:.85rem">From:</label>
+        <input type="date" id="analyticsFrom" onchange="updateAnalytics()" style="font-size:.85rem">
+        <label style="font-weight:600;font-size:.85rem">To:</label>
+        <input type="date" id="analyticsTo" onchange="updateAnalytics()" style="font-size:.85rem">
+        <button class="btn btn-sm btn-white" onclick="clearDateRange()" title="Clear date range">Clear</button>
+      </div>
       <div style="margin-left:auto;display:flex;gap:8px">
         <button class="btn btn-sm btn-primary" onclick="exportCurrentViewExcel()">Export to Excel</button>
         <button class="btn btn-sm btn-white" onclick="exportCurrentViewPDF()">Export to PDF</button>
@@ -1033,14 +1040,26 @@ function renderAnalytics(){
   setTimeout(updateAnalytics,100);
 }
 
+function clearDateRange(){
+  const fromEl=document.getElementById('analyticsFrom');
+  const toEl=document.getElementById('analyticsTo');
+  if(fromEl)fromEl.value='';
+  if(toEl)toEl.value='';
+  updateAnalytics();
+}
+
 function getUsageData(days){
   const d=loadData();
   const results=[];
   if(!d.days)return results;
   const sortedKeys=Object.keys(d.days).filter(k=>k!=='__meta').sort();
   const itemId=document.getElementById('analyticsItem')?.value||'__all__';
+  const fromVal=document.getElementById('analyticsFrom')?.value||'';
+  const toVal=document.getElementById('analyticsTo')?.value||'';
 
   sortedKeys.forEach(dateKey=>{
+    if(fromVal&&dateKey<fromVal)return;
+    if(toVal&&dateKey>toVal)return;
     const dd=d.days[dateKey];
     let totalUsage=0,count=0;
     if(itemId==='__all__'){
@@ -1065,11 +1084,15 @@ function getUsageData(days){
 
 function updateAnalytics(){
   const view=document.getElementById('analyticsView')?.value||'daily';
+  const fromVal=document.getElementById('analyticsFrom')?.value||'';
+  const toVal=document.getElementById('analyticsTo')?.value||'';
+  const hasRange=fromVal||toVal;
   const rawData=getUsageData();
 
   let labels=[],values=[];
   if(view==='daily'){
-    rawData.slice(-30).forEach(r=>{labels.push(r.date.slice(5));values.push(r.usage)});
+    const data=hasRange?rawData:rawData.slice(-30);
+    data.forEach(r=>{labels.push(r.date.slice(5));values.push(r.usage)});
   }else if(view==='weekly'){
     const weeks={};
     rawData.forEach(r=>{
@@ -1079,7 +1102,8 @@ function updateAnalytics(){
       if(!weeks[wk])weeks[wk]={total:0,count:0};
       weeks[wk].total+=r.usage;weeks[wk].count++;
     });
-    Object.keys(weeks).sort().slice(-12).forEach(wk=>{labels.push(wk.slice(5));values.push(weeks[wk].total)});
+    const sorted=Object.keys(weeks).sort();
+    (hasRange?sorted:sorted.slice(-12)).forEach(wk=>{labels.push(wk.slice(5));values.push(weeks[wk].total)});
   }else{
     const months={};
     rawData.forEach(r=>{
@@ -1087,7 +1111,8 @@ function updateAnalytics(){
       if(!months[mo])months[mo]=0;
       months[mo]+=r.usage;
     });
-    Object.keys(months).sort().slice(-12).forEach(mo=>{labels.push(mo);values.push(months[mo])});
+    const sorted=Object.keys(months).sort();
+    (hasRange?sorted:sorted.slice(-12)).forEach(mo=>{labels.push(mo);values.push(months[mo])});
   }
 
   const canvas=document.getElementById('analyticsCanvas');
@@ -1119,26 +1144,33 @@ function getAnalyticsExportData(){
   const itemSelect=document.getElementById('analyticsItem');
   const itemId=itemSelect?.value||'__all__';
   const itemLabel=itemSelect?.options[itemSelect.selectedIndex]?.text||'All Kitchen Items';
+  const fromVal=document.getElementById('analyticsFrom')?.value||'';
+  const toVal=document.getElementById('analyticsTo')?.value||'';
   const rawData=getUsageData();
   let labels=[],values=[],viewLabel='';
+  const rangeLabel=(fromVal||toVal)?(' ('+( fromVal||'start')+' to '+(toVal||'now')+')'):'';
 
+  const hasRange=fromVal||toVal;
   if(view==='daily'){
-    viewLabel='Daily Usage';
-    rawData.slice(-30).forEach(r=>{labels.push(r.date);values.push(r.usage)});
+    viewLabel='Daily Usage'+rangeLabel;
+    const data=hasRange?rawData:rawData.slice(-30);
+    data.forEach(r=>{labels.push(r.date);values.push(r.usage)});
   }else if(view==='weekly'){
-    viewLabel='Weekly Usage';
+    viewLabel='Weekly Usage'+rangeLabel;
     const weeks={};
     rawData.forEach(r=>{
       const d=new Date(r.date);const ws=new Date(d);ws.setDate(d.getDate()-d.getDay());
       const wk=dk(ws);if(!weeks[wk])weeks[wk]={total:0,count:0};
       weeks[wk].total+=r.usage;weeks[wk].count++;
     });
-    Object.keys(weeks).sort().slice(-12).forEach(wk=>{labels.push(wk);values.push(weeks[wk].total)});
+    const sorted=Object.keys(weeks).sort();
+    (hasRange?sorted:sorted.slice(-12)).forEach(wk=>{labels.push(wk);values.push(weeks[wk].total)});
   }else{
-    viewLabel='Monthly Usage';
+    viewLabel='Monthly Usage'+rangeLabel;
     const months={};
     rawData.forEach(r=>{const mo=r.date.slice(0,7);if(!months[mo])months[mo]=0;months[mo]+=r.usage});
-    Object.keys(months).sort().slice(-12).forEach(mo=>{labels.push(mo);values.push(months[mo])});
+    const sorted=Object.keys(months).sort();
+    (hasRange?sorted:sorted.slice(-12)).forEach(mo=>{labels.push(mo);values.push(months[mo])});
   }
   const total=values.reduce((a,b)=>a+b,0);
   const avg=values.length?(total/values.length).toFixed(1):0;
