@@ -782,11 +782,12 @@ function r2(v){if(v===''||v===null||v===undefined)return v;const n=Number(v);ret
 function calcAM(itemId){
   const prev=new Date(currentDate);prev.setDate(prev.getDate()-1);
   const pd=getDayData(dk(prev))[itemId]||{};
+  const item=items.find(i=>i.id===itemId);
   // If previous day has PM data, calculate AM
   if(pd.pm!==undefined){
-    // Sunday = no delivery Monday, so Monday AM = Sunday PM (ignore orders)
-    if(prev.getDay()===0) return Number(pd.pm);
-    // All other days: AM = PM + Total Order
+    // Sunday = no delivery Monday for kitchen items only, so Monday AM = Sunday PM (ignore orders)
+    if(prev.getDay()===0&&item&&item.category==='kitchen') return Number(pd.pm);
+    // All other days (and produce on any day): AM = PM + Total Order
     const prevNormal=(pd.normalOrder!==undefined&&pd.normalOrder!==null)?Number(pd.normalOrder):0;
     const prevExtra=pd.extraOrder?Number(pd.extraOrder):0;
     return Number(pd.pm)+prevNormal+prevExtra;
@@ -923,7 +924,7 @@ function renderTable(){
   filtered.forEach(item=>{if(groups[item.category])groups[item.category].push(item)});
 
   let html=`<table><thead><tr>
-    <th>Item</th><th>Par</th><th>AM</th><th>Status</th><th>PM</th><th>Use</th><th>Order</th><th>Extra</th><th class="total-order-head">Total Order</th><th>Reason</th>
+    <th>Item</th><th>Today's Par</th><th>AM</th><th>Status</th><th>PM</th><th>Usage</th><th>Tmrw Par</th><th>Order</th><th>Extra</th><th class="total-order-head">Total Order</th><th>Reason</th>
   </tr></thead><tbody>`;
 
   ['kitchen','produce'].forEach(cat=>{
@@ -1010,6 +1011,7 @@ function renderTable(){
         <td><input type="number" value="${pm!==undefined?r2(pm):''}" step="0.5" min="0"
           onchange="onPMChange('${key}','${item.id}',this.value)"></td>
         <td><span class="usage-val ${usageCls}">${usage!==''?usage:'-'}</span></td>
+        <td><span class="par-val" style="color:#b45309">${r2(tomorrowPar)}</span></td>
         <td>${orderHtml}</td>
         <td><input type="number" class="extra-field" value="${extraOrderVal}" step="0.5" min="0" placeholder="0"
           onchange="setField('${key}','${item.id}','extraOrder',this.value===''?undefined:Number(this.value));render()"${orderDisabled}></td>
@@ -1250,8 +1252,9 @@ function calcAMForDate(dateKey,itemId,allDays){
   const prev=new Date(dateObj);prev.setDate(prev.getDate()-1);
   const prevKey=dk(prev);
   const pd=(allDays[prevKey]&&allDays[prevKey][itemId])||{};
+  const item=items.find(i=>i.id===itemId);
   if(pd.pm!==undefined){
-    if(prev.getDay()===0) return Number(pd.pm);
+    if(prev.getDay()===0&&item&&item.category==='kitchen') return Number(pd.pm);
     const prevNormal=(pd.normalOrder!==undefined&&pd.normalOrder!==null)?Number(pd.normalOrder):0;
     const prevExtra=pd.extraOrder?Number(pd.extraOrder):0;
     return Number(pd.pm)+prevNormal+prevExtra;
@@ -1842,7 +1845,7 @@ function exportDailyExcel(){
   const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
 
   const wb=XLSX.utils.book_new();
-  const header=['Category','Item','Unit','Today Par','AM Count','PM Count','Usage','Normal Order','Extra Order','Total Order','Reason'];
+  const header=['Category','Item','Unit','Today\'s Par','AM Count','PM Count','Usage','Tmrw Par','Normal Order','Extra Order','Total Order','Reason'];
   const rows=[];
   items.forEach(item=>{
     const d=dd[item.id]||{};
@@ -1850,6 +1853,8 @@ function exportDailyExcel(){
     const am=calcAM(item.id);
     const pm=d.pm;
     const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+    const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+    const tmrwPar=getPar(item,nextDay);
     const autoNo=calcNormalOrder(item,pm);
     const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
     const eo=d.extraOrder||0;
@@ -1858,7 +1863,7 @@ function exportDailyExcel(){
     rows.push([
       CAT_LABELS[item.category],item.name,item.unit,
       par,am!==null?r2(am):'',pm!==undefined?r2(pm):'',
-      usage!==''?usage:'',no!==null?r2(no):'',eo||'',total||'',reason
+      usage!==''?usage:'',tmrwPar,no!==null?r2(no):'',eo||'',total||'',reason
     ]);
   });
 
@@ -2008,6 +2013,8 @@ function buildReportHTML(){
     const am=calcAM(item.id);
     const pm=d.pm;
     const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+    const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+    const tmrwPar=getPar(item,nextDay);
     const autoNo=calcNormalOrder(item,pm);
     const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
     const eo=d.extraOrder||0;
@@ -2022,6 +2029,7 @@ function buildReportHTML(){
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${am!==null?r2(am):'-'}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${pm!==undefined?r2(pm):'-'}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:${usageColor};font-weight:600">${usage!==''?usage:'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:#b45309;font-weight:600">${tmrwPar}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${no!==null?r2(no):'-'}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${eo||'-'}</td>
       <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:center;font-size:15px;font-weight:800;background:${totalBg};color:${totalColor};letter-spacing:0.5px">${total||'-'}</td>
@@ -2045,10 +2053,11 @@ function sendReport(){
   const htmlTable=`<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial">
     <thead><tr style="background:#1e3a5f">
       <th style="padding:8px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Item</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Par</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Today's Par</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">AM</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">PM</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Usage</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f;color:#fbbf24;font-weight:700">Tmrw Par</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Order</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Extra</th>
       <th style="padding:8px 10px;color:#fff;text-align:center;font-size:12px;text-transform:uppercase;font-weight:800;border:1px solid #1e3a5f;background:#b45309;letter-spacing:1px">TOTAL ORDER</th>
