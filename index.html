@@ -1073,7 +1073,7 @@ function onPMChange(key,itemId,val){
   renderTable();renderStats();
 }
 
-let historyView='both';
+let historyView='usage';
 function renderHistory(){
   document.getElementById('filterBar').style.display='flex';
   const dates=[];for(let i=6;i>=0;i--){const d=new Date(currentDate);d.setDate(d.getDate()-i);dates.push(d)}
@@ -1082,9 +1082,13 @@ function renderHistory(){
 
   let html=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
     <label style="font-weight:600;font-size:.85rem">Show:</label>
+    <button class="btn btn-sm ${historyView==='usage'?'btn-primary':'btn-white'}" onclick="historyView='usage';renderHistory()">Usage</button>
+    <button class="btn btn-sm ${historyView==='order'?'btn-primary':'btn-white'}" onclick="historyView='order';renderHistory()">Total Order</button>
     <button class="btn btn-sm ${historyView==='both'?'btn-primary':'btn-white'}" onclick="historyView='both';renderHistory()">Both</button>
-    <button class="btn btn-sm ${historyView==='usage'?'btn-primary':'btn-white'}" onclick="historyView='usage';renderHistory()">Usage Only</button>
-    <button class="btn btn-sm ${historyView==='order'?'btn-primary':'btn-white'}" onclick="historyView='order';renderHistory()">Total Order Only</button>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-sm btn-primary" onclick="exportHistoryExcel()">Export to Excel</button>
+      <button class="btn btn-sm btn-white" onclick="exportHistoryPDF()">Export to PDF</button>
+    </div>
   </div>`;
 
   html+=`<table style="font-size:.85rem"><thead><tr><th>Item</th>`;
@@ -1129,6 +1133,90 @@ function renderHistory(){
   });
   html+='</tbody></table>';
   document.getElementById('mainContent').innerHTML=html;
+}
+
+function getHistoryData(){
+  const dates=[];for(let i=6;i>=0;i--){const d=new Date(currentDate);d.setDate(d.getDate()-i);dates.push(d)}
+  const showUsage=historyView==='usage'||historyView==='both';
+  const showOrder=historyView==='order'||historyView==='both';
+  const header=['Item'];
+  dates.forEach(d=>{
+    const lbl=(d.getMonth()+1)+'/'+d.getDate()+' ('+DAY_SHORT[d.getDay()]+')';
+    if(showUsage)header.push(lbl+' Use');
+    if(showOrder)header.push(lbl+' Order');
+  });
+  const rows=[];
+  items.forEach(item=>{
+    if(searchQuery&&!item.name.toLowerCase().includes(searchQuery.toLowerCase()))return;
+    const row=[item.name+' ('+item.unit+')'];
+    dates.forEach(d=>{
+      const dd=getDayData(dk(d))[item.id]||{};
+      if(showUsage){
+        const savedCurrent=new Date(currentDate);currentDate=d;
+        const am=calcAM(item.id);
+        currentDate=savedCurrent;
+        const pm=dd.pm;
+        const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+        row.push(usage!==''?usage:'');
+      }
+      if(showOrder){
+        const no=dd.normalOrder||0;const eo=dd.extraOrder||0;const total=no+eo;
+        row.push(total||'');
+      }
+    });
+    rows.push(row);
+  });
+  return {header,rows,dates,showUsage,showOrder};
+}
+
+function exportHistoryExcel(){
+  const {header,rows}=getHistoryData();
+  const viewLabel=historyView==='both'?'Usage & Orders':historyView==='usage'?'Usage':'Total Orders';
+  const wb=XLSX.utils.book_new();
+  const wsData=[
+    ['Naan N Curry Issaquah - 7-Day History ('+viewLabel+')'],
+    ['Generated: '+new Date().toLocaleDateString()],
+    [],
+    header,
+    ...rows
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=header.map((_,i)=>({wch:i===0?28:14}));
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.min(header.length-1,5)}}];
+  XLSX.utils.book_append_sheet(wb,ws,'7-Day History');
+  XLSX.writeFile(wb,'NNC-7Day-History-'+dk(new Date())+'.xlsx');
+  showToast('7-Day History exported to Excel');
+}
+
+function exportHistoryPDF(){
+  const {header,rows}=getHistoryData();
+  const viewLabel=historyView==='both'?'Usage & Orders':historyView==='usage'?'Usage':'Total Orders';
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter',orientation:'landscape'});
+
+  // Header
+  doc.setFillColor(30,58,95);
+  doc.rect(0,0,280,20,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(14);doc.setFont('helvetica','bold');
+  doc.text('Naan N Curry Issaquah - 7-Day History ('+viewLabel+')',14,10);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text('Generated: '+new Date().toLocaleDateString(),14,16);
+
+  doc.autoTable({
+    startY:25,
+    head:[header],
+    body:rows,
+    theme:'grid',
+    headStyles:{fillColor:[30,58,95],textColor:255,fontStyle:'bold',fontSize:7,halign:'center'},
+    bodyStyles:{fontSize:7},
+    columnStyles:{0:{cellWidth:40}},
+    margin:{left:10,right:10},
+    styles:{cellPadding:2}
+  });
+
+  doc.save('NNC-7Day-History-'+dk(new Date())+'.pdf');
+  showToast('7-Day History exported to PDF');
 }
 
 // ==================== ANALYTICS ====================
