@@ -69,7 +69,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-chip:hover,.filter-chip.active{background:var(--primary-light);color:#fff;border-color:var(--primary-light)}
 
 .table-wrap{padding:16px 24px;overflow-x:auto}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:820px}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:920px}
 thead th{background:var(--gray-100);padding:6px 5px;text-align:left;font-size:.68rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200);position:sticky;top:0;z-index:5}
 thead th:first-child{min-width:140px}
 tbody td{padding:4px 5px;border-bottom:1px solid var(--gray-100);font-size:.82rem}
@@ -88,6 +88,10 @@ input.auto-field:focus{box-shadow:0 0 0 3px rgba(34,197,94,.15)}
 input.auto-field.overridden{background:#fef3c7;border-color:#fbbf24;color:#92400e}
 input.extra-field{background:#eff6ff;border-color:#93c5fd}
 input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.reason-select{width:90px;padding:3px 2px;border:1px solid var(--gray-300);border-radius:5px;font-size:.72rem;background:#fff;cursor:pointer}
+.reason-select:focus{outline:none;border-color:var(--primary-light)}
+.reason-other-input{width:70px;padding:3px 4px;border:1px solid var(--gray-300);border-radius:5px;font-size:.72rem;margin-top:2px;display:block}
+.reason-other-input:focus{outline:none;border-color:var(--primary-light)}
 .am-cell{position:relative;display:flex;align-items:center;gap:4px}
 .am-reset{font-size:.65rem;cursor:pointer;color:var(--gray-400);padding:2px 4px;border-radius:4px;border:1px solid var(--gray-300);background:#fff;line-height:1}
 .am-reset:hover{color:var(--danger);border-color:var(--danger)}
@@ -143,6 +147,11 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 .analytics-wrap{padding:24px}
 .analytics-controls{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
 .analytics-controls select,.analytics-controls input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+.multi-select-wrap{position:relative}
+.multi-select-dropdown{position:absolute;top:100%;left:0;background:#fff;border:1px solid var(--gray-300);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:20;max-height:300px;overflow-y:auto;min-width:220px;padding:6px 0}
+.multi-select-option{display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:.82rem;cursor:pointer;white-space:nowrap}
+.multi-select-option:hover{background:var(--primary-bg)}
+.multi-select-option input[type=checkbox]{cursor:pointer}
 .chart-container{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px;margin-bottom:20px;position:relative;height:400px}
 .pivot-table{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px;overflow-x:auto}
 .pivot-table table{min-width:auto}
@@ -480,7 +489,7 @@ function loadData(){
   // Load from local cache (synced from Firestore)
   let d;
   try{const r=localStorage.getItem(STORAGE_KEY);if(r){d=JSON.parse(r);items=d.items||JSON.parse(JSON.stringify(DEFAULT_ITEMS));}}catch(e){}
-  if(!d){items=JSON.parse(JSON.stringify(DEFAULT_ITEMS));d={items,days:{},password:DEFAULT_PW,emails:[],inventoryPerson:''};}
+  if(!d){items=JSON.parse(JSON.stringify(DEFAULT_ITEMS));d={items,days:{},password:DEFAULT_PW,emails:[],emailjs:{},inventoryPerson:''};}
   if(!d.emails)d.emails=[];
   if(!d.inventoryPerson)d.inventoryPerson='';
   // Migrate PAR levels when version changes
@@ -718,13 +727,17 @@ function setupRealtimeListeners(){
       d.items=config.items||d.items;
       d.emails=config.emails||d.emails;
       d.password=config.password||d.password;
-      d.emailjs=config.emailjs||d.emailjs;
+      // Preserve emailjs: use Firestore value if it has a publicKey, otherwise keep local
+      if(config.emailjs&&config.emailjs.publicKey){d.emailjs=config.emailjs}
+      else if(!d.emailjs||!d.emailjs.publicKey){d.emailjs=config.emailjs||d.emailjs||{}}
       d.inventoryPerson=config.inventoryPerson||d.inventoryPerson;
       items=d.items;
       // Update local cache
       try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
       // Re-render if needed
       if(currentTab!=='history'&&currentTab!=='analytics'){renderTable()}
+      // Refresh EmailJS config on settings page if visible
+      if(typeof loadEmailJSConfig==='function')try{loadEmailJSConfig()}catch(e){}
     }
   },err=>console.error('Config listener error:',err));
 
@@ -910,7 +923,7 @@ function renderTable(){
   filtered.forEach(item=>{if(groups[item.category])groups[item.category].push(item)});
 
   let html=`<table><thead><tr>
-    <th>Item</th><th>Par</th><th>AM</th><th>Status</th><th>PM</th><th>Use</th><th>Order</th><th>Extra</th><th class="total-order-head">Total Order</th>
+    <th>Item</th><th>Par</th><th>AM</th><th>Status</th><th>PM</th><th>Use</th><th>Order</th><th>Extra</th><th class="total-order-head">Total Order</th><th>Reason</th>
   </tr></thead><tbody>`;
 
   ['kitchen','produce'].forEach(cat=>{
@@ -977,6 +990,17 @@ function renderTable(){
           ${isManualOrd?`<button class="am-reset" onclick="resetOrder('${key}','${item.id}')" title="Reset to auto-calculate">x</button>`:''}
         </div>`;
 
+      // Variance reason
+      const currentReason=d.reason||'';
+      const reasonOther=d.reasonOther||'';
+      const reasonHtml=`<select class="reason-select" onchange="onReasonChange('${key}','${item.id}',this.value)" title="${currentReason==='other'?reasonOther:''}">
+        <option value=""${!currentReason?' selected':''}>-</option>
+        <option value="slow"${currentReason==='slow'?' selected':''}>Business Slow</option>
+        <option value="catering"${currentReason==='catering'?' selected':''}>Catering/Large Order</option>
+        <option value="holiday"${currentReason==='holiday'?' selected':''}>Holiday</option>
+        <option value="other"${currentReason==='other'?' selected':''}>Other</option>
+      </select>${currentReason==='other'?`<input type="text" class="reason-other-input" value="${reasonOther.replace(/"/g,'&quot;')}" placeholder="Specify..." onchange="setField('${key}','${item.id}','reasonOther',this.value);saveData(loadData())">`:'' }`;
+
       html+=`<tr${hasOrder&&!sunNoOrder?' style="background:#fef2f2"':''}>
         <td><span class="item-name">${item.name}</span> <span class="item-unit">(${item.unit})</span></td>
         <td><span class="par-val">${r2(par)}</span></td>
@@ -989,6 +1013,7 @@ function renderTable(){
         <td><input type="number" class="extra-field" value="${extraOrderVal}" step="0.5" min="0" placeholder="0"
           onchange="setField('${key}','${item.id}','extraOrder',this.value===''?undefined:Number(this.value));render()"${orderDisabled}></td>
         <td class="total-order-cell"><strong>${totalDisplay}</strong></td>
+        <td>${reasonHtml}</td>
       </tr>`;
     });
   });
@@ -1013,6 +1038,13 @@ function resetAM(key,itemId){
   if(d.days&&d.days[key]&&d.days[key][itemId]){delete d.days[key][itemId].am;saveData(d)}
   render();
   showToast('AM reset to auto-calculate');
+}
+
+function onReasonChange(key,itemId,val){
+  setField(key,itemId,'reason',val);
+  if(val!=='other'){setField(key,itemId,'reasonOther','');}
+  saveData(loadData());
+  renderTable();
 }
 
 function onPMChange(key,itemId,val){
@@ -1055,34 +1087,90 @@ function renderHistory(){
 }
 
 // ==================== ANALYTICS ====================
+const REASON_LABELS={slow:'Business Slow',catering:'Catering/Large Order',holiday:'Holiday',other:'Other'};
+
+function getUniquePeople(){
+  const d=loadData();
+  const people=new Set();
+  if(d.days){
+    Object.keys(d.days).forEach(dateKey=>{
+      const meta=d.days[dateKey].__meta;
+      if(meta&&meta.inventoryPerson)people.add(meta.inventoryPerson);
+    });
+  }
+  return Array.from(people).sort();
+}
+
+function getUniqueReasons(){
+  const d=loadData();
+  const reasons=new Set();
+  if(d.days){
+    Object.keys(d.days).forEach(dateKey=>{
+      const dd=d.days[dateKey];
+      Object.keys(dd).forEach(itemId=>{
+        if(itemId==='__meta')return;
+        if(dd[itemId].reason)reasons.add(dd[itemId].reason);
+      });
+    });
+  }
+  return Array.from(reasons);
+}
+
 function renderAnalytics(){
   document.getElementById('filterBar').style.display='none';
   const d=loadData();
+  const people=getUniquePeople();
+  const reasons=getUniqueReasons();
+
   let html=`<div class="analytics-wrap">
-    <div class="analytics-controls">
-      <label style="font-weight:600">View:</label>
-      <select id="analyticsView" onchange="updateAnalytics()">
-        <option value="daily">Daily Usage</option>
-        <option value="weekly">Weekly Usage</option>
-        <option value="monthly">Monthly Usage</option>
-      </select>
-      <label style="font-weight:600;margin-left:12px">Item:</label>
-      <select id="analyticsItem" onchange="updateAnalytics()">
-        <option value="__all__">All Kitchen Items (Total)</option>`;
+    <div class="analytics-controls" style="flex-wrap:wrap;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-weight:600">View:</label>
+        <select id="analyticsView" onchange="updateAnalytics()">
+          <option value="daily">Daily Usage</option>
+          <option value="weekly">Weekly Usage</option>
+          <option value="monthly">Monthly Usage</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-weight:600">Items:</label>
+        <div class="multi-select-wrap" id="itemSelectWrap">
+          <button class="btn btn-sm btn-white" onclick="toggleItemDropdown()" id="itemSelectBtn" style="min-width:180px;text-align:left;justify-content:space-between">
+            All Kitchen Items <span style="font-size:.7rem;opacity:.6">▼</span>
+          </button>
+          <div class="multi-select-dropdown" id="itemDropdown" style="display:none">
+            <label class="multi-select-option"><input type="checkbox" value="__all__" checked onchange="onItemCheckChange(this)"> <strong>All Kitchen Items (Total)</strong></label>
+            <div style="border-top:1px solid var(--gray-200);margin:4px 0;padding-top:4px;font-size:.7rem;font-weight:700;color:var(--gray-400);text-transform:uppercase">NNC Main Kitchen</div>`;
   items.filter(i=>i.category==='kitchen').forEach(item=>{
-    html+=`<option value="${item.id}">${item.name}</option>`;
+    html+=`<label class="multi-select-option"><input type="checkbox" value="${item.id}" onchange="onItemCheckChange(this)"> ${item.name}</label>`;
   });
+  html+=`<div style="border-top:1px solid var(--gray-200);margin:4px 0;padding-top:4px;font-size:.7rem;font-weight:700;color:var(--gray-400);text-transform:uppercase">Issaquah Produce</div>`;
   items.filter(i=>i.category==='produce').forEach(item=>{
-    html+=`<option value="${item.id}">${item.name}</option>`;
+    html+=`<label class="multi-select-option"><input type="checkbox" value="${item.id}" onchange="onItemCheckChange(this)"> ${item.name}</label>`;
   });
-  html+=`</select>
-      <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
+  html+=`</div></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
         <label style="font-weight:600;font-size:.85rem">From:</label>
-        <input type="date" id="analyticsFrom" onchange="updateAnalytics()" style="font-size:.85rem">
+        <input type="date" id="analyticsFrom" style="font-size:.85rem">
         <label style="font-weight:600;font-size:.85rem">To:</label>
-        <input type="date" id="analyticsTo" onchange="updateAnalytics()" style="font-size:.85rem">
-        <button class="btn btn-sm btn-primary" onclick="updateAnalytics()" style="font-weight:700">Go</button>
-        <button class="btn btn-sm btn-white" onclick="clearDateRange()" title="Clear date range">Clear</button>
+        <input type="date" id="analyticsTo" style="font-size:.85rem">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-weight:600;font-size:.85rem">Person:</label>
+        <select id="analyticsPersonFilter" style="font-size:.85rem">
+          <option value="">All</option>`;
+  people.forEach(p=>{html+=`<option value="${p}">${p}</option>`});
+  html+=`</select>
+        <label style="font-weight:600;font-size:.85rem;margin-left:8px">Reason:</label>
+        <select id="analyticsReasonFilter" style="font-size:.85rem">
+          <option value="">All</option>`;
+  reasons.forEach(r=>{html+=`<option value="${r}">${REASON_LABELS[r]||r}</option>`});
+  html+=`</select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-sm btn-primary" onclick="updateAnalytics()" style="font-weight:700;padding:8px 20px">Go</button>
+        <button class="btn btn-sm btn-white" onclick="clearAnalyticsFilters()">Clear All</button>
       </div>
       <div style="margin-left:auto;display:flex;gap:8px">
         <button class="btn btn-sm btn-primary" onclick="exportCurrentViewExcel()">Export to Excel</button>
@@ -1093,14 +1181,65 @@ function renderAnalytics(){
     <div class="pivot-table" id="pivotTable"></div>
   </div>`;
   document.getElementById('mainContent').innerHTML=html;
+  // Close dropdown when clicking outside
+  document.addEventListener('click',function closeDropdown(e){
+    const wrap=document.getElementById('itemSelectWrap');
+    if(wrap&&!wrap.contains(e.target)){
+      const dd=document.getElementById('itemDropdown');
+      if(dd)dd.style.display='none';
+    }
+  });
   setTimeout(updateAnalytics,100);
 }
 
-function clearDateRange(){
+function toggleItemDropdown(){
+  const dd=document.getElementById('itemDropdown');
+  if(dd)dd.style.display=dd.style.display==='none'?'block':'none';
+}
+
+function getSelectedItems(){
+  const checkboxes=document.querySelectorAll('#itemDropdown input[type=checkbox]:checked');
+  return Array.from(checkboxes).map(cb=>cb.value);
+}
+
+function onItemCheckChange(cb){
+  if(cb.value==='__all__'){
+    // Uncheck all individual items when "All" is checked
+    if(cb.checked){
+      document.querySelectorAll('#itemDropdown input[type=checkbox]').forEach(c=>{if(c.value!=='__all__')c.checked=false});
+    }
+  }else{
+    // Uncheck "All" when an individual item is checked
+    const allCb=document.querySelector('#itemDropdown input[value="__all__"]');
+    if(allCb)allCb.checked=false;
+  }
+  // Update button label
+  const selected=getSelectedItems();
+  const btn=document.getElementById('itemSelectBtn');
+  if(btn){
+    if(selected.includes('__all__'))btn.innerHTML='All Kitchen Items <span style="font-size:.7rem;opacity:.6">▼</span>';
+    else if(selected.length===0)btn.innerHTML='Select items... <span style="font-size:.7rem;opacity:.6">▼</span>';
+    else if(selected.length===1){
+      const item=items.find(i=>i.id===selected[0]);
+      btn.innerHTML=(item?item.name:'1 item')+' <span style="font-size:.7rem;opacity:.6">▼</span>';
+    }
+    else btn.innerHTML=selected.length+' items selected <span style="font-size:.7rem;opacity:.6">▼</span>';
+  }
+}
+
+function clearAnalyticsFilters(){
   const fromEl=document.getElementById('analyticsFrom');
   const toEl=document.getElementById('analyticsTo');
+  const personEl=document.getElementById('analyticsPersonFilter');
+  const reasonEl=document.getElementById('analyticsReasonFilter');
   if(fromEl)fromEl.value='';
   if(toEl)toEl.value='';
+  if(personEl)personEl.value='';
+  if(reasonEl)reasonEl.value='';
+  // Reset item selection to All
+  document.querySelectorAll('#itemDropdown input[type=checkbox]').forEach(c=>{c.checked=c.value==='__all__'});
+  const btn=document.getElementById('itemSelectBtn');
+  if(btn)btn.innerHTML='All Kitchen Items <span style="font-size:.7rem;opacity:.6">▼</span>';
   updateAnalytics();
 }
 
@@ -1121,47 +1260,69 @@ function calcAMForDate(dateKey,itemId,allDays){
   return null;
 }
 
-function getUsageData(days){
+function getUsageData(){
   const d=loadData();
   const results=[];
   if(!d.days)return results;
   const sortedKeys=Object.keys(d.days).filter(k=>k!=='__meta').sort();
-  const itemId=document.getElementById('analyticsItem')?.value||'__all__';
+  const selectedItems=getSelectedItems();
+  const isAll=selectedItems.includes('__all__')||selectedItems.length===0;
   const fromVal=document.getElementById('analyticsFrom')?.value||'';
   const toVal=document.getElementById('analyticsTo')?.value||'';
+  const personFilter=document.getElementById('analyticsPersonFilter')?.value||'';
+  const reasonFilter=document.getElementById('analyticsReasonFilter')?.value||'';
 
   sortedKeys.forEach(dateKey=>{
     if(fromVal&&dateKey<fromVal)return;
     if(toVal&&dateKey>toVal)return;
     const dd=d.days[dateKey];
-    let totalUsage=0,count=0;
-    if(itemId==='__all__'){
-      items.filter(i=>i.category==='kitchen').forEach(item=>{
-        const id=dd[item.id];
-        if(id&&id.pm!==undefined){
-          let am=id.am!==undefined?Number(id.am):calcAMForDate(dateKey,item.id,d.days);
-          if(am!==null){totalUsage+=(am-Number(id.pm));count++}
-        }
-      });
-    }else{
-      const id=dd[itemId];
-      if(id&&id.pm!==undefined){
-        let am=id.am!==undefined?Number(id.am):calcAMForDate(dateKey,itemId,d.days);
-        if(am!==null){totalUsage=(am-Number(id.pm));count=1}
-      }
+    // Person filter: check __meta.inventoryPerson
+    if(personFilter){
+      const meta=dd.__meta;
+      if(!meta||meta.inventoryPerson!==personFilter)return;
     }
+    let totalUsage=0,count=0;
+    const targetItems=isAll?items.filter(i=>i.category==='kitchen'):items.filter(i=>selectedItems.includes(i.id));
+    targetItems.forEach(item=>{
+      const id=dd[item.id];
+      if(!id||id.pm===undefined)return;
+      // Reason filter: only include items with matching reason
+      if(reasonFilter&&id.reason!==reasonFilter)return;
+      let am=id.am!==undefined?Number(id.am):calcAMForDate(dateKey,item.id,d.days);
+      if(am!==null){totalUsage+=(am-Number(id.pm));count++}
+    });
     if(count>0)results.push({date:dateKey,usage:totalUsage});
   });
   return results;
 }
 
-function updateAnalytics(){
-  const view=document.getElementById('analyticsView')?.value||'daily';
+const CHART_COLORS=['rgba(30,58,95,.7)','rgba(220,38,38,.7)','rgba(22,163,74,.7)','rgba(245,158,11,.7)','rgba(139,92,246,.7)','rgba(6,182,212,.7)','rgba(236,72,153,.7)','rgba(251,146,60,.7)','rgba(34,211,238,.7)','rgba(163,230,53,.7)'];
+
+function getUsageDataPerItem(itemId){
+  const d=loadData();
+  const results=[];
+  if(!d.days)return results;
+  const sortedKeys=Object.keys(d.days).filter(k=>k!=='__meta').sort();
   const fromVal=document.getElementById('analyticsFrom')?.value||'';
   const toVal=document.getElementById('analyticsTo')?.value||'';
-  const hasRange=fromVal||toVal;
-  const rawData=getUsageData();
+  const personFilter=document.getElementById('analyticsPersonFilter')?.value||'';
+  const reasonFilter=document.getElementById('analyticsReasonFilter')?.value||'';
 
+  sortedKeys.forEach(dateKey=>{
+    if(fromVal&&dateKey<fromVal)return;
+    if(toVal&&dateKey>toVal)return;
+    const dd=d.days[dateKey];
+    if(personFilter){const meta=dd.__meta;if(!meta||meta.inventoryPerson!==personFilter)return}
+    const id=dd[itemId];
+    if(!id||id.pm===undefined)return;
+    if(reasonFilter&&id.reason!==reasonFilter)return;
+    let am=id.am!==undefined?Number(id.am):calcAMForDate(dateKey,itemId,d.days);
+    if(am!==null)results.push({date:dateKey,usage:am-Number(id.pm)});
+  });
+  return results;
+}
+
+function aggregateData(rawData,view,hasRange){
   let labels=[],values=[];
   if(view==='daily'){
     const data=hasRange?rawData:rawData.slice(-30);
@@ -1169,54 +1330,121 @@ function updateAnalytics(){
   }else if(view==='weekly'){
     const weeks={};
     rawData.forEach(r=>{
-      const d=new Date(r.date);
-      const weekStart=new Date(d);weekStart.setDate(d.getDate()-d.getDay());
-      const wk=dk(weekStart);
-      if(!weeks[wk])weeks[wk]={total:0,count:0};
+      const d=new Date(r.date);const ws=new Date(d);ws.setDate(d.getDate()-d.getDay());
+      const wk=dk(ws);if(!weeks[wk])weeks[wk]={total:0,count:0};
       weeks[wk].total+=r.usage;weeks[wk].count++;
     });
     const sorted=Object.keys(weeks).sort();
     (hasRange?sorted:sorted.slice(-12)).forEach(wk=>{labels.push(wk.slice(5));values.push(weeks[wk].total)});
   }else{
     const months={};
-    rawData.forEach(r=>{
-      const mo=r.date.slice(0,7);
-      if(!months[mo])months[mo]=0;
-      months[mo]+=r.usage;
-    });
+    rawData.forEach(r=>{const mo=r.date.slice(0,7);if(!months[mo])months[mo]=0;months[mo]+=r.usage});
     const sorted=Object.keys(months).sort();
     (hasRange?sorted:sorted.slice(-12)).forEach(mo=>{labels.push(mo);values.push(months[mo])});
   }
+  return {labels,values};
+}
+
+function updateAnalytics(){
+  const view=document.getElementById('analyticsView')?.value||'daily';
+  const fromVal=document.getElementById('analyticsFrom')?.value||'';
+  const toVal=document.getElementById('analyticsTo')?.value||'';
+  const hasRange=fromVal||toVal;
+  const selectedItems=getSelectedItems();
+  const isAll=selectedItems.includes('__all__')||selectedItems.length===0;
+  const isMulti=!isAll&&selectedItems.length>1;
 
   const canvas=document.getElementById('analyticsCanvas');
   if(!canvas)return;
   if(analyticsChart)analyticsChart.destroy();
-  analyticsChart=new Chart(canvas,{
-    type:view==='daily'?'bar':'line',
-    data:{labels,datasets:[{label:'Usage',data:values,backgroundColor:'rgba(30,58,95,.6)',borderColor:'#1e3a5f',borderWidth:2,fill:view!=='daily',tension:.3}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'Usage'}},x:{title:{display:true,text:view==='daily'?'Date':view==='weekly'?'Week Starting':'Month'}}}}
-  });
 
-  // Pivot table
-  let pivotHtml='<h3 style="margin-bottom:12px">Summary Table</h3><table><thead><tr><th>Period</th><th>Total Usage</th><th>Avg Usage</th></tr></thead><tbody>';
-  if(labels.length){
-    const avg=(values.reduce((a,b)=>a+b,0)/values.length).toFixed(1);
-    const total=values.reduce((a,b)=>a+b,0);
-    labels.forEach((l,i)=>{pivotHtml+=`<tr><td>${l}</td><td style="text-align:center;font-weight:600">${values[i]}</td><td style="text-align:center">${values[i]}</td></tr>`});
-    pivotHtml+=`<tr style="font-weight:700;background:var(--gray-100)"><td>Total / Avg</td><td style="text-align:center">${total}</td><td style="text-align:center">${avg}</td></tr>`;
+  if(isMulti){
+    // Multi-item comparison: one dataset per item
+    let allLabelsSet=new Set();
+    const perItemData={};
+    selectedItems.forEach(itemId=>{
+      const raw=getUsageDataPerItem(itemId);
+      const agg=aggregateData(raw,view,hasRange);
+      perItemData[itemId]=agg;
+      agg.labels.forEach(l=>allLabelsSet.add(l));
+    });
+    const allLabels=Array.from(allLabelsSet).sort();
+    const datasets=selectedItems.map((itemId,idx)=>{
+      const item=items.find(i=>i.id===itemId);
+      const agg=perItemData[itemId];
+      const labelMap={};agg.labels.forEach((l,i)=>{labelMap[l]=agg.values[i]});
+      const data=allLabels.map(l=>labelMap[l]||0);
+      const color=CHART_COLORS[idx%CHART_COLORS.length];
+      return{label:item?item.name:itemId,data,backgroundColor:color,borderColor:color.replace(/[\d.]+\)$/,'1)'),borderWidth:2,fill:false,tension:.3};
+    });
+
+    analyticsChart=new Chart(canvas,{
+      type:view==='daily'?'bar':'line',
+      data:{labels:allLabels,datasets},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top'}},scales:{y:{beginAtZero:true,title:{display:true,text:'Usage'}},x:{title:{display:true,text:view==='daily'?'Date':view==='weekly'?'Week Starting':'Month'}}}}
+    });
+
+    // Pivot table for multi-item
+    let pivotHtml='<h3 style="margin-bottom:12px">Comparison Table</h3><table><thead><tr><th>Period</th>';
+    selectedItems.forEach(itemId=>{const item=items.find(i=>i.id===itemId);pivotHtml+=`<th style="text-align:center">${item?item.name:itemId}</th>`});
+    pivotHtml+='</tr></thead><tbody>';
+    if(allLabels.length){
+      const totals=selectedItems.map(()=>0);
+      allLabels.forEach(l=>{
+        pivotHtml+=`<tr><td>${l}</td>`;
+        selectedItems.forEach((itemId,idx)=>{
+          const agg=perItemData[itemId];
+          const labelMap={};agg.labels.forEach((ll,i)=>{labelMap[ll]=agg.values[i]});
+          const v=labelMap[l]||0;totals[idx]+=v;
+          pivotHtml+=`<td style="text-align:center;font-weight:600">${v}</td>`;
+        });
+        pivotHtml+='</tr>';
+      });
+      pivotHtml+=`<tr style="font-weight:700;background:var(--gray-100)"><td>Total</td>`;
+      totals.forEach(t=>{pivotHtml+=`<td style="text-align:center">${t}</td>`});
+      pivotHtml+='</tr>';
+    }else{
+      pivotHtml+=`<tr><td colspan="${selectedItems.length+1}" style="text-align:center;color:var(--gray-400);padding:20px">No usage data for selected filters.</td></tr>`;
+    }
+    pivotHtml+='</tbody></table>';
+    document.getElementById('pivotTable').innerHTML=pivotHtml;
+
   }else{
-    pivotHtml+='<tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px">No usage data yet. Enter AM and PM counts to see analytics.</td></tr>';
+    // Single item or "All" — original behavior
+    const rawData=getUsageData();
+    const {labels,values}=aggregateData(rawData,view,hasRange);
+
+    analyticsChart=new Chart(canvas,{
+      type:view==='daily'?'bar':'line',
+      data:{labels,datasets:[{label:'Usage',data:values,backgroundColor:'rgba(30,58,95,.6)',borderColor:'#1e3a5f',borderWidth:2,fill:view!=='daily',tension:.3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'Usage'}},x:{title:{display:true,text:view==='daily'?'Date':view==='weekly'?'Week Starting':'Month'}}}}
+    });
+
+    // Pivot table
+    let pivotHtml='<h3 style="margin-bottom:12px">Summary Table</h3><table><thead><tr><th>Period</th><th>Total Usage</th><th>Avg Usage</th></tr></thead><tbody>';
+    if(labels.length){
+      const avg=(values.reduce((a,b)=>a+b,0)/values.length).toFixed(1);
+      const total=values.reduce((a,b)=>a+b,0);
+      labels.forEach((l,i)=>{pivotHtml+=`<tr><td>${l}</td><td style="text-align:center;font-weight:600">${values[i]}</td><td style="text-align:center">${values[i]}</td></tr>`});
+      pivotHtml+=`<tr style="font-weight:700;background:var(--gray-100)"><td>Total / Avg</td><td style="text-align:center">${total}</td><td style="text-align:center">${avg}</td></tr>`;
+    }else{
+      pivotHtml+='<tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px">No usage data for selected filters.</td></tr>';
+    }
+    pivotHtml+='</tbody></table>';
+    document.getElementById('pivotTable').innerHTML=pivotHtml;
   }
-  pivotHtml+='</tbody></table>';
-  document.getElementById('pivotTable').innerHTML=pivotHtml;
 }
 
 // ==================== ANALYTICS EXPORTS ====================
 function getAnalyticsExportData(){
   const view=document.getElementById('analyticsView')?.value||'daily';
-  const itemSelect=document.getElementById('analyticsItem');
-  const itemId=itemSelect?.value||'__all__';
-  const itemLabel=itemSelect?.options[itemSelect.selectedIndex]?.text||'All Kitchen Items';
+  const selectedItems=getSelectedItems();
+  const isAll=selectedItems.includes('__all__')||selectedItems.length===0;
+  let itemLabel='All Kitchen Items';
+  if(!isAll){
+    const names=selectedItems.map(id=>{const item=items.find(i=>i.id===id);return item?item.name:id});
+    itemLabel=names.join(', ');
+  }
   const fromVal=document.getElementById('analyticsFrom')?.value||'';
   const toVal=document.getElementById('analyticsTo')?.value||'';
   const rawData=getUsageData();
@@ -1224,27 +1452,12 @@ function getAnalyticsExportData(){
   const rangeLabel=(fromVal||toVal)?(' ('+( fromVal||'start')+' to '+(toVal||'now')+')'):'';
 
   const hasRange=fromVal||toVal;
-  if(view==='daily'){
-    viewLabel='Daily Usage'+rangeLabel;
-    const data=hasRange?rawData:rawData.slice(-30);
-    data.forEach(r=>{labels.push(r.date);values.push(r.usage)});
-  }else if(view==='weekly'){
-    viewLabel='Weekly Usage'+rangeLabel;
-    const weeks={};
-    rawData.forEach(r=>{
-      const d=new Date(r.date);const ws=new Date(d);ws.setDate(d.getDate()-d.getDay());
-      const wk=dk(ws);if(!weeks[wk])weeks[wk]={total:0,count:0};
-      weeks[wk].total+=r.usage;weeks[wk].count++;
-    });
-    const sorted=Object.keys(weeks).sort();
-    (hasRange?sorted:sorted.slice(-12)).forEach(wk=>{labels.push(wk);values.push(weeks[wk].total)});
-  }else{
-    viewLabel='Monthly Usage'+rangeLabel;
-    const months={};
-    rawData.forEach(r=>{const mo=r.date.slice(0,7);if(!months[mo])months[mo]=0;months[mo]+=r.usage});
-    const sorted=Object.keys(months).sort();
-    (hasRange?sorted:sorted.slice(-12)).forEach(mo=>{labels.push(mo);values.push(months[mo])});
-  }
+  const agg=aggregateData(rawData,view,hasRange);
+  labels=agg.labels;values=agg.values;
+  if(view==='daily')viewLabel='Daily Usage'+rangeLabel;
+  else if(view==='weekly')viewLabel='Weekly Usage'+rangeLabel;
+  else viewLabel='Monthly Usage'+rangeLabel;
+
   const total=values.reduce((a,b)=>a+b,0);
   const avg=values.length?(total/values.length).toFixed(1):0;
   return {view,viewLabel,itemLabel,labels,values,total,avg};
@@ -1628,7 +1841,7 @@ function exportDailyExcel(){
   const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
 
   const wb=XLSX.utils.book_new();
-  const header=['Category','Item','Unit','Today Par','AM Count','PM Count','Usage','Normal Order','Extra Order','Total Order'];
+  const header=['Category','Item','Unit','Today Par','AM Count','PM Count','Usage','Normal Order','Extra Order','Total Order','Reason'];
   const rows=[];
   items.forEach(item=>{
     const d=dd[item.id]||{};
@@ -1636,13 +1849,15 @@ function exportDailyExcel(){
     const am=calcAM(item.id);
     const pm=d.pm;
     const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
-    const no=calcNormalOrder(item,pm);
+    const autoNo=calcNormalOrder(item,pm);
+    const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
     const eo=d.extraOrder||0;
     const total=sunNoOrder?0:r2((no||0)+Number(eo));
+    const reason=d.reason?(d.reason==='other'?(d.reasonOther||'Other'):(REASON_LABELS[d.reason]||d.reason)):'';
     rows.push([
       CAT_LABELS[item.category],item.name,item.unit,
       par,am!==null?r2(am):'',pm!==undefined?r2(pm):'',
-      usage!==''?usage:'',no!==null?r2(no):'',eo||'',total||''
+      usage!==''?usage:'',no!==null?r2(no):'',eo||'',total||'',reason
     ]);
   });
 
@@ -1799,6 +2014,7 @@ function buildReportHTML(){
     const usageColor=usage!==''?(usage<0?'#dc2626':usage>0?'#16a34a':'#333'):'#999';
     const totalBg=total>0?'#1e3a5f':'#e5e7eb';
     const totalColor=total>0?'#ffffff':'#999';
+    const reasonText=d.reason?(d.reason==='other'?(d.reasonOther||'Other'):(REASON_LABELS[d.reason]||d.reason)):'';
     tableRows+=`<tr>
       <td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600;font-size:13px">${item.name} <span style="color:#999;font-weight:400;font-size:11px">(${item.unit})</span></td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:#b45309;font-weight:600">${par}</td>
@@ -1808,6 +2024,7 @@ function buildReportHTML(){
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${no!==null?r2(no):'-'}</td>
       <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${eo||'-'}</td>
       <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:center;font-size:15px;font-weight:800;background:${totalBg};color:${totalColor};letter-spacing:0.5px">${total||'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:11px;color:#666">${reasonText||'-'}</td>
     </tr>`;
   });
   return tableRows;
@@ -1834,6 +2051,7 @@ function sendReport(){
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Order</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Extra</th>
       <th style="padding:8px 10px;color:#fff;text-align:center;font-size:12px;text-transform:uppercase;font-weight:800;border:1px solid #1e3a5f;background:#b45309;letter-spacing:1px">TOTAL ORDER</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Reason</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>`;
