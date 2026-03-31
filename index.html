@@ -69,10 +69,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-chip:hover,.filter-chip.active{background:var(--primary-light);color:#fff;border-color:var(--primary-light)}
 
 .table-wrap{padding:16px 24px;overflow-x:auto}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:920px}
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:920px}
 thead th{background:var(--gray-100);padding:6px 5px;text-align:left;font-size:.68rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200);position:sticky;top:0;z-index:5}
-thead th:first-child{min-width:140px}
+thead th:first-child{min-width:140px;position:sticky;left:0;z-index:10;background:var(--gray-100);box-shadow:2px 0 4px rgba(0,0,0,.08)}
 tbody td{padding:4px 5px;border-bottom:1px solid var(--gray-100);font-size:.82rem}
+tbody td:first-child{position:sticky;left:0;z-index:2;background:#fff;box-shadow:2px 0 4px rgba(0,0,0,.06)}
+tbody tr:hover td:first-child{background:var(--primary-bg)}
 tbody tr:hover{background:var(--primary-bg)}
 tbody tr.section-header td{background:var(--gray-100);font-weight:700;font-size:.8rem;text-transform:uppercase;color:var(--gray-500);letter-spacing:.5px;padding:8px 14px}
 tbody tr.section-header.produce-header td{background:var(--produce-bg);color:var(--produce)}
@@ -1000,6 +1002,7 @@ function renderTable(){
         <option value="slow"${currentReason==='slow'?' selected':''}>Business Slow</option>
         <option value="catering"${currentReason==='catering'?' selected':''}>Catering/Large Order</option>
         <option value="holiday"${currentReason==='holiday'?' selected':''}>Holiday</option>
+        <option value="prep"${currentReason==='prep'?' selected':''}>Additional Prep Needed</option>
         <option value="other"${currentReason==='other'?' selected':''}>Other</option>
       </select>${currentReason==='other'?`<input type="text" class="reason-other-input" value="${reasonOther.replace(/"/g,'&quot;')}" placeholder="Specify..." onchange="setField('${key}','${item.id}','reasonOther',this.value);saveData(loadData())">`:'' }`;
 
@@ -1090,7 +1093,7 @@ function renderHistory(){
 }
 
 // ==================== ANALYTICS ====================
-const REASON_LABELS={slow:'Business Slow',catering:'Catering/Large Order',holiday:'Holiday',other:'Other'};
+const REASON_LABELS={slow:'Business Slow',catering:'Catering/Large Order',holiday:'Holiday',prep:'Additional Prep Needed',other:'Other'};
 
 function getUniquePeople(){
   const d=loadData();
