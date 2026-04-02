@@ -71,7 +71,7 @@ const SHEET_TYPES = {
     icon: '🍛',
     description: 'All cooked food coming from Renton Main Kitchen.\nToda la comida cocinada proveniente de la cocina principal de Renton.',
     allowedRoles: ['owner', 'manager', 'kitchen'],
-    page: 'index.html',
+    page: 'daily.html',
     restaurants: ['nnc-iss']
   },
   'nnc-daily-produce': {
@@ -81,7 +81,7 @@ const SHEET_TYPES = {
     icon: '🥬',
     description: 'Daily produce count and orders.\nConteo diario de productos y pedidos.',
     allowedRoles: ['owner', 'manager', 'kitchen'],
-    page: 'index.html',
+    page: 'daily.html',
     restaurants: ['nnc-iss']
   },
   'nnc-drygoods': {
@@ -340,7 +340,7 @@ function getParam(key) {
 }
 
 function goToDashboard() {
-  navigateTo('dashboard.html');
+  navigateTo('index.html');
 }
 
 // ==================== SHARED UI HELPERS ====================

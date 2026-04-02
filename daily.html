@@ -1,0 +1,2241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Naan N Curry Issaquah - Daily Ordering</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --primary: #1e3a5f; --primary-light: #2563eb; --primary-bg: #eff6ff;
+  --danger: #dc2626; --success: #16a34a; --produce: #059669; --produce-bg: #ecfdf5;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.header-right{display:flex;gap:8px;align-items:center}
+
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-white{background:#fff;color:var(--gray-700)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+
+.date-nav{background:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:center;gap:16px;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.date-nav button{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:var(--radius);padding:6px 14px;cursor:pointer;font-weight:600;font-size:.85rem}
+.date-nav button:hover{background:var(--gray-200)}
+.date-nav .current-date{font-size:1.15rem;font-weight:700;color:var(--primary);min-width:220px;text-align:center}
+.date-nav .day-name{font-size:.85rem;color:var(--gray-500);font-weight:500;text-align:center}
+
+.inventory-person-bar{background:#fff;padding:10px 24px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.inventory-person-bar label{font-size:.85rem;font-weight:600;color:var(--gray-700)}
+.inventory-person-bar input{padding:6px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem;width:250px}
+.inventory-person-bar input:focus{outline:none;border-color:var(--primary-light)}
+
+.no-delivery-banner{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;padding:10px 24px;font-size:.88rem;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.no-delivery-banner .btn-sm{font-size:.75rem}
+
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:16px 24px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:14px 18px;border:1px solid var(--gray-200)}
+.stat-card .label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+.stat-card .value{font-size:1.4rem;font-weight:700;margin-top:2px}
+.stat-card .value.warn{color:var(--danger)}
+
+.tab-bar{padding:12px 24px;display:flex;gap:10px;background:#fff;overflow-x:auto;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.tab{padding:10px 22px;font-size:.9rem;font-weight:700;color:var(--gray-600);cursor:pointer;white-space:nowrap;transition:all .15s;border-radius:var(--radius);background:var(--gray-100);border:2px solid var(--gray-300)}
+.tab:hover{background:var(--primary-bg);border-color:var(--primary-light);color:var(--primary)}
+.tab.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 2px 6px rgba(30,58,95,.3)}
+
+.filter-bar{padding:12px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.search-input{padding:8px 14px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.9rem;width:260px}
+.search-input:focus{outline:none;border-color:var(--primary-light)}
+.filter-chip{padding:6px 14px;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid var(--gray-300);background:#fff;transition:all .15s}
+.filter-chip:hover,.filter-chip.active{background:var(--primary-light);color:#fff;border-color:var(--primary-light)}
+
+.table-wrap{padding:16px 24px;overflow-x:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:920px}
+thead th{background:var(--gray-100);padding:6px 5px;text-align:left;font-size:.68rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200);position:sticky;top:0;z-index:5}
+thead th:first-child{min-width:140px;position:sticky;left:0;z-index:10;background:var(--gray-100);box-shadow:2px 0 4px rgba(0,0,0,.08)}
+tbody td{padding:4px 5px;border-bottom:1px solid var(--gray-100);font-size:.82rem}
+tbody td:first-child{position:sticky;left:0;z-index:2;background:#fff;box-shadow:2px 0 4px rgba(0,0,0,.06)}
+tbody tr:hover td:first-child{background:var(--primary-bg)}
+tbody tr:hover{background:var(--primary-bg)}
+tbody tr.section-header td{background:var(--gray-100);font-weight:700;font-size:.8rem;text-transform:uppercase;color:var(--gray-500);letter-spacing:.5px;padding:8px 14px}
+tbody tr.section-header.produce-header td{background:var(--produce-bg);color:var(--produce)}
+
+.item-name{font-weight:600;font-size:.82rem}
+.item-unit{color:var(--gray-400);font-size:.68rem}
+.par-val{font-weight:600;color:var(--primary)}
+
+input[type="number"]{width:50px;padding:4px 3px;border:1px solid var(--gray-300);border-radius:5px;font-size:.8rem;text-align:center;transition:border-color .15s}
+input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(245,158,11,.15)}
+input.auto-field{background:#f0fdf4;border-color:#86efac;color:var(--gray-700);font-weight:600}
+input.auto-field:focus{box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+input.auto-field.overridden{background:#fef3c7;border-color:#fbbf24;color:#92400e}
+input.extra-field{background:#eff6ff;border-color:#93c5fd}
+input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.reason-select{width:90px;padding:3px 2px;border:1px solid var(--gray-300);border-radius:5px;font-size:.72rem;background:#fff;cursor:pointer}
+.reason-select:focus{outline:none;border-color:var(--primary-light)}
+.reason-other-input{width:70px;padding:3px 4px;border:1px solid var(--gray-300);border-radius:5px;font-size:.72rem;margin-top:2px;display:block}
+.reason-other-input:focus{outline:none;border-color:var(--primary-light)}
+.am-cell{position:relative;display:flex;align-items:center;gap:4px}
+.am-reset{font-size:.65rem;cursor:pointer;color:var(--gray-400);padding:2px 4px;border-radius:4px;border:1px solid var(--gray-300);background:#fff;line-height:1}
+.am-reset:hover{color:var(--danger);border-color:var(--danger)}
+
+/* Status indicators */
+.cell-ok{background:#f0fdf4;border-radius:6px}
+.cell-ok input{background:#f0fdf4;border-color:#86efac}
+.cell-short{background:#fef2f2;border-radius:6px}
+.cell-short input{background:#fef2f2!important;border-color:#fca5a5!important;color:#991b1b!important}
+.cell-warn{background:#fffbeb;border-radius:6px}
+.cell-warn input{background:#fffbeb;border-color:#fbbf24}
+.shortage-hint{display:block;font-size:.62rem;font-weight:700;color:#991b1b;line-height:1;margin-top:1px;text-align:center}
+.surplus-hint{display:block;font-size:.62rem;font-weight:600;color:#166534;line-height:1;margin-top:1px;text-align:center}
+.order-status{text-align:center}
+.order-status .shortage-hint,.order-status .surplus-hint{margin-top:2px}
+
+/* Total Order column highlight */
+.total-order-head{background:#1e3a5f!important;color:#fff!important;font-size:.72rem!important}
+.total-order-cell{background:#eff6ff;font-weight:700;font-size:.92rem;text-align:center;color:#1e3a5f}
+.total-order-cell strong{color:#1e3a5f}
+
+.usage-val{font-weight:700}
+.usage-val.negative{color:var(--danger)}
+.usage-val.positive{color:var(--success)}
+
+/* Settings */
+.settings-page{display:none;padding:24px}
+.settings-page.show{display:block}
+.settings-section{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px;margin-bottom:20px}
+.settings-section h3{font-size:1rem;margin-bottom:12px;color:var(--gray-700)}
+.settings-section p{font-size:.85rem;color:var(--gray-500);margin-bottom:12px}
+
+.par-editor{margin-top:16px}
+.par-item{border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;margin-bottom:10px;background:var(--gray-50)}
+.par-item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.par-item-header .name{font-weight:700;font-size:.95rem}
+.par-item-header .cat-badge{font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:600}
+.cat-kitchen{background:#dbeafe;color:#1e3a5f}
+.cat-produce{background:#d1fae5;color:#065f46}
+.par-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.par-day{text-align:center}
+.par-day label{display:block;font-size:.7rem;font-weight:700;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase}
+.par-day input{width:100%;padding:6px 4px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;text-align:center;font-weight:600}
+.par-day input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 2px rgba(245,158,11,.2)}
+
+.email-list{margin-top:10px}
+.email-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray-100)}
+.email-item span{flex:1;font-size:.9rem}
+.email-add{display:flex;gap:8px;margin-top:10px}
+.email-add input{flex:1;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+
+/* Analytics */
+.analytics-wrap{padding:24px}
+.analytics-controls{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.analytics-controls select,.analytics-controls input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+.multi-select-wrap{position:relative}
+.multi-select-dropdown{position:absolute;top:100%;left:0;background:#fff;border:1px solid var(--gray-300);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:20;max-height:300px;overflow-y:auto;min-width:220px;padding:6px 0}
+.multi-select-option{display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:.82rem;cursor:pointer;white-space:nowrap}
+.multi-select-option:hover{background:var(--primary-bg)}
+.multi-select-option input[type=checkbox]{cursor:pointer}
+.chart-container{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px;margin-bottom:20px;position:relative;height:400px}
+.pivot-table{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px;overflow-x:auto}
+.pivot-table table{min-width:auto}
+.pivot-table td,.pivot-table th{padding:6px 12px;font-size:.82rem}
+
+/* Password overlay */
+.pw-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center}
+.pw-overlay.show{display:flex}
+.pw-box{background:#fff;border-radius:12px;padding:32px;max-width:360px;width:90%;text-align:center}
+.pw-box h2{margin-bottom:8px;font-size:1.2rem}
+.pw-box p{font-size:.85rem;color:var(--gray-500);margin-bottom:16px}
+.pw-box input{width:100%;padding:10px 14px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:1rem;text-align:center;margin-bottom:12px}
+.pw-box input:focus{outline:none;border-color:var(--primary-light)}
+.pw-box .pw-error{color:var(--danger);font-size:.85rem;margin-bottom:8px;display:none}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:28px;max-width:500px;width:90%;max-height:85vh;overflow-y:auto}
+.modal h2{margin-bottom:16px}
+.modal .form-group{margin-bottom:14px}
+.modal label{display:block;font-size:.85rem;font-weight:600;color:var(--gray-700);margin-bottom:4px}
+.modal input,.modal select{width:100%;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:.85rem;font-weight:500;z-index:200;transform:translateY(100px);opacity:0;transition:all .3s}
+.toast.show{transform:translateY(0);opacity:1}
+
+.hidden{display:none!important}
+
+/* Login overlay */
+.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);z-index:1000;align-items:center;justify-content:center;opacity:1;transition:opacity .3s}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:12px;padding:40px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
+.login-box h2{font-size:1.4rem;font-weight:700;margin-bottom:8px;color:var(--primary)}
+.login-box p{font-size:.9rem;color:var(--gray-500);margin-bottom:24px}
+.login-form{display:flex;flex-direction:column;gap:14px}
+.login-form input{width:100%;padding:12px 14px;border:1px solid var(--gray-300);border-radius:6px;font-size:.95rem}
+.login-form input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.login-error{color:var(--danger);font-size:.85rem;margin-top:8px;display:none}
+.login-loading{opacity:.6;pointer-events:none}
+.login-form button{padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:600;cursor:pointer;transition:all .15s}
+.login-form button:hover:not(:disabled){background:#1d4ed8;transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.login-form button:disabled{opacity:.6;cursor:not-allowed}
+.login-signup{margin-top:16px;font-size:.85rem}
+.login-signup a{color:var(--primary-light);text-decoration:none;cursor:pointer}
+.login-signup a:hover{text-decoration:underline}
+.logout-btn{color:#fff}
+
+@media(max-width:768px){
+  .header{padding:12px 16px}.header h1{font-size:1.05rem}
+  .date-nav{padding:10px 16px;gap:8px}
+  .table-wrap,.stats-bar,.filter-bar{padding:8px 12px}
+  .search-input{width:100%}
+  input[type="number"]{width:44px}
+  .par-days{grid-template-columns:repeat(4,1fr)}
+  .chart-container{height:300px}
+}
+@media print{
+  .header-right,.date-nav button,.filter-bar,.tab-bar,.btn{display:none!important}
+  .header{background:#fff!important;color:#000!important}
+  table{font-size:.75rem}
+}
+</style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>NNC Inventory</h2>
+    <p>Sign in to your account</p>
+    <div class="login-form" id="loginFormContainer">
+      <input type="email" id="loginEmail" placeholder="Email address" onkeydown="if(event.key==='Enter')handleLogin()">
+      <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+      <div class="login-error" id="loginError"></div>
+      <button onclick="handleLogin()" id="loginBtn">Sign In</button>
+    </div>
+    <div class="login-signup">
+      Don't have an account? <a onclick="toggleSignUp()">Sign up</a>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <div>
+    <h1>Naan N Curry Issaquah - Daily Ordering</h1>
+    <div class="header-sub">Inventory Management System</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html'" title="Back to Dashboard">← Dashboard</button>
+    <span id="userEmail" style="color:#fff;font-size:.85rem;margin-right:12px"></span>
+    <button class="btn btn-ghost" onclick="sendReport()" title="Generate PDF and email report">Send Report</button>
+    <button class="btn btn-ghost" onclick="promptSettings()">Settings</button>
+    <button class="btn btn-ghost logout-btn" onclick="handleLogout()" title="Sign out">Logout</button>
+  </div>
+</div>
+
+<div id="inventoryView">
+  <div class="date-nav">
+    <button onclick="changeDate(-1)">&larr; Prev</button>
+    <div>
+      <div class="current-date" id="currentDate"></div>
+      <div class="day-name" id="dayName"></div>
+    </div>
+    <button onclick="changeDate(1)">Next &rarr;</button>
+    <button onclick="goToToday()" class="btn btn-sm btn-primary">Today</button>
+  </div>
+
+  <div class="inventory-person-bar">
+    <label>Inventory By:</label>
+    <input type="text" id="inventoryPerson" placeholder="Enter your name..." onchange="saveInventoryPerson(this.value)">
+  </div>
+
+  <div id="noDeliveryBanner" class="no-delivery-banner" style="display:none">
+    <span>No Monday delivery. Sunday orders are set to 0.</span>
+    <button class="btn btn-sm btn-white" onclick="toggleSundayOrders()">Enable Orders</button>
+  </div>
+
+  <div class="stats-bar" id="statsBar"></div>
+
+  <div class="tab-bar" id="mainTabBar">
+    <div class="tab" data-tab="kitchen" onclick="setTab(this,'kitchen')">NNC Main Kitchen</div>
+    <div class="tab" data-tab="produce" onclick="setTab(this,'produce')">Issaquah Produce</div>
+    <div class="tab" data-tab="history" onclick="setTab(this,'history')">7-Day History</div>
+    <div class="tab" data-tab="analytics" onclick="setTab(this,'analytics')">Analytics</div>
+  </div>
+
+  <div class="filter-bar" id="filterBar">
+    <input type="text" class="search-input" placeholder="Search items..." oninput="searchQuery=this.value;renderTable()">
+    <div class="filter-chip" onclick="toggleFilter(this,'needsOrder')">Needs Order</div>
+  </div>
+
+  <div class="table-wrap" id="mainContent"></div>
+</div>
+
+<!-- SETTINGS PAGE -->
+<div class="settings-page" id="settingsPage">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h2>Settings</h2>
+    <button class="btn btn-white" onclick="closeSettings()">Back to Inventory</button>
+  </div>
+
+  <div class="settings-section">
+    <h3>Email Distribution List</h3>
+    <p>Manage who receives the daily inventory PDF report.</p>
+    <div id="emailListContainer"></div>
+    <div class="email-add">
+      <input type="email" id="newEmail" placeholder="email@example.com" onkeydown="if(event.key==='Enter')addEmail()">
+      <button class="btn btn-success btn-sm" onclick="addEmail()">Add</button>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h3>EmailJS Configuration</h3>
+    <p>To send reports directly from the app (not from personal email), set up a free <a href="https://www.emailjs.com/" target="_blank">EmailJS</a> account and enter your credentials below. See the setup guide in the README.</p>
+    <div style="display:grid;gap:8px;max-width:400px">
+      <input type="text" id="ejsPublicKey" placeholder="Public Key" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
+      <input type="text" id="ejsServiceId" placeholder="Service ID" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
+      <input type="text" id="ejsTemplateId" placeholder="Template ID" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
+      <button class="btn btn-primary" onclick="saveEmailJS()">Save EmailJS Config</button>
+    </div>
+    <p id="ejsStatus" style="margin-top:8px;font-size:.85rem;color:var(--gray-500)"></p>
+  </div>
+
+  <div class="settings-section">
+    <h3>Change Settings Password</h3>
+    <p>Update the password used to access this settings page.</p>
+    <div style="display:flex;gap:8px;max-width:350px">
+      <input type="password" id="newPassword" placeholder="New password" style="flex:1;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
+      <button class="btn btn-primary" onclick="changePassword()">Update</button>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h3>Data Management</h3>
+    <p>Export inventory data as Excel or CSV, backup all data, or restore from a backup file.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-success" onclick="exportDailyExcel()">Daily Excel</button>
+      <button class="btn btn-success" onclick="exportAnalyticsExcel()">Analytics Excel</button>
+      <button class="btn btn-white" onclick="exportDay()">Export Today CSV</button>
+      <button class="btn btn-white" onclick="exportAllData()">Backup All Data</button>
+      <button class="btn btn-white" onclick="document.getElementById('importFile').click()">Import Backup</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h3>Manage Items</h3>
+    <p>Add new items or remove existing ones.</p>
+    <button class="btn btn-success" onclick="openAddItem()" style="margin-bottom:16px">+ Add New Item</button>
+    <div id="itemListManage"></div>
+  </div>
+
+  <div class="settings-section">
+    <h3>Par Levels by Day</h3>
+    <p>Set the target inventory level (Today Par) for each item on each day of the week. Normal Order = next day's par level - today's PM count.</p>
+    <div style="margin-bottom:12px">
+      <select id="parCatFilter" onchange="renderParEditor()" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem">
+        <option value="all">All Items</option>
+        <option value="kitchen">NNC Main Kitchen</option>
+        <option value="produce">Issaquah Produce</option>
+      </select>
+    </div>
+    <div class="par-editor" id="parEditor"></div>
+  </div>
+
+  <div class="settings-section">
+    <h3 style="color:var(--danger)">Danger Zone</h3>
+    <button class="btn btn-danger btn-sm" onclick="if(confirm('Clear ALL inventory data? This cannot be undone.')){localStorage.removeItem('nnc_v3');location.reload()}">Reset All Data</button>
+  </div>
+</div>
+
+<!-- Password prompt -->
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box">
+    <h2>Settings Access</h2>
+    <p>Enter the admin password to continue.</p>
+    <div class="pw-error" id="pwError">Incorrect password. Try again.</div>
+    <input type="password" id="pwInput" placeholder="Password" onkeydown="if(event.key==='Enter')checkPassword()">
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-primary" onclick="checkPassword()">Unlock</button>
+      <button class="btn btn-white" onclick="closePwPrompt()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Item Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h2>Add New Item</h2>
+    <div class="form-group"><label>Item Name</label><input type="text" id="newName" placeholder="e.g., Samosa"></div>
+    <div class="form-group"><label>Unit</label><input type="text" id="newUnit" placeholder="e.g., tray, lbs, case"></div>
+    <div class="form-group"><label>Category</label>
+      <select id="newCat"><option value="kitchen">NNC Main Kitchen</option><option value="produce">Issaquah Produce</option></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-success" onclick="addItem()">Add</button>
+      <button class="btn btn-white" onclick="document.getElementById('addModal').classList.remove('show')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== DEFAULT ITEMS ====================
+const DEFAULT_ITEMS = [
+  {id:'chicken-korma',name:'Chicken Korma',unit:'tray',category:'kitchen',par:{mon:9,tue:13,wed:13,thu:13,fri:24,sat:24,sun:25}},
+  {id:'lamb-korma',name:'Lamb Korma',unit:'tray',category:'kitchen',par:{mon:6,tue:8,wed:8,thu:8,fri:12,sat:12,sun:14}},
+  {id:'aloo',name:'Aloo',unit:'tray',category:'kitchen',par:{mon:3,tue:3,wed:3,thu:3.5,fri:4.5,sat:4.5,sun:5}},
+  {id:'gobi',name:'Gobi',unit:'tray',category:'kitchen',par:{mon:3,tue:3,wed:3,thu:3.5,fri:5.5,sat:5.5,sun:6}},
+  {id:'chana',name:'Chana',unit:'tray',category:'kitchen',par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
+  {id:'daal',name:'Daal',unit:'tray',category:'kitchen',par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
+  {id:'bengun',name:'Bengun',unit:'tray',category:'kitchen',par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
+  {id:'palak',name:'Palak',unit:'tray',category:'kitchen',par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:4}},
+  {id:'biryani-sauce',name:'Biryani Sauce',unit:'tray',category:'kitchen',par:{mon:4,tue:6,wed:6,thu:7,fri:9,sat:10,sun:10}},
+  {id:'onion-sauce',name:'Onion Sauce',unit:'containers',category:'kitchen',par:{mon:6,tue:8,wed:8,thu:10,fri:13,sat:13,sun:15}},
+  {id:'butter-sauce',name:'Butter Sauce',unit:'containers',category:'kitchen',par:{mon:5,tue:6,wed:6,thu:8,fri:9,sat:10,sun:10}},
+  {id:'malai-boti',name:'Malai Boti',unit:'lbs',category:'kitchen',par:{mon:28,tue:28,wed:28,thu:32,fri:52,sat:52,sun:52}},
+  {id:'tikka-white',name:'Tikka White',unit:'lbs',category:'kitchen',par:{mon:12,tue:12,wed:12,thu:12,fri:20,sat:20,sun:24}},
+  {id:'tikka-dark',name:'Tikka Dark',unit:'lbs',category:'kitchen',par:{mon:12,tue:12,wed:12,thu:12,fri:20,sat:20,sun:24}},
+  {id:'fish-tandoori',name:'Fish Tandoori',unit:'case',category:'kitchen',par:{mon:1,tue:1,wed:1,thu:1,fri:1.25,sat:1.5,sun:1.5}},
+  {id:'ctm-tikka',name:'CTM Tikka',unit:'lbs',category:'kitchen',par:{mon:0,tue:0,wed:0,thu:0,fri:0,sat:0,sun:0}},
+  {id:'pakora',name:'Pakora',unit:'tray',category:'kitchen',par:{mon:3,tue:3,wed:3,thu:3,fri:4,sat:4,sun:5}},
+  {id:'tandoori-sauce',name:'Tandoori Sauce',unit:'bottles',category:'kitchen',par:{mon:1,tue:1,wed:1,thu:1,fri:1,sat:1,sun:1}},
+  {id:'mint-sauce',name:'Mint Sauce',unit:'sauce container',category:'kitchen',par:{mon:1,tue:1,wed:1,thu:1,fri:1,sat:1.5,sun:1.5}},
+  {id:'mango-lassi',name:'Mango Lassi',unit:'batch',category:'kitchen',par:{mon:2,tue:2,wed:2,thu:2,fri:3,sat:3,sun:4}},
+  {id:'yogurt',name:'Yogurt',unit:'container',category:'kitchen',par:{mon:2,tue:2,wed:2,thu:2,fri:2,sat:2,sun:3}},
+  {id:'tamarind',name:'Tamarind',unit:'Ketchup contr/gallon',category:'kitchen',par:{mon:0.5,tue:0.5,wed:0.5,thu:0.5,fri:0.5,sat:0.5,sun:0.5}},
+  {id:'brown-onion',name:'Brown Onion',unit:'tray',category:'kitchen',par:{mon:2,tue:2,wed:2,thu:3,fri:3,sat:3,sun:4}},
+  {id:'milk',name:'Milk',unit:'gallon',category:'kitchen',par:{mon:6,tue:6,wed:6,thu:6,fri:6,sat:6,sun:6}},
+  {id:'kulfi',name:'Kulfi',unit:'orders',category:'kitchen',par:{mon:40,tue:40,wed:40,thu:40,fri:40,sat:40,sun:40}},
+  {id:'mango-ice-cream',name:'Mango Ice Cream',unit:'orders',category:'kitchen',par:{mon:30,tue:30,wed:30,thu:30,fri:30,sat:30,sun:30}},
+  {id:'ghulab-jamun',name:'Ghulab Jamun',unit:'black containers',category:'kitchen',par:{mon:5,tue:5,wed:5,thu:5,fri:5,sat:5,sun:5}},
+  {id:'garlic',name:'Garlic',unit:'packet',category:'produce',par:{mon:2,tue:2,wed:2,thu:2,fri:2,sat:2,sun:2}},
+  {id:'medium-onion',name:'Medium Onion Bags',unit:'bags',category:'produce',par:{mon:10,tue:5,wed:5,thu:6,fri:8,sat:12,sun:12}},
+  {id:'red-potato',name:'Red Potato Premium 50lbs',unit:'bag',category:'produce',par:{mon:1.5,tue:1.5,wed:1.5,thu:1.5,fri:2,sat:2,sun:2}},
+  {id:'cilantro',name:'Cilantro',unit:'case',category:'produce',par:{mon:1,tue:1,wed:1,thu:1.5,fri:2,sat:1,sun:1}},
+  {id:'green-chilli',name:'Green Chilli',unit:'lbs',category:'produce',par:{mon:0.5,tue:0.5,wed:0.5,thu:1,fri:1,sat:1,sun:1}},
+  {id:'limes',name:'Limes',unit:'case',category:'produce',par:{mon:0.5,tue:0.5,wed:0.5,thu:0.5,fri:0.75,sat:0.75,sun:0.75}},
+  {id:'cucumber',name:'Cucumber',unit:'pieces',category:'produce',par:{mon:10,tue:10,wed:10,thu:14,fri:16,sat:16,sun:16}},
+  {id:'ginger',name:'Ginger',unit:'case',category:'produce',par:{mon:0.5,tue:0.5,wed:0.5,thu:0.5,fri:0.5,sat:0.5,sun:0.5}},
+  {id:'iceberg-lettuce',name:'Iceberg Lettuce',unit:'pcs',category:'produce',par:{mon:5,tue:5,wed:5,thu:5,fri:5,sat:5,sun:5}},
+  {id:'roma-tomatoes',name:'Roma Tomatoes',unit:'case',category:'produce',par:{mon:1,tue:1,wed:1.5,thu:2,fri:2,sat:2,sun:2}},
+  {id:'green-cabbage',name:'Green Cabbage',unit:'pcs',category:'produce',par:{mon:5,tue:5,wed:6,thu:6,fri:6,sat:6,sun:8}},
+];
+
+// ==================== STATE ====================
+let currentDate = new Date();
+let currentTab = 'kitchen';
+// Check URL params for sheet context from dashboard
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const sheet = params.get('sheet');
+  if (sheet === 'nnc-daily-produce') currentTab = 'produce';
+  else if (sheet === 'nnc-daily-kitchen') currentTab = 'kitchen';
+})();
+let searchQuery = '';
+let activeFilters = new Set();
+let items = [];
+let sundayOrdersEnabled = false;
+let analyticsChart = null;
+const STORAGE_KEY = 'nnc_v3';
+const DEFAULT_PW = 'nnc2026';
+const PAR_VERSION = 4;
+
+const SEED_AM_DATA = {
+  '2026-03-29': {
+    'chicken-korma':{am:30},'lamb-korma':{am:15},'aloo':{am:5},'gobi':{am:6},
+    'chana':{am:3.5},'daal':{am:3.5},'bengun':{am:3.5},'palak':{am:5.5},
+    'biryani-sauce':{am:13},'onion-sauce':{am:16},'butter-sauce':{am:10},
+    'malai-boti':{am:64},'tikka-white':{am:24},'tikka-dark':{am:24},
+    'fish-tandoori':{am:1.75},'ctm-tikka':{am:30},'pakora':{am:6},
+    'tandoori-sauce':{am:1.5},'mint-sauce':{am:2},'mango-lassi':{am:4},
+    'yogurt':{am:3},'tamarind':{am:1.35},'brown-onion':{am:4},'milk':{am:10},
+    'kulfi':{am:40},'mango-ice-cream':{am:32}
+  }
+};
+
+const DAYS = ['sun','mon','tue','wed','thu','fri','sat'];
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CAT_LABELS = {kitchen:'NNC Main Kitchen',produce:'Issaquah Produce'};
+
+// ==================== FIREBASE ====================
+const firebaseConfig = {
+  apiKey: "AIzaSyAvOFC9jqt-nSk26uN6CVXoDr6O-JnXz3k",
+  authDomain: "nnc-inventory.firebaseapp.com",
+  projectId: "nnc-inventory",
+  storageBucket: "nnc-inventory.firebasestorage.app",
+  messagingSenderId: "315174538558",
+  appId: "1:315174538558:web:2c34c11ea6e99bfbb3706f"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+let currentUser = null;
+let firebaseReady = false;
+
+// ==================== PERSISTENCE ====================
+function loadData(){
+  // Load from local cache (synced from Firestore)
+  let d;
+  try{const r=localStorage.getItem(STORAGE_KEY);if(r){d=JSON.parse(r);items=d.items||JSON.parse(JSON.stringify(DEFAULT_ITEMS));}}catch(e){}
+  if(!d){items=JSON.parse(JSON.stringify(DEFAULT_ITEMS));d={items,days:{},password:DEFAULT_PW,emails:[],emailjs:{},inventoryPerson:''};}
+  if(!d.emails)d.emails=[];
+  if(!d.inventoryPerson)d.inventoryPerson='';
+  // Migrate PAR levels when version changes
+  if((d.parVersion||0)<PAR_VERSION){
+    const parMap={};DEFAULT_ITEMS.forEach(di=>{parMap[di.id]=di.par});
+    d.items.forEach(item=>{if(parMap[item.id])item.par=JSON.parse(JSON.stringify(parMap[item.id]))});
+    items=d.items;d.parVersion=PAR_VERSION;
+    if(!d.days)d.days={};
+    // Clear ALL stored am and normalOrder values to prevent stale data
+    Object.keys(d.days).forEach(dateKey=>{
+      Object.keys(d.days[dateKey]).forEach(itemId=>{
+        if(d.days[dateKey][itemId].am!==undefined) delete d.days[dateKey][itemId].am;
+        if(d.days[dateKey][itemId].normalOrder!==undefined) delete d.days[dateKey][itemId].normalOrder;
+      });
+    });
+    // Re-apply seed AM data for March 29 only
+    Object.keys(SEED_AM_DATA).forEach(dateKey=>{
+      if(!d.days[dateKey])d.days[dateKey]={};
+      Object.keys(SEED_AM_DATA[dateKey]).forEach(itemId=>{
+        if(!d.days[dateKey][itemId])d.days[dateKey][itemId]={};
+        d.days[dateKey][itemId].am=SEED_AM_DATA[dateKey][itemId].am;
+      });
+    });
+    saveData(d);
+  }
+  return d;
+}
+function saveData(d){
+  // Save to local cache
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
+  // Sync to Firestore if user is authenticated
+  if(currentUser&&firebaseReady){
+    syncDataToFirestore(d).catch(err=>console.error('Firestore sync error:',err));
+  }
+}
+async function syncDataToFirestore(d){
+  if(!currentUser)return;
+  try{
+    // Save config/settings
+    await db.collection('config').doc('settings').set({
+      items:d.items,
+      password:d.password,
+      emails:d.emails||[],
+      emailjs:d.emailjs||{},
+      inventoryPerson:d.inventoryPerson||'',
+      parVersion:d.parVersion||PAR_VERSION,
+      lastSync:new Date()
+    },{merge:true});
+    // Save each day's data
+    if(d.days){
+      Object.keys(d.days).forEach(dateKey=>{
+        if(dateKey!=='__meta'){
+          db.collection('days').doc(dateKey).set(d.days[dateKey],{merge:true}).catch(err=>console.error('Error saving day data:',err));
+        }
+      });
+    }
+  }catch(err){console.error('Firestore sync error:',err)}
+}
+async function loadDataFromFirestore(){
+  if(!currentUser)return null;
+  try{
+    const configDoc=await db.collection('config').doc('settings').get();
+    if(!configDoc.exists)return null;
+    const config=configDoc.data();
+    const daysSnap=await db.collection('days').get();
+    const days={};
+    daysSnap.forEach(doc=>{days[doc.id]=doc.data()});
+    return{
+      items:config.items||JSON.parse(JSON.stringify(DEFAULT_ITEMS)),
+      days,
+      password:config.password||DEFAULT_PW,
+      emails:config.emails||[],
+      emailjs:config.emailjs||{},
+      inventoryPerson:config.inventoryPerson||'',
+      parVersion:config.parVersion||PAR_VERSION
+    };
+  }catch(err){console.error('Error loading from Firestore:',err);return null}
+}
+function dk(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function getDayData(key){const d=loadData();return(d.days&&d.days[key])||{}}
+function setField(key,itemId,field,value){
+  const d=loadData();if(!d.days)d.days={};if(!d.days[key])d.days[key]={};if(!d.days[key][itemId])d.days[key][itemId]={};
+  d.days[key][itemId][field]=value;saveData(d);
+}
+
+// ==================== AUTHENTICATION ====================
+async function handleLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const errorEl=document.getElementById('loginError');
+  const btn=document.getElementById('loginBtn');
+
+  if(!email||!password){
+    errorEl.textContent='Please enter email and password.';
+    errorEl.style.display='block';
+    return;
+  }
+
+  btn.disabled=true;
+  btn.textContent='Signing in...';
+  errorEl.style.display='none';
+
+  try{
+    await auth.signInWithEmailAndPassword(email,password);
+    // Auth state listener will handle the rest
+  }catch(err){
+    errorEl.textContent=err.message;
+    errorEl.style.display='block';
+    btn.disabled=false;
+    btn.textContent='Sign In';
+  }
+}
+
+function toggleSignUp(){
+  const container=document.getElementById('loginFormContainer');
+  const isSignUp=container.dataset.mode==='signup';
+  if(isSignUp){
+    container.innerHTML=`
+      <input type="email" id="loginEmail" placeholder="Email address" onkeydown="if(event.key==='Enter')handleLogin()">
+      <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+      <div class="login-error" id="loginError"></div>
+      <button onclick="handleLogin()" id="loginBtn">Sign In</button>`;
+    document.querySelector('.login-signup').innerHTML='Don\'t have an account? <a onclick="toggleSignUp()">Sign up</a>';
+    container.dataset.mode='signin';
+  }else{
+    container.innerHTML=`
+      <input type="email" id="loginEmail" placeholder="Email address" onkeydown="if(event.key==='Enter')handleSignUp()">
+      <input type="password" id="loginPassword" placeholder="Password (min 6 chars)" onkeydown="if(event.key==='Enter')handleSignUp()">
+      <input type="password" id="loginPasswordConfirm" placeholder="Confirm password" onkeydown="if(event.key==='Enter')handleSignUp()">
+      <div class="login-error" id="loginError"></div>
+      <button onclick="handleSignUp()" id="loginBtn">Create Account</button>`;
+    document.querySelector('.login-signup').innerHTML='Have an account? <a onclick="toggleSignUp()">Sign in</a>';
+    container.dataset.mode='signup';
+  }
+  document.getElementById('loginError').style.display='none';
+}
+
+async function handleSignUp(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const confirmPassword=document.getElementById('loginPasswordConfirm').value;
+  const errorEl=document.getElementById('loginError');
+  const btn=document.getElementById('loginBtn');
+
+  if(!email||!password||!confirmPassword){
+    errorEl.textContent='Please fill in all fields.';
+    errorEl.style.display='block';
+    return;
+  }
+
+  if(password!==confirmPassword){
+    errorEl.textContent='Passwords do not match.';
+    errorEl.style.display='block';
+    return;
+  }
+
+  if(password.length<6){
+    errorEl.textContent='Password must be at least 6 characters.';
+    errorEl.style.display='block';
+    return;
+  }
+
+  btn.disabled=true;
+  btn.textContent='Creating account...';
+  errorEl.style.display='none';
+
+  try{
+    await auth.createUserWithEmailAndPassword(email,password);
+    // Auth state listener will handle the rest
+  }catch(err){
+    errorEl.textContent=err.message;
+    errorEl.style.display='block';
+    btn.disabled=false;
+    btn.textContent='Create Account';
+  }
+}
+
+function handleLogout(){
+  if(!confirm('Sign out?'))return;
+  auth.signOut().catch(err=>console.error('Logout error:',err));
+}
+
+// Set up auth state listener
+auth.onAuthStateChanged(async(user)=>{
+  currentUser=user;
+  const loginOverlay=document.getElementById('loginOverlay');
+  const userEmailEl=document.getElementById('userEmail');
+
+  if(user){
+    // User is logged in
+    currentUser=user;
+    firebaseReady=true;
+    loginOverlay.classList.add('hidden');
+    userEmailEl.textContent=user.email;
+
+    // Try to load data from Firestore
+    const fsData=await loadDataFromFirestore();
+    if(fsData){
+      // Update local cache with Firestore data
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(fsData))}catch(e){}
+      items=fsData.items;
+    }else{
+      // Fall back to existing local data
+      const d=loadData();
+      items=d.items;
+    }
+
+    // Set up real-time listeners
+    setupRealtimeListeners();
+
+    // Start the app
+    if(typeof render==='function'){render()}
+    if(typeof goToToday==='function'){goToToday()}
+  }else{
+    // User is logged out
+    currentUser=null;
+    firebaseReady=false;
+    loginOverlay.classList.remove('hidden');
+    userEmailEl.textContent='';
+    document.getElementById('loginEmail').value='';
+    document.getElementById('loginPassword').value='';
+    document.getElementById('loginError').style.display='none';
+    document.getElementById('loginBtn').disabled=false;
+    document.getElementById('loginBtn').textContent='Sign In';
+  }
+});
+
+function setupRealtimeListeners(){
+  if(!currentUser)return;
+  // Listen to config/settings changes
+  db.collection('config').doc('settings').onSnapshot(doc=>{
+    if(doc.exists){
+      const config=doc.data();
+      const d=loadData();
+      d.items=config.items||d.items;
+      d.emails=config.emails||d.emails;
+      d.password=config.password||d.password;
+      // Preserve emailjs: use Firestore value if it has a publicKey, otherwise keep local
+      if(config.emailjs&&config.emailjs.publicKey){d.emailjs=config.emailjs}
+      else if(!d.emailjs||!d.emailjs.publicKey){d.emailjs=config.emailjs||d.emailjs||{}}
+      d.inventoryPerson=config.inventoryPerson||d.inventoryPerson;
+      items=d.items;
+      // Update local cache
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
+      // Re-render if needed
+      if(currentTab!=='history'&&currentTab!=='analytics'){renderTable()}
+      // Refresh EmailJS config on settings page if visible
+      if(typeof loadEmailJSConfig==='function')try{loadEmailJSConfig()}catch(e){}
+    }
+  },err=>console.error('Config listener error:',err));
+
+  // Listen to days collection changes
+  db.collection('days').onSnapshot(snap=>{
+    snap.docChanges().forEach(change=>{
+      if(change.type==='added'||change.type==='modified'){
+        const dateKey=change.doc.id;
+        const d=loadData();
+        if(!d.days)d.days={};
+        d.days[dateKey]=change.doc.data();
+        // Update local cache
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
+      }
+    });
+    // Re-render if viewing current date
+    if(dk(currentDate)===snap.docs.find(doc=>doc.id===dk(currentDate))?.id){
+      if(typeof renderTable==='function'){renderTable()}
+      if(typeof renderStats==='function'){renderStats()}
+    }
+  },err=>console.error('Days listener error:',err));
+}
+function getPar(item,date){const dn=DAYS[date.getDay()];return(item.par&&item.par[dn])||0}
+function isSunday(date){return date.getDay()===0}
+
+// ==================== INVENTORY PERSON ====================
+function saveInventoryPerson(name){
+  const d=loadData();d.inventoryPerson=name;saveData(d);
+  // Also save per-day
+  setField(dk(currentDate),'__meta','inventoryPerson',name);
+}
+function loadInventoryPerson(){
+  const d=loadData();
+  const dayMeta=(d.days&&d.days[dk(currentDate)]&&d.days[dk(currentDate)]['__meta'])||{};
+  return dayMeta.inventoryPerson||d.inventoryPerson||'';
+}
+
+// ==================== HELPERS ====================
+function r2(v){if(v===''||v===null||v===undefined)return v;const n=Number(v);return isNaN(n)?v:Math.round(n*100)/100}
+
+// ==================== CALCULATIONS ====================
+function calcAM(itemId){
+  const prev=new Date(currentDate);prev.setDate(prev.getDate()-1);
+  const pd=getDayData(dk(prev))[itemId]||{};
+  const item=items.find(i=>i.id===itemId);
+  // If previous day has PM data, calculate AM
+  if(pd.pm!==undefined){
+    // Sunday = no delivery Monday for kitchen items only, so Monday AM = Sunday PM (ignore orders)
+    if(prev.getDay()===0&&item&&item.category==='kitchen') return Number(pd.pm);
+    // All other days (and produce on any day): AM = PM + Total Order
+    const prevNormal=(pd.normalOrder!==undefined&&pd.normalOrder!==null)?Number(pd.normalOrder):0;
+    const prevExtra=pd.extraOrder?Number(pd.extraOrder):0;
+    return Number(pd.pm)+prevNormal+prevExtra;
+  }
+  // Fall back to stored/seed AM only when no previous day data exists
+  const todayData=getDayData(dk(currentDate))[itemId]||{};
+  if(todayData.am!==undefined) return Number(todayData.am);
+  return null;
+}
+function hasManualAM(itemId){
+  // Only counts as "manual" if there's a stored AM AND no previous day PM to calculate from
+  const prev=new Date(currentDate);prev.setDate(prev.getDate()-1);
+  const pd=getDayData(dk(prev))[itemId]||{};
+  if(pd.pm!==undefined) return false; // calculated from prev day, not manual
+  const todayData=getDayData(dk(currentDate))[itemId]||{};
+  return todayData.am!==undefined;
+}
+
+function calcNormalOrder(item,pmVal){
+  if(pmVal===undefined||pmVal===null||pmVal==='') return null;
+  // If Sunday and orders not enabled, return 0 for kitchen items (no Monday delivery)
+  if(isSunday(currentDate)&&!sundayOrdersEnabled&&item.category==='kitchen') return 0;
+  const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+  const nextPar=getPar(item,nextDay);
+  return Math.max(0, nextPar - Number(pmVal));
+}
+
+function hasManualOrder(itemId){
+  const key=dk(currentDate);
+  const todayData=getDayData(key)[itemId]||{};
+  return todayData.manualOrder===true;
+}
+
+function onOrderChange(key,itemId,val){
+  if(val===''){
+    // Clear manual override, revert to auto
+    const d=loadData();
+    if(d.days&&d.days[key]&&d.days[key][itemId]){
+      delete d.days[key][itemId].manualOrder;
+      // Recalculate from PM
+      const item=items.find(i=>i.id===itemId);
+      const pm=d.days[key][itemId].pm;
+      if(item&&pm!==undefined){
+        d.days[key][itemId].normalOrder=calcNormalOrder(item,pm);
+      }else{
+        delete d.days[key][itemId].normalOrder;
+      }
+      saveData(d);
+    }
+  }else{
+    setField(key,itemId,'normalOrder',Number(val));
+    setField(key,itemId,'manualOrder',true);
+  }
+  render();
+}
+
+function resetOrder(key,itemId){
+  const d=loadData();
+  if(d.days&&d.days[key]&&d.days[key][itemId]){
+    delete d.days[key][itemId].manualOrder;
+    const item=items.find(i=>i.id===itemId);
+    const pm=d.days[key][itemId].pm;
+    if(item&&pm!==undefined){
+      d.days[key][itemId].normalOrder=calcNormalOrder(item,pm);
+    }
+    saveData(d);
+  }
+  render();
+  showToast('Order reset to auto-calculate');
+}
+
+// ==================== SUNDAY ORDER TOGGLE ====================
+function toggleSundayOrders(){
+  sundayOrdersEnabled=!sundayOrdersEnabled;
+  const banner=document.getElementById('noDeliveryBanner');
+  if(sundayOrdersEnabled){
+    banner.querySelector('span').textContent='Monday orders enabled for this session.';
+    banner.querySelector('button').textContent='Disable Orders';
+    banner.style.background='#f0fdf4';banner.style.borderColor='#86efac';banner.style.color='#166534';
+  }else{
+    banner.querySelector('span').textContent='No Monday delivery. Sunday orders are set to 0.';
+    banner.querySelector('button').textContent='Enable Orders';
+    banner.style.background='#fef2f2';banner.style.borderColor='#fca5a5';banner.style.color='#991b1b';
+  }
+  render();
+}
+
+// ==================== RENDERING ====================
+function render(){
+  const d=currentDate;
+  document.getElementById('currentDate').textContent=MONTH_NAMES[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();
+  document.getElementById('dayName').textContent=DAY_NAMES[d.getDay()];
+  // Show/hide no-delivery banner
+  document.getElementById('noDeliveryBanner').style.display=isSunday(d)?'flex':'none';
+  // Load inventory person
+  document.getElementById('inventoryPerson').value=loadInventoryPerson();
+  // Sync tab bar active state
+  document.querySelectorAll('#mainTabBar .tab').forEach(t=>{
+    t.classList.toggle('active',t.dataset.tab===currentTab);
+  });
+  renderStats();renderTable();
+}
+
+function renderStats(){
+  const key=dk(currentDate),dd=getDayData(key);
+  let total=items.length,entered=0,orderCount=0;
+  items.forEach(item=>{
+    const d=dd[item.id]||{};
+    if(d.pm!==undefined)entered++;
+    const no=calcNormalOrder(item,d.pm);const eo=d.extraOrder||0;
+    if((no!==null&&no>0)||eo>0)orderCount++;
+  });
+  document.getElementById('statsBar').innerHTML=`
+    <div class="stat-card"><div class="label">Total Items</div><div class="value">${total}</div></div>
+    <div class="stat-card"><div class="label">PM Entered</div><div class="value">${entered}/${total}</div></div>
+    <div class="stat-card"><div class="label">Items to Order</div><div class="value ${orderCount>0?'warn':''}">${orderCount}</div></div>
+    <div class="stat-card"><div class="label">Par Type</div><div class="value" style="font-size:1rem">${isSunday(currentDate)?'Sunday (No Monday Delivery)':DAY_NAMES[currentDate.getDay()]}</div></div>`;
+}
+
+function renderTable(){
+  if(currentTab==='history'){renderHistory();return}
+  if(currentTab==='analytics'){renderAnalytics();return}
+  document.getElementById('filterBar').style.display='flex';
+  const key=dk(currentDate),dd=getDayData(key);
+  const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
+
+  let filtered=items.filter(item=>{
+    if(item.category!==currentTab)return false;
+    if(searchQuery&&!item.name.toLowerCase().includes(searchQuery.toLowerCase()))return false;
+    if(activeFilters.has('needsOrder')){
+      const d=dd[item.id]||{};const no=calcNormalOrder(item,d.pm);const eo=d.extraOrder||0;
+      if(!((no!==null&&no>0)||eo>0))return false;
+    }
+    return true;
+  });
+
+  const groups={kitchen:[],produce:[]};
+  filtered.forEach(item=>{if(groups[item.category])groups[item.category].push(item)});
+
+  let html=`<table><thead><tr>
+    <th>Item</th><th>Today's Par</th><th>AM</th><th>Status</th><th>PM</th><th>Usage</th><th>Order</th><th>Extra</th><th class="total-order-head">Total Order</th><th style="color:var(--gray-400)">Tmrw Par</th><th>Reason</th>
+  </tr></thead><tbody>`;
+
+  ['kitchen','produce'].forEach(cat=>{
+    if(!groups[cat]||!groups[cat].length)return;
+    // Section headers not needed since categories are on separate tabs
+    groups[cat].forEach(item=>{
+      const d=dd[item.id]||{};
+      const par=getPar(item,currentDate);
+      const am=calcAM(item.id);
+      const isManualAM=hasManualAM(item.id);
+      const pm=d.pm;
+      const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+      const itemSunBlock=sunNoOrder&&item.category==='kitchen';
+      const autoOrder=calcNormalOrder(item,pm);
+      const isManualOrdCheck=d.manualOrder===true;
+      const normalOrder=isManualOrdCheck&&d.normalOrder!==undefined?Number(d.normalOrder):autoOrder;
+      const extraOrder=d.extraOrder!==undefined?d.extraOrder:'';
+      const usageCls=usage!==''?(usage>0?'positive':usage<0?'negative':''):'';
+      const hasOrder=(normalOrder!==null&&normalOrder>0)||(Number(extraOrder)>0);
+      const totalOrder=itemSunBlock?0:r2((normalOrder||0)+Number(extraOrder||0));
+
+      // AM status: compare AM vs Today Par
+      let amStatus='';
+      if(am!==null&&par>0){
+        if(am>=par){amStatus=`<div class="cell-ok" style="padding:3px 4px;text-align:center"><span class="surplus-hint">+${r2(am-par)}</span></div>`}
+        else{amStatus=`<div class="cell-short" style="padding:3px 4px;text-align:center"><span class="shortage-hint">${r2(par-am)} short</span></div>`}
+      }
+
+      // Total Order status: compare (PM + Total Order) vs Tomorrow Par
+      const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+      const tomorrowPar=getPar(item,nextDay);
+      let orderStatus='';
+      if(pm!==undefined&&!itemSunBlock&&tomorrowPar>0){
+        const projected=r2(Number(pm)+totalOrder);
+        if(projected>=tomorrowPar){orderStatus=`<div class="cell-ok" style="padding:3px 4px;text-align:center"><span class="surplus-hint">+${r2(projected-tomorrowPar)}</span></div>`}
+        else{const gap=r2(tomorrowPar-projected);orderStatus=`<div class="cell-warn" style="padding:3px 4px;text-align:center"><span class="shortage-hint">${gap} short tmrw</span></div>`}
+      }
+
+      const statusHtml=amStatus||orderStatus?`${amStatus}${orderStatus}`:`<span style="color:var(--gray-300)">-</span>`;
+
+      // AM: editable input, shows auto value but can be overridden
+      const amClass=isManualAM?'auto-field overridden':'auto-field';
+      const amHtml=`<div class="am-cell">
+        <input type="number" class="${amClass}" value="${am!==null?r2(am):''}" step="0.5" min="0"
+          onchange="onAMChange('${key}','${item.id}',this.value)"
+          title="${isManualAM?'Manual override (click reset to auto-calc)':'Auto-calculated from prev day'}">
+        ${isManualAM?`<button class="am-reset" onclick="resetAM('${key}','${item.id}')" title="Reset to auto-calculate">x</button>`:''}
+      </div>`;
+
+      // Sunday: order fields disabled unless enabled (kitchen only)
+      const orderDisabled=itemSunBlock?' disabled':'';
+      const isManualOrd=hasManualOrder(item.id);
+      const normalOrderVal=itemSunBlock?0:(isManualOrd?(d.normalOrder!==undefined?r2(d.normalOrder):''):(normalOrder!==null?r2(normalOrder):''));
+      const extraOrderVal=itemSunBlock?0:extraOrder;
+      const totalDisplay=itemSunBlock?0:(totalOrder||'-');
+
+      // Order: editable input, shows auto value but can be overridden (like AM)
+      const orderClass=isManualOrd?'auto-field overridden':'auto-field';
+      const orderHtml=itemSunBlock?
+        `<input type="number" class="auto-field" value="0" disabled>`:
+        `<div class="am-cell">
+          <input type="number" class="${orderClass}" value="${normalOrderVal}" step="0.5" min="0"
+            onchange="onOrderChange('${key}','${item.id}',this.value)"
+            title="${isManualOrd?'Manual override (click reset to auto-calc)':'Auto: next day par - PM'}">
+          ${isManualOrd?`<button class="am-reset" onclick="resetOrder('${key}','${item.id}')" title="Reset to auto-calculate">x</button>`:''}
+        </div>`;
+
+      // Variance reason
+      const currentReason=d.reason||'';
+      const reasonOther=d.reasonOther||'';
+      const reasonHtml=`<select class="reason-select" onchange="onReasonChange('${key}','${item.id}',this.value)" title="${currentReason==='other'?reasonOther:''}">
+        <option value=""${!currentReason?' selected':''}>-</option>
+        <option value="slow"${currentReason==='slow'?' selected':''}>Business Slow</option>
+        <option value="sufficient"${currentReason==='sufficient'?' selected':''}>Sufficient Qty on Hand</option>
+        <option value="catering"${currentReason==='catering'?' selected':''}>Catering/Large Order</option>
+        <option value="holiday"${currentReason==='holiday'?' selected':''}>Holiday</option>
+        <option value="prep"${currentReason==='prep'?' selected':''}>Additional Prep Needed</option>
+        <option value="other"${currentReason==='other'?' selected':''}>Other</option>
+      </select>${currentReason==='other'?`<input type="text" class="reason-other-input" value="${reasonOther.replace(/"/g,'&quot;')}" placeholder="Specify..." onchange="setField('${key}','${item.id}','reasonOther',this.value);saveData(loadData())">`:'' }`;
+
+      html+=`<tr${hasOrder&&!itemSunBlock?' style="background:#fef2f2"':''}>
+        <td><span class="item-name">${item.name}</span> <span class="item-unit">(${item.unit})</span></td>
+        <td><span class="par-val">${r2(par)}</span></td>
+        <td>${amHtml}</td>
+        <td style="padding:2px">${statusHtml}</td>
+        <td><input type="number" value="${pm!==undefined?r2(pm):''}" step="0.5" min="0"
+          onchange="onPMChange('${key}','${item.id}',this.value)"></td>
+        <td><span class="usage-val ${usageCls}">${usage!==''?usage:'-'}</span></td>
+        <td>${orderHtml}</td>
+        <td><input type="number" class="extra-field" value="${extraOrderVal}" step="0.5" min="0" placeholder="0"
+          onchange="setField('${key}','${item.id}','extraOrder',this.value===''?undefined:Number(this.value));render()"${orderDisabled}></td>
+        <td class="total-order-cell"><strong>${totalDisplay}</strong></td>
+        <td style="color:var(--gray-400);font-size:.78rem;text-align:center">${r2(tomorrowPar)}</td>
+        <td>${reasonHtml}</td>
+      </tr>`;
+    });
+  });
+
+  html+='</tbody></table>';
+  if(!filtered.length)html='<div style="text-align:center;padding:40px;color:var(--gray-400)">No items match.</div>';
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+function onAMChange(key,itemId,val){
+  if(val===''){
+    // Clear manual override, revert to auto
+    const d=loadData();
+    if(d.days&&d.days[key]&&d.days[key][itemId]){delete d.days[key][itemId].am;saveData(d)}
+  }else{
+    setField(key,itemId,'am',Number(val));
+  }
+  render();
+}
+function resetAM(key,itemId){
+  const d=loadData();
+  if(d.days&&d.days[key]&&d.days[key][itemId]){delete d.days[key][itemId].am;saveData(d)}
+  render();
+  showToast('AM reset to auto-calculate');
+}
+
+function onReasonChange(key,itemId,val){
+  setField(key,itemId,'reason',val);
+  if(val!=='other'){setField(key,itemId,'reasonOther','');}
+  saveData(loadData());
+  renderTable();
+}
+
+function onPMChange(key,itemId,val){
+  const item=items.find(i=>i.id===itemId);
+  const numVal=val===''?undefined:Number(val);
+  setField(key,itemId,'pm',numVal);
+  // Only auto-recalculate order if not manually overridden
+  if(item&&numVal!==undefined&&!hasManualOrder(itemId)){
+    const no=calcNormalOrder(item,numVal);
+    setField(key,itemId,'normalOrder',no);
+  }
+  // Clear any stored AM on the NEXT day so it recalculates from this PM + orders
+  const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+  const nextKey=dk(nextDay);
+  const d=loadData();
+  if(d.days&&d.days[nextKey]&&d.days[nextKey][itemId]&&d.days[nextKey][itemId].am!==undefined){
+    delete d.days[nextKey][itemId].am;saveData(d);
+  }
+  renderTable();renderStats();
+}
+
+let historyView='usage';
+function renderHistory(){
+  document.getElementById('filterBar').style.display='flex';
+  const dates=[];for(let i=6;i>=0;i--){const d=new Date(currentDate);d.setDate(d.getDate()-i);dates.push(d)}
+  const showUsage=historyView==='usage'||historyView==='both';
+  const showOrder=historyView==='order'||historyView==='both';
+
+  let html=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <label style="font-weight:600;font-size:.85rem">Show:</label>
+    <button class="btn btn-sm ${historyView==='usage'?'btn-primary':'btn-white'}" onclick="historyView='usage';renderHistory()">Usage</button>
+    <button class="btn btn-sm ${historyView==='order'?'btn-primary':'btn-white'}" onclick="historyView='order';renderHistory()">Total Order</button>
+    <button class="btn btn-sm ${historyView==='both'?'btn-primary':'btn-white'}" onclick="historyView='both';renderHistory()">Both</button>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-sm btn-primary" onclick="exportHistoryExcel()">Export to Excel</button>
+      <button class="btn btn-sm btn-white" onclick="exportHistoryPDF()">Export to PDF</button>
+    </div>
+  </div>`;
+
+  html+=`<table style="font-size:.85rem"><thead><tr><th>Item</th>`;
+  dates.forEach(d=>{
+    const dateLabel=`${(d.getMonth()+1)}/${d.getDate()}<br><span style="font-weight:400;font-size:.7rem">${DAY_SHORT[d.getDay()]}</span>`;
+    if(historyView==='both'){
+      html+=`<th style="text-align:center" colspan="2">${dateLabel}</th>`;
+    }else{
+      html+=`<th style="text-align:center">${dateLabel}</th>`;
+    }
+  });
+  html+=`</tr>`;
+  if(historyView==='both'){
+    html+=`<tr><th></th>`;
+    dates.forEach(()=>{
+      html+=`<th style="text-align:center;font-size:.65rem;color:var(--gray-400);padding:2px 4px">Use</th><th style="text-align:center;font-size:.65rem;color:var(--primary);padding:2px 4px">Order</th>`;
+    });
+    html+=`</tr>`;
+  }
+  html+=`</thead><tbody>`;
+
+  items.forEach(item=>{
+    if(searchQuery&&!item.name.toLowerCase().includes(searchQuery.toLowerCase()))return;
+    html+=`<tr><td><span class="item-name">${item.name}</span> <span class="item-unit">(${item.unit})</span></td>`;
+    dates.forEach(d=>{
+      const dd=getDayData(dk(d))[item.id]||{};
+      if(showUsage){
+        const savedCurrent=new Date(currentDate);currentDate=d;
+        const am=calcAM(item.id);
+        currentDate=savedCurrent;
+        const pm=dd.pm;
+        const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):null;
+        const usageColor=usage!==null?(usage>0?'color:#16a34a':usage<0?'color:#dc2626':''):'color:var(--gray-300)';
+        html+=`<td style="text-align:center;font-size:.8rem;${usageColor}">${usage!==null?usage:'-'}</td>`;
+      }
+      if(showOrder){
+        const no=dd.normalOrder||0;const eo=dd.extraOrder||0;const total=no+eo;
+        html+=`<td style="text-align:center;font-weight:600;${total>0?'color:var(--primary)':''}">${total||'-'}</td>`;
+      }
+    });
+    html+=`</tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+function getHistoryData(){
+  const dates=[];for(let i=6;i>=0;i--){const d=new Date(currentDate);d.setDate(d.getDate()-i);dates.push(d)}
+  const showUsage=historyView==='usage'||historyView==='both';
+  const showOrder=historyView==='order'||historyView==='both';
+  const header=['Item'];
+  dates.forEach(d=>{
+    const lbl=(d.getMonth()+1)+'/'+d.getDate()+' ('+DAY_SHORT[d.getDay()]+')';
+    if(showUsage)header.push(lbl+' Use');
+    if(showOrder)header.push(lbl+' Order');
+  });
+  const rows=[];
+  items.forEach(item=>{
+    if(searchQuery&&!item.name.toLowerCase().includes(searchQuery.toLowerCase()))return;
+    const row=[item.name+' ('+item.unit+')'];
+    dates.forEach(d=>{
+      const dd=getDayData(dk(d))[item.id]||{};
+      if(showUsage){
+        const savedCurrent=new Date(currentDate);currentDate=d;
+        const am=calcAM(item.id);
+        currentDate=savedCurrent;
+        const pm=dd.pm;
+        const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+        row.push(usage!==''?usage:'');
+      }
+      if(showOrder){
+        const no=dd.normalOrder||0;const eo=dd.extraOrder||0;const total=no+eo;
+        row.push(total||'');
+      }
+    });
+    rows.push(row);
+  });
+  return {header,rows,dates,showUsage,showOrder};
+}
+
+function exportHistoryExcel(){
+  const {header,rows}=getHistoryData();
+  const viewLabel=historyView==='both'?'Usage & Orders':historyView==='usage'?'Usage':'Total Orders';
+  const wb=XLSX.utils.book_new();
+  const wsData=[
+    ['Naan N Curry Issaquah - 7-Day History ('+viewLabel+')'],
+    ['Generated: '+new Date().toLocaleDateString()],
+    [],
+    header,
+    ...rows
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=header.map((_,i)=>({wch:i===0?28:14}));
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.min(header.length-1,5)}}];
+  XLSX.utils.book_append_sheet(wb,ws,'7-Day History');
+  XLSX.writeFile(wb,'NNC-7Day-History-'+dk(new Date())+'.xlsx');
+  showToast('7-Day History exported to Excel');
+}
+
+function exportHistoryPDF(){
+  const {header,rows}=getHistoryData();
+  const viewLabel=historyView==='both'?'Usage & Orders':historyView==='usage'?'Usage':'Total Orders';
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter',orientation:'landscape'});
+
+  // Header
+  doc.setFillColor(30,58,95);
+  doc.rect(0,0,280,20,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(14);doc.setFont('helvetica','bold');
+  doc.text('Naan N Curry Issaquah - 7-Day History ('+viewLabel+')',14,10);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text('Generated: '+new Date().toLocaleDateString(),14,16);
+
+  doc.autoTable({
+    startY:25,
+    head:[header],
+    body:rows,
+    theme:'grid',
+    headStyles:{fillColor:[30,58,95],textColor:255,fontStyle:'bold',fontSize:7,halign:'center'},
+    bodyStyles:{fontSize:7},
+    columnStyles:{0:{cellWidth:40}},
+    margin:{left:10,right:10},
+    styles:{cellPadding:2}
+  });
+
+  doc.save('NNC-7Day-History-'+dk(new Date())+'.pdf');
+  showToast('7-Day History exported to PDF');
+}
+
+// ==================== ANALYTICS ====================
+const REASON_LABELS={slow:'Business Slow',sufficient:'Sufficient Qty on Hand',catering:'Catering/Large Order',holiday:'Holiday',prep:'Additional Prep Needed',other:'Other'};
+
+function getUniquePeople(){
+  const d=loadData();
+  const people=new Set();
+  if(d.days){
+    Object.keys(d.days).forEach(dateKey=>{
+      const meta=d.days[dateKey].__meta;
+      if(meta&&meta.inventoryPerson)people.add(meta.inventoryPerson);
+    });
+  }
+  return Array.from(people).sort();
+}
+
+function getUniqueReasons(){
+  const d=loadData();
+  const reasons=new Set();
+  if(d.days){
+    Object.keys(d.days).forEach(dateKey=>{
+      const dd=d.days[dateKey];
+      Object.keys(dd).forEach(itemId=>{
+        if(itemId==='__meta')return;
+        if(dd[itemId].reason)reasons.add(dd[itemId].reason);
+      });
+    });
+  }
+  return Array.from(reasons);
+}
+
+function renderAnalytics(){
+  document.getElementById('filterBar').style.display='none';
+  const d=loadData();
+  const people=getUniquePeople();
+  const reasons=getUniqueReasons();
+
+  let html=`<div class="analytics-wrap">
+    <div class="analytics-controls" style="flex-wrap:wrap;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-weight:600">View:</label>
+        <select id="analyticsView" onchange="updateAnalytics()">
+          <option value="daily">Daily Usage</option>
+          <option value="weekly">Weekly Usage</option>
+          <option value="monthly">Monthly Usage</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-weight:600">Items:</label>
+        <div class="multi-select-wrap" id="itemSelectWrap">
+          <button class="btn btn-sm btn-white" onclick="toggleItemDropdown()" id="itemSelectBtn" style="min-width:180px;text-align:left;justify-content:space-between">
+            All Kitchen Items <span style="font-size:.7rem;opacity:.6">▼</span>
+          </button>
+          <div class="multi-select-dropdown" id="itemDropdown" style="display:none">
+            <label class="multi-select-option"><input type="checkbox" value="__all__" checked onchange="onItemCheckChange(this)"> <strong>All Kitchen Items (Total)</strong></label>
+            <div style="border-top:1px solid var(--gray-200);margin:4px 0;padding-top:4px;font-size:.7rem;font-weight:700;color:var(--gray-400);text-transform:uppercase">NNC Main Kitchen</div>`;
+  items.filter(i=>i.category==='kitchen').forEach(item=>{
+    html+=`<label class="multi-select-option"><input type="checkbox" value="${item.id}" onchange="onItemCheckChange(this)"> ${item.name}</label>`;
+  });
+  html+=`<div style="border-top:1px solid var(--gray-200);margin:4px 0;padding-top:4px;font-size:.7rem;font-weight:700;color:var(--gray-400);text-transform:uppercase">Issaquah Produce</div>`;
+  items.filter(i=>i.category==='produce').forEach(item=>{
+    html+=`<label class="multi-select-option"><input type="checkbox" value="${item.id}" onchange="onItemCheckChange(this)"> ${item.name}</label>`;
+  });
+  html+=`</div></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-weight:600;font-size:.85rem">From:</label>
+        <input type="date" id="analyticsFrom" style="font-size:.85rem">
+        <label style="font-weight:600;font-size:.85rem">To:</label>
+        <input type="date" id="analyticsTo" style="font-size:.85rem">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-weight:600;font-size:.85rem">Person:</label>
+        <select id="analyticsPersonFilter" style="font-size:.85rem">
+          <option value="">All</option>`;
+  people.forEach(p=>{html+=`<option value="${p}">${p}</option>`});
+  html+=`</select>
+        <label style="font-weight:600;font-size:.85rem;margin-left:8px">Reason:</label>
+        <select id="analyticsReasonFilter" style="font-size:.85rem">
+          <option value="">All</option>`;
+  reasons.forEach(r=>{html+=`<option value="${r}">${REASON_LABELS[r]||r}</option>`});
+  html+=`</select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-sm btn-primary" onclick="updateAnalytics()" style="font-weight:700;padding:8px 20px">Go</button>
+        <button class="btn btn-sm btn-white" onclick="clearAnalyticsFilters()">Clear All</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-sm btn-primary" onclick="exportCurrentViewExcel()">Export to Excel</button>
+        <button class="btn btn-sm btn-white" onclick="exportCurrentViewPDF()">Export to PDF</button>
+      </div>
+    </div>
+    <div class="chart-container"><canvas id="analyticsCanvas"></canvas></div>
+    <div class="pivot-table" id="pivotTable"></div>
+  </div>`;
+  document.getElementById('mainContent').innerHTML=html;
+  // Close dropdown when clicking outside
+  document.addEventListener('click',function closeDropdown(e){
+    const wrap=document.getElementById('itemSelectWrap');
+    if(wrap&&!wrap.contains(e.target)){
+      const dd=document.getElementById('itemDropdown');
+      if(dd)dd.style.display='none';
+    }
+  });
+  setTimeout(updateAnalytics,100);
+}
+
+function toggleItemDropdown(){
+  const dd=document.getElementById('itemDropdown');
+  if(dd)dd.style.display=dd.style.display==='none'?'block':'none';
+}
+
+function getSelectedItems(){
+  const checkboxes=document.querySelectorAll('#itemDropdown input[type=checkbox]:checked');
+  return Array.from(checkboxes).map(cb=>cb.value);
+}
+
+function onItemCheckChange(cb){
+  if(cb.value==='__all__'){
+    // Uncheck all individual items when "All" is checked
+    if(cb.checked){
+      document.querySelectorAll('#itemDropdown input[type=checkbox]').forEach(c=>{if(c.value!=='__all__')c.checked=false});
+    }
+  }else{
+    // Uncheck "All" when an individual item is checked
+    const allCb=document.querySelector('#itemDropdown input[value="__all__"]');
+    if(allCb)allCb.checked=false;
+  }
+  // Update button label
+  const selected=getSelectedItems();
+  const btn=document.getElementById('itemSelectBtn');
+  if(btn){
+    if(selected.includes('__all__'))btn.innerHTML='All Kitchen Items <span style="font-size:.7rem;opacity:.6">▼</span>';
+    else if(selected.length===0)btn.innerHTML='Select items... <span style="font-size:.7rem;opacity:.6">▼</span>';
+    else if(selected.length===1){
+      const item=items.find(i=>i.id===selected[0]);
+      btn.innerHTML=(item?item.name:'1 item')+' <span style="font-size:.7rem;opacity:.6">▼</span>';
+    }
+    else btn.innerHTML=selected.length+' items selected <span style="font-size:.7rem;opacity:.6">▼</span>';
+  }
+}
+
+function clearAnalyticsFilters(){
+  const fromEl=document.getElementById('analyticsFrom');
+  const toEl=document.getElementById('analyticsTo');
+  const personEl=document.getElementById('analyticsPersonFilter');
+  const reasonEl=document.getElementById('analyticsReasonFilter');
+  if(fromEl)fromEl.value='';
+  if(toEl)toEl.value='';
+  if(personEl)personEl.value='';
+  if(reasonEl)reasonEl.value='';
+  // Reset item selection to All
+  document.querySelectorAll('#itemDropdown input[type=checkbox]').forEach(c=>{c.checked=c.value==='__all__'});
+  const btn=document.getElementById('itemSelectBtn');
+  if(btn)btn.innerHTML='All Kitchen Items <span style="font-size:.7rem;opacity:.6">▼</span>';
+  updateAnalytics();
+}
+
+function calcAMForDate(dateKey,itemId,allDays){
+  // Same logic as calcAM but for any date, not just currentDate
+  const dateObj=new Date(dateKey+'T12:00:00');
+  const prev=new Date(dateObj);prev.setDate(prev.getDate()-1);
+  const prevKey=dk(prev);
+  const pd=(allDays[prevKey]&&allDays[prevKey][itemId])||{};
+  const item=items.find(i=>i.id===itemId);
+  if(pd.pm!==undefined){
+    if(prev.getDay()===0&&item&&item.category==='kitchen') return Number(pd.pm);
+    const prevNormal=(pd.normalOrder!==undefined&&pd.normalOrder!==null)?Number(pd.normalOrder):0;
+    const prevExtra=pd.extraOrder?Number(pd.extraOrder):0;
+    return Number(pd.pm)+prevNormal+prevExtra;
+  }
+  const td=(allDays[dateKey]&&allDays[dateKey][itemId])||{};
+  if(td.am!==undefined) return Number(td.am);
+  return null;
+}
+
+function getUsageData(){
+  const d=loadData();
+  const results=[];
+  if(!d.days)return results;
+  const sortedKeys=Object.keys(d.days).filter(k=>k!=='__meta').sort();
+  const selectedItems=getSelectedItems();
+  const isAll=selectedItems.includes('__all__')||selectedItems.length===0;
+  const fromVal=document.getElementById('analyticsFrom')?.value||'';
+  const toVal=document.getElementById('analyticsTo')?.value||'';
+  const personFilter=document.getElementById('analyticsPersonFilter')?.value||'';
+  const reasonFilter=document.getElementById('analyticsReasonFilter')?.value||'';
+
+  sortedKeys.forEach(dateKey=>{
+    if(fromVal&&dateKey<fromVal)return;
+    if(toVal&&dateKey>toVal)return;
+    const dd=d.days[dateKey];
+    // Person filter: check __meta.inventoryPerson
+    if(personFilter){
+      const meta=dd.__meta;
+      if(!meta||meta.inventoryPerson!==personFilter)return;
+    }
+    let totalUsage=0,count=0;
+    const targetItems=isAll?items.filter(i=>i.category==='kitchen'):items.filter(i=>selectedItems.includes(i.id));
+    targetItems.forEach(item=>{
+      const id=dd[item.id];
+      if(!id||id.pm===undefined)return;
+      // Reason filter: only include items with matching reason
+      if(reasonFilter&&id.reason!==reasonFilter)return;
+      let am=id.am!==undefined?Number(id.am):calcAMForDate(dateKey,item.id,d.days);
+      if(am!==null){totalUsage+=(am-Number(id.pm));count++}
+    });
+    if(count>0)results.push({date:dateKey,usage:totalUsage});
+  });
+  return results;
+}
+
+const CHART_COLORS=['rgba(30,58,95,.7)','rgba(220,38,38,.7)','rgba(22,163,74,.7)','rgba(245,158,11,.7)','rgba(139,92,246,.7)','rgba(6,182,212,.7)','rgba(236,72,153,.7)','rgba(251,146,60,.7)','rgba(34,211,238,.7)','rgba(163,230,53,.7)'];
+
+function getUsageDataPerItem(itemId){
+  const d=loadData();
+  const results=[];
+  if(!d.days)return results;
+  const sortedKeys=Object.keys(d.days).filter(k=>k!=='__meta').sort();
+  const fromVal=document.getElementById('analyticsFrom')?.value||'';
+  const toVal=document.getElementById('analyticsTo')?.value||'';
+  const personFilter=document.getElementById('analyticsPersonFilter')?.value||'';
+  const reasonFilter=document.getElementById('analyticsReasonFilter')?.value||'';
+
+  sortedKeys.forEach(dateKey=>{
+    if(fromVal&&dateKey<fromVal)return;
+    if(toVal&&dateKey>toVal)return;
+    const dd=d.days[dateKey];
+    if(personFilter){const meta=dd.__meta;if(!meta||meta.inventoryPerson!==personFilter)return}
+    const id=dd[itemId];
+    if(!id||id.pm===undefined)return;
+    if(reasonFilter&&id.reason!==reasonFilter)return;
+    let am=id.am!==undefined?Number(id.am):calcAMForDate(dateKey,itemId,d.days);
+    if(am!==null)results.push({date:dateKey,usage:am-Number(id.pm)});
+  });
+  return results;
+}
+
+function aggregateData(rawData,view,hasRange){
+  let labels=[],values=[];
+  if(view==='daily'){
+    const data=hasRange?rawData:rawData.slice(-30);
+    data.forEach(r=>{labels.push(r.date.slice(5));values.push(r.usage)});
+  }else if(view==='weekly'){
+    const weeks={};
+    rawData.forEach(r=>{
+      const d=new Date(r.date);const ws=new Date(d);ws.setDate(d.getDate()-d.getDay());
+      const wk=dk(ws);if(!weeks[wk])weeks[wk]={total:0,count:0};
+      weeks[wk].total+=r.usage;weeks[wk].count++;
+    });
+    const sorted=Object.keys(weeks).sort();
+    (hasRange?sorted:sorted.slice(-12)).forEach(wk=>{labels.push(wk.slice(5));values.push(weeks[wk].total)});
+  }else{
+    const months={};
+    rawData.forEach(r=>{const mo=r.date.slice(0,7);if(!months[mo])months[mo]=0;months[mo]+=r.usage});
+    const sorted=Object.keys(months).sort();
+    (hasRange?sorted:sorted.slice(-12)).forEach(mo=>{labels.push(mo);values.push(months[mo])});
+  }
+  return {labels,values};
+}
+
+function updateAnalytics(){
+  const view=document.getElementById('analyticsView')?.value||'daily';
+  const fromVal=document.getElementById('analyticsFrom')?.value||'';
+  const toVal=document.getElementById('analyticsTo')?.value||'';
+  const hasRange=fromVal||toVal;
+  const selectedItems=getSelectedItems();
+  const isAll=selectedItems.includes('__all__')||selectedItems.length===0;
+  const isMulti=!isAll&&selectedItems.length>1;
+
+  const canvas=document.getElementById('analyticsCanvas');
+  if(!canvas)return;
+  if(analyticsChart)analyticsChart.destroy();
+
+  if(isMulti){
+    // Multi-item comparison: one dataset per item
+    let allLabelsSet=new Set();
+    const perItemData={};
+    selectedItems.forEach(itemId=>{
+      const raw=getUsageDataPerItem(itemId);
+      const agg=aggregateData(raw,view,hasRange);
+      perItemData[itemId]=agg;
+      agg.labels.forEach(l=>allLabelsSet.add(l));
+    });
+    const allLabels=Array.from(allLabelsSet).sort();
+    const datasets=selectedItems.map((itemId,idx)=>{
+      const item=items.find(i=>i.id===itemId);
+      const agg=perItemData[itemId];
+      const labelMap={};agg.labels.forEach((l,i)=>{labelMap[l]=agg.values[i]});
+      const data=allLabels.map(l=>labelMap[l]||0);
+      const color=CHART_COLORS[idx%CHART_COLORS.length];
+      return{label:item?item.name:itemId,data,backgroundColor:color,borderColor:color.replace(/[\d.]+\)$/,'1)'),borderWidth:2,fill:false,tension:.3};
+    });
+
+    analyticsChart=new Chart(canvas,{
+      type:view==='daily'?'bar':'line',
+      data:{labels:allLabels,datasets},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top'}},scales:{y:{beginAtZero:true,title:{display:true,text:'Usage'}},x:{title:{display:true,text:view==='daily'?'Date':view==='weekly'?'Week Starting':'Month'}}}}
+    });
+
+    // Pivot table for multi-item
+    let pivotHtml='<h3 style="margin-bottom:12px">Comparison Table</h3><table><thead><tr><th>Period</th>';
+    selectedItems.forEach(itemId=>{const item=items.find(i=>i.id===itemId);pivotHtml+=`<th style="text-align:center">${item?item.name:itemId}</th>`});
+    pivotHtml+='</tr></thead><tbody>';
+    if(allLabels.length){
+      const totals=selectedItems.map(()=>0);
+      allLabels.forEach(l=>{
+        pivotHtml+=`<tr><td>${l}</td>`;
+        selectedItems.forEach((itemId,idx)=>{
+          const agg=perItemData[itemId];
+          const labelMap={};agg.labels.forEach((ll,i)=>{labelMap[ll]=agg.values[i]});
+          const v=labelMap[l]||0;totals[idx]+=v;
+          pivotHtml+=`<td style="text-align:center;font-weight:600">${v}</td>`;
+        });
+        pivotHtml+='</tr>';
+      });
+      pivotHtml+=`<tr style="font-weight:700;background:var(--gray-100)"><td>Total</td>`;
+      totals.forEach(t=>{pivotHtml+=`<td style="text-align:center">${t}</td>`});
+      pivotHtml+='</tr>';
+    }else{
+      pivotHtml+=`<tr><td colspan="${selectedItems.length+1}" style="text-align:center;color:var(--gray-400);padding:20px">No usage data for selected filters.</td></tr>`;
+    }
+    pivotHtml+='</tbody></table>';
+    document.getElementById('pivotTable').innerHTML=pivotHtml;
+
+  }else{
+    // Single item or "All" — original behavior
+    const rawData=getUsageData();
+    const {labels,values}=aggregateData(rawData,view,hasRange);
+
+    analyticsChart=new Chart(canvas,{
+      type:view==='daily'?'bar':'line',
+      data:{labels,datasets:[{label:'Usage',data:values,backgroundColor:'rgba(30,58,95,.6)',borderColor:'#1e3a5f',borderWidth:2,fill:view!=='daily',tension:.3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'Usage'}},x:{title:{display:true,text:view==='daily'?'Date':view==='weekly'?'Week Starting':'Month'}}}}
+    });
+
+    // Pivot table
+    let pivotHtml='<h3 style="margin-bottom:12px">Summary Table</h3><table><thead><tr><th>Period</th><th>Total Usage</th><th>Avg Usage</th></tr></thead><tbody>';
+    if(labels.length){
+      const avg=(values.reduce((a,b)=>a+b,0)/values.length).toFixed(1);
+      const total=values.reduce((a,b)=>a+b,0);
+      labels.forEach((l,i)=>{pivotHtml+=`<tr><td>${l}</td><td style="text-align:center;font-weight:600">${values[i]}</td><td style="text-align:center">${values[i]}</td></tr>`});
+      pivotHtml+=`<tr style="font-weight:700;background:var(--gray-100)"><td>Total / Avg</td><td style="text-align:center">${total}</td><td style="text-align:center">${avg}</td></tr>`;
+    }else{
+      pivotHtml+='<tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px">No usage data for selected filters.</td></tr>';
+    }
+    pivotHtml+='</tbody></table>';
+    document.getElementById('pivotTable').innerHTML=pivotHtml;
+  }
+}
+
+// ==================== ANALYTICS EXPORTS ====================
+function getAnalyticsExportData(){
+  const view=document.getElementById('analyticsView')?.value||'daily';
+  const selectedItems=getSelectedItems();
+  const isAll=selectedItems.includes('__all__')||selectedItems.length===0;
+  let itemLabel='All Kitchen Items';
+  if(!isAll){
+    const names=selectedItems.map(id=>{const item=items.find(i=>i.id===id);return item?item.name:id});
+    itemLabel=names.join(', ');
+  }
+  const fromVal=document.getElementById('analyticsFrom')?.value||'';
+  const toVal=document.getElementById('analyticsTo')?.value||'';
+  const rawData=getUsageData();
+  let labels=[],values=[],viewLabel='';
+  const rangeLabel=(fromVal||toVal)?(' ('+( fromVal||'start')+' to '+(toVal||'now')+')'):'';
+
+  const hasRange=fromVal||toVal;
+  const agg=aggregateData(rawData,view,hasRange);
+  labels=agg.labels;values=agg.values;
+  if(view==='daily')viewLabel='Daily Usage'+rangeLabel;
+  else if(view==='weekly')viewLabel='Weekly Usage'+rangeLabel;
+  else viewLabel='Monthly Usage'+rangeLabel;
+
+  const total=values.reduce((a,b)=>a+b,0);
+  const avg=values.length?(total/values.length).toFixed(1):0;
+  return {view,viewLabel,itemLabel,labels,values,total,avg};
+}
+
+function exportCurrentViewExcel(){
+  const {viewLabel,itemLabel,labels,values,total,avg}=getAnalyticsExportData();
+  const wb=XLSX.utils.book_new();
+  const header=['Period','Usage'];
+  const rows=labels.map((l,i)=>[l,values[i]]);
+  rows.push([]);
+  rows.push(['Total',total]);
+  rows.push(['Average',Number(avg)]);
+  const wsData=[
+    ['Naan N Curry Issaquah - '+viewLabel],
+    ['Item: '+itemLabel,'Generated: '+new Date().toLocaleDateString()],
+    [],
+    header,
+    ...rows
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:20},{wch:14}];
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:1}}];
+  XLSX.utils.book_append_sheet(wb,ws,viewLabel);
+  XLSX.writeFile(wb,'NNC-'+viewLabel.replace(/\s+/g,'-')+'-'+dk(new Date())+'.xlsx');
+  showToast(viewLabel+' exported to Excel');
+}
+
+function exportCurrentViewPDF(){
+  const {viewLabel,itemLabel,labels,values,total,avg}=getAnalyticsExportData();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter'});
+
+  // Header
+  doc.setFillColor(30,58,95);
+  doc.rect(0,0,216,20,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(14);doc.setFont('helvetica','bold');
+  doc.text('Naan N Curry Issaquah - '+viewLabel,14,10);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text('Item: '+itemLabel+'  |  Generated: '+new Date().toLocaleDateString(),14,16);
+
+  // Table
+  const rows=labels.map((l,i)=>[l,r2(values[i])]);
+  rows.push(['','']);
+  rows.push(['Total',r2(total)]);
+  rows.push(['Average',avg]);
+
+  doc.autoTable({
+    startY:25,
+    head:[['Period','Usage']],
+    body:rows,
+    theme:'grid',
+    headStyles:{fillColor:[30,58,95],textColor:255,fontStyle:'bold',fontSize:9,halign:'center'},
+    bodyStyles:{fontSize:9},
+    columnStyles:{0:{cellWidth:80},1:{halign:'center',cellWidth:40}},
+    margin:{left:14,right:14},
+    didParseCell:function(data){
+      if(data.section==='body'){
+        const txt=String(data.cell.raw||'');
+        if(txt==='Total'||txt==='Average'){data.cell.styles.fontStyle='bold';data.cell.styles.fillColor=[240,240,240]}
+      }
+    }
+  });
+
+  // Footer
+  const pageH=doc.internal.pageSize.getHeight();
+  doc.setFontSize(7);doc.setTextColor(150);
+  doc.text('Generated '+new Date().toLocaleString()+' | NNC Inventory System',14,pageH-6);
+
+  doc.save('NNC-'+viewLabel.replace(/\s+/g,'-')+'-'+dk(new Date())+'.pdf');
+  showToast(viewLabel+' exported to PDF');
+}
+
+// ==================== NAV ====================
+function changeDate(delta){currentDate.setDate(currentDate.getDate()+delta);sundayOrdersEnabled=false;render()}
+function goToToday(){currentDate=new Date();sundayOrdersEnabled=false;render()}
+function setTab(el,tab){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=tab;renderTable()}
+function toggleFilter(el,f){el.classList.toggle('active');activeFilters.has(f)?activeFilters.delete(f):activeFilters.add(f);renderTable()}
+
+// ==================== SETTINGS / PASSWORD ====================
+function promptSettings(){
+  document.getElementById('pwInput').value='';
+  document.getElementById('pwError').style.display='none';
+  document.getElementById('pwOverlay').classList.add('show');
+  setTimeout(()=>document.getElementById('pwInput').focus(),100);
+}
+function closePwPrompt(){document.getElementById('pwOverlay').classList.remove('show')}
+
+function checkPassword(){
+  const d=loadData();
+  const storedPw=d.password||DEFAULT_PW;
+  const entered=document.getElementById('pwInput').value;
+  if(entered===storedPw){
+    closePwPrompt();openSettings();
+  }else{
+    document.getElementById('pwError').style.display='block';
+    document.getElementById('pwInput').value='';
+    document.getElementById('pwInput').focus();
+  }
+}
+
+function openSettings(){
+  document.getElementById('inventoryView').classList.add('hidden');
+  document.getElementById('settingsPage').classList.add('show');
+  renderParEditor();renderItemList();renderEmailList();loadEmailJSConfig();
+}
+
+function closeSettings(){
+  document.getElementById('settingsPage').classList.remove('show');
+  document.getElementById('inventoryView').classList.remove('hidden');
+  render();
+}
+
+function changePassword(){
+  const np=document.getElementById('newPassword').value;
+  if(!np){alert('Enter a new password.');return}
+  const d=loadData();d.password=np;saveData(d);
+  document.getElementById('newPassword').value='';
+  showToast('Password updated');
+}
+
+// ==================== EMAIL DISTRIBUTION ====================
+function renderEmailList(){
+  const d=loadData();
+  const emails=d.emails||[];
+  let html='<div class="email-list">';
+  if(!emails.length)html+='<p style="color:var(--gray-400);font-size:.85rem">No emails added yet.</p>';
+  emails.forEach((email,i)=>{
+    html+=`<div class="email-item"><span>${email}</span><button class="btn btn-danger btn-sm" onclick="removeEmail(${i})">Remove</button></div>`;
+  });
+  html+='</div>';
+  document.getElementById('emailListContainer').innerHTML=html;
+}
+
+function addEmail(){
+  const input=document.getElementById('newEmail');
+  const email=input.value.trim();
+  if(!email||!email.includes('@')){alert('Enter a valid email address.');return}
+  const d=loadData();if(!d.emails)d.emails=[];
+  if(d.emails.includes(email)){showToast('Email already in list');return}
+  d.emails.push(email);saveData(d);
+  input.value='';renderEmailList();showToast('Email added');
+}
+
+function removeEmail(index){
+  const d=loadData();d.emails.splice(index,1);saveData(d);
+  renderEmailList();showToast('Email removed');
+}
+
+// ==================== PDF REPORT ====================
+function generatePDF(){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'letter'});
+
+  const key=dk(currentDate);
+  const dd=getDayData(key);
+  const dateStr=MONTH_NAMES[currentDate.getMonth()]+' '+currentDate.getDate()+', '+currentDate.getFullYear();
+  const dayStr=DAY_NAMES[currentDate.getDay()];
+  const person=loadInventoryPerson()||'Not specified';
+  const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
+
+  // Header - compact (dark blue)
+  doc.setFillColor(30,58,95);
+  doc.rect(0,0,280,18,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(13);
+  doc.setFont('helvetica','bold');
+  doc.text('Naan N Curry Issaquah - Daily Inventory Report',10,8);
+  doc.setFontSize(8);
+  doc.setFont('helvetica','normal');
+  doc.text(`${dateStr} (${dayStr})  |  Inventory By: ${person}`,10,14);
+
+  // Table data - Kitchen items only
+  const kitchenItems=items.filter(i=>i.category==='kitchen');
+  const rows=[];
+  kitchenItems.forEach(item=>{
+    const d=dd[item.id]||{};
+    const par=getPar(item,currentDate);
+    const am=calcAM(item.id);
+    const pm=d.pm;
+    const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+    const normalOrder=calcNormalOrder(item,pm);
+    const extraOrder=d.extraOrder||0;
+    const totalOrder=sunNoOrder?0:r2((normalOrder||0)+Number(extraOrder||0));
+
+    // Build status text
+    let status='';
+    if(am!==null&&par>0){
+      if(am>=par)status='+'+r2(am-par)+' OK';
+      else status=r2(par-am)+' short';
+    }
+    const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+    const tomorrowPar=getPar(item,nextDay);
+    if(pm!==undefined&&!sunNoOrder&&tomorrowPar>0){
+      const projected=r2(Number(pm)+totalOrder);
+      if(projected>=tomorrowPar){if(status)status+=' | ';status+='+'+r2(projected-tomorrowPar)+' tmrw'}
+      else{if(status)status+=' | ';status+=r2(tomorrowPar-projected)+' short tmrw'}
+    }
+
+    rows.push([
+      item.name+' ('+item.unit+')',
+      r2(par)||'',
+      am!==null?r2(am):'',
+      status,
+      pm!==undefined?r2(pm):'',
+      usage,
+      normalOrder!==null?r2(normalOrder):'',
+      extraOrder?r2(extraOrder):'',
+      totalOrder||''
+    ]);
+  });
+
+  doc.autoTable({
+    startY:21,
+    head:[['Item','Par','AM','Status','PM','Use','Order','Extra','Total Order']],
+    body:rows,
+    theme:'grid',
+    headStyles:{fillColor:[30,58,95],textColor:255,fontStyle:'bold',fontSize:6.5,halign:'center',cellPadding:1.5},
+    bodyStyles:{fontSize:6,cellPadding:1.2},
+    columnStyles:{
+      0:{cellWidth:52},
+      1:{halign:'center',cellWidth:14},
+      2:{halign:'center',cellWidth:14},
+      3:{cellWidth:38,fontSize:5.5},
+      4:{halign:'center',cellWidth:14},
+      5:{halign:'center',cellWidth:14},
+      6:{halign:'center',cellWidth:16},
+      7:{halign:'center',cellWidth:14},
+      8:{halign:'center',cellWidth:16,fontStyle:'bold'}
+    },
+    styles:{cellPadding:1.2,lineWidth:0.1},
+    margin:{left:8,right:8},
+    didParseCell:function(data){
+      // Highlight Total Order column
+      if(data.column.index===8){
+        if(data.section==='head'){
+          data.cell.styles.fillColor=[30,58,95];
+        }else{
+          data.cell.styles.fillColor=[230,240,255];
+          data.cell.styles.fontStyle='bold';
+          const val=Number(data.cell.raw);
+          if(val>0){data.cell.styles.textColor=[30,58,95]}
+        }
+      }
+      if(data.section==='body'&&data.column.index===5){
+        const val=Number(data.cell.raw);
+        if(val<0)data.cell.styles.textColor=[220,38,38];
+        else if(val>0)data.cell.styles.textColor=[22,163,74];
+      }
+      if(data.section==='body'&&data.column.index===3){
+        const txt=String(data.cell.raw||'');
+        if(txt.includes('short'))data.cell.styles.textColor=[220,38,38];
+        else if(txt.includes('OK')||txt.includes('+'))data.cell.styles.textColor=[22,163,74];
+      }
+    }
+  });
+
+  // Footer
+  const pageH=doc.internal.pageSize.getHeight();
+  doc.setFontSize(6);doc.setTextColor(150);
+  doc.text(`Generated ${new Date().toLocaleString()} | NNC Daily Ordering System`,8,pageH-4);
+
+  return doc;
+}
+
+// sendReport is defined below with EmailJS + HTML table integration
+
+// ==================== PAR EDITOR ====================
+function renderParEditor(){
+  const catFilter=document.getElementById('parCatFilter').value;
+  const filtered=items.filter(i=>catFilter==='all'||i.category===catFilter);
+  let html='';
+  filtered.forEach(item=>{
+    const badge=item.category==='kitchen'?'cat-kitchen':'cat-produce';
+    html+=`<div class="par-item">
+      <div class="par-item-header">
+        <span class="name">${item.name} <span style="color:var(--gray-400);font-weight:400;font-size:.8rem">(${item.unit})</span></span>
+        <span class="cat-badge ${badge}">${CAT_LABELS[item.category]}</span>
+      </div>
+      <div class="par-days">`;
+    DAYS.forEach((day,i)=>{
+      const val=(item.par&&item.par[day])||0;
+      html+=`<div class="par-day">
+        <label>${DAY_SHORT[i]}</label>
+        <input type="number" value="${val}" step="0.5" min="0" onchange="savePar('${item.id}','${day}',this.value)">
+      </div>`;
+    });
+    html+=`</div></div>`;
+  });
+  document.getElementById('parEditor').innerHTML=html;
+}
+
+function savePar(itemId,day,val){
+  const d=loadData();
+  const item=d.items.find(i=>i.id===itemId);
+  if(item){if(!item.par)item.par={};item.par[day]=val===''?0:Number(val);items=d.items;saveData(d)}
+  showToast('Par level saved');
+}
+
+// ==================== ITEM MANAGEMENT ====================
+function renderItemList(){
+  let html='';
+  items.forEach(item=>{
+    const badge=item.category==='kitchen'?'cat-kitchen':'cat-produce';
+    html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--gray-100)">
+      <div><strong>${item.name}</strong> <span style="color:var(--gray-400);font-size:.8rem">(${item.unit})</span>
+        <span class="cat-badge ${badge}" style="margin-left:6px">${CAT_LABELS[item.category]}</span></div>
+      <button class="btn btn-danger btn-sm" onclick="removeItem('${item.id}')">Remove</button>
+    </div>`;
+  });
+  document.getElementById('itemListManage').innerHTML=html;
+}
+
+function openAddItem(){document.getElementById('addModal').classList.add('show')}
+
+function addItem(){
+  const name=document.getElementById('newName').value.trim();
+  const unit=document.getElementById('newUnit').value.trim();
+  const cat=document.getElementById('newCat').value;
+  if(!name){alert('Enter a name.');return}
+  const id=name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now();
+  const d=loadData();
+  d.items.push({id,name,unit:unit||'unit',category:cat,par:{mon:0,tue:0,wed:0,thu:0,fri:0,sat:0,sun:0}});
+  items=d.items;saveData(d);
+  document.getElementById('newName').value='';document.getElementById('newUnit').value='';
+  document.getElementById('addModal').classList.remove('show');
+  renderParEditor();renderItemList();
+  showToast(`Added "${name}"`);
+}
+
+function removeItem(id){
+  const item=items.find(i=>i.id===id);
+  if(!item||!confirm(`Remove "${item.name}"?`))return;
+  const d=loadData();d.items=d.items.filter(i=>i.id!==id);items=d.items;saveData(d);
+  renderParEditor();renderItemList();
+  showToast(`Removed "${item.name}"`);
+}
+
+// ==================== EXPORT/IMPORT ====================
+function exportDay(){
+  const key=dk(currentDate),dd=getDayData(key);
+  let lines=[`Naan N Curry Issaquah - Daily Ordering - ${key} (${DAY_NAMES[currentDate.getDay()]})\n`,
+    'Category,Item,Unit,Par,AM,PM,Usage,Normal Order,Extra Order,Total Order'];
+  items.forEach(item=>{
+    const d=dd[item.id]||{};const par=getPar(item,currentDate);
+    const am=calcAM(item.id);const pm=d.pm!==undefined?d.pm:'';
+    const usage=(am!==null&&pm!=='')?(am-Number(pm)):'';
+    const no=calcNormalOrder(item,d.pm);const eo=d.extraOrder||0;
+    const total=(no||0)+eo;
+    lines.push(`"${CAT_LABELS[item.category]}","${item.name}","${item.unit}",${par},${am!==null?am:''},${pm},${usage},${no!==null?no:''},${eo},${total}`);
+  });
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`NNC-Order-${key}.csv`;a.click();
+  showToast('Exported CSV');
+}
+
+function exportAllData(){
+  const d=loadData();const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`NNC-Backup-${dk(new Date())}.json`;a.click();
+  showToast('Backup exported');
+}
+
+function importData(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{const d=JSON.parse(e.target.result);if(d.items){saveData(d);items=d.items;render();showToast('Imported')}else alert('Invalid file.')}
+    catch(err){alert('Error: '+err.message)}
+  };reader.readAsText(file);event.target.value='';
+}
+
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+
+// ==================== EXCEL EXPORTS (SheetJS) ====================
+function exportDailyExcel(){
+  const key=dk(currentDate),dd=getDayData(key);
+  const dateStr=MONTH_NAMES[currentDate.getMonth()]+' '+currentDate.getDate()+', '+currentDate.getFullYear();
+  const dayStr=DAY_NAMES[currentDate.getDay()];
+  const person=loadInventoryPerson()||'';
+  const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
+
+  const wb=XLSX.utils.book_new();
+  const header=['Category','Item','Unit','Today\'s Par','AM Count','PM Count','Usage','Normal Order','Extra Order','Total Order','Tmrw Par','Reason'];
+  const rows=[];
+  items.forEach(item=>{
+    const d=dd[item.id]||{};
+    const par=getPar(item,currentDate);
+    const am=calcAM(item.id);
+    const pm=d.pm;
+    const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+    const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+    const tmrwPar=getPar(item,nextDay);
+    const autoNo=calcNormalOrder(item,pm);
+    const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
+    const eo=d.extraOrder||0;
+    const total=sunNoOrder?0:r2((no||0)+Number(eo));
+    const reason=d.reason?(d.reason==='other'?(d.reasonOther||'Other'):(REASON_LABELS[d.reason]||d.reason)):'';
+    rows.push([
+      CAT_LABELS[item.category],item.name,item.unit,
+      par,am!==null?r2(am):'',pm!==undefined?r2(pm):'',
+      usage!==''?usage:'',no!==null?r2(no):'',eo||'',total||'',tmrwPar,reason
+    ]);
+  });
+
+  const wsData=[
+    ['Naan N Curry Issaquah - Daily Ordering'],
+    [`Date: ${dateStr} (${dayStr})`,`Inventory By: ${person}`],
+    [],
+    header,
+    ...rows
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+
+  // Column widths
+  ws['!cols']=[{wch:22},{wch:20},{wch:18},{wch:10},{wch:10},{wch:10},{wch:10},{wch:14},{wch:12},{wch:12}];
+  // Merge title row
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}}];
+
+  XLSX.utils.book_append_sheet(wb,ws,'Daily Inventory');
+  XLSX.writeFile(wb,`NNC-Daily-${key}.xlsx`);
+  showToast('Daily Excel exported');
+}
+
+function exportAnalyticsExcel(){
+  const wb=XLSX.utils.book_new();
+  const numDays=30;
+  const dates=[];
+  for(let i=numDays-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);dates.push(d)}
+
+  // Sheet 1: Daily Summary (all days x all items)
+  const summHeader=['Date','Day'];
+  items.forEach(item=>{summHeader.push(item.name+' AM',item.name+' PM',item.name+' Usage',item.name+' Order')});
+  const summRows=[];
+  dates.forEach(date=>{
+    const key=dk(date);
+    const dd=getDayData(key);
+    const row=[key,DAY_SHORT[date.getDay()]];
+    const savedCurrent=new Date(currentDate);currentDate=date;
+    items.forEach(item=>{
+      const d=dd[item.id]||{};
+      const am=calcAM(item.id);
+      const pm=d.pm;
+      const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+      const no=calcNormalOrder(item,pm);
+      const eo=d.extraOrder||0;
+      const total=r2((no||0)+Number(eo));
+      row.push(am!==null?r2(am):'',pm!==undefined?r2(pm):'',usage!==''?usage:'',total||'');
+    });
+    currentDate=savedCurrent;
+    summRows.push(row);
+  });
+  const ws1=XLSX.utils.aoa_to_sheet([['30-Day Inventory Data'],[],summHeader,...summRows]);
+  ws1['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
+  XLSX.utils.book_append_sheet(wb,ws1,'30-Day Data');
+
+  // Sheet 2: Usage Analytics (avg usage per item per day of week)
+  const usageHeader=['Item','Unit','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Avg Daily','Total 30d'];
+  const usageRows=[];
+  items.forEach(item=>{
+    const dayUsage={0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
+    let total30=0;
+    dates.forEach(date=>{
+      const key=dk(date);
+      const dd=getDayData(key);
+      const d=dd[item.id]||{};
+      const savedCurrent=new Date(currentDate);currentDate=date;
+      const am=calcAM(item.id);
+      currentDate=savedCurrent;
+      const pm=d.pm;
+      if(am!==null&&pm!==undefined){
+        const usage=r2(am-Number(pm));
+        dayUsage[date.getDay()].push(usage);
+        total30+=usage;
+      }
+    });
+    const dayAvgs=[1,2,3,4,5,6,0].map(d=>{
+      const vals=dayUsage[d];
+      return vals.length?r2(vals.reduce((a,b)=>a+b,0)/vals.length):'';
+    });
+    const allVals=Object.values(dayUsage).flat();
+    const avgDaily=allVals.length?r2(allVals.reduce((a,b)=>a+b,0)/allVals.length):'';
+    usageRows.push([item.name,item.unit,...dayAvgs,avgDaily,total30?r2(total30):'']);
+  });
+  const ws2=XLSX.utils.aoa_to_sheet([['Usage Analytics - Average by Day of Week'],[],usageHeader,...usageRows]);
+  ws2['!cols']=[{wch:20},{wch:14},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:12},{wch:12}];
+  ws2['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Usage Analytics');
+
+  // Sheet 3: Order History
+  const orderHeader=['Date','Day',...items.map(i=>i.name)];
+  const orderRows=[];
+  dates.forEach(date=>{
+    const key=dk(date);
+    const dd=getDayData(key);
+    const row=[key,DAY_SHORT[date.getDay()]];
+    const savedCurrent=new Date(currentDate);currentDate=date;
+    items.forEach(item=>{
+      const d=dd[item.id]||{};
+      const no=calcNormalOrder(item,d.pm);
+      const eo=d.extraOrder||0;
+      const total=r2((no||0)+Number(eo));
+      row.push(total||'');
+    });
+    currentDate=savedCurrent;
+    orderRows.push(row);
+  });
+  const ws3=XLSX.utils.aoa_to_sheet([['30-Day Order History'],[],orderHeader,...orderRows]);
+  ws3['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
+  XLSX.utils.book_append_sheet(wb,ws3,'Order History');
+
+  XLSX.writeFile(wb,`NNC-Analytics-${dk(new Date())}.xlsx`);
+  showToast('Analytics Excel exported');
+}
+
+// ==================== EMAILJS ====================
+function saveEmailJS(){
+  const pk=document.getElementById('ejsPublicKey').value.trim();
+  const sid=document.getElementById('ejsServiceId').value.trim();
+  const tid=document.getElementById('ejsTemplateId').value.trim();
+  if(!pk||!sid||!tid){alert('Please fill in all three EmailJS fields.');return}
+  const d=loadData();
+  d.emailjs={publicKey:pk,serviceId:sid,templateId:tid};
+  saveData(d);
+  showToast('EmailJS config saved');
+  document.getElementById('ejsStatus').textContent='Config saved. Reports will now send directly from the app.';
+  document.getElementById('ejsStatus').style.color='var(--success)';
+}
+
+function loadEmailJSConfig(){
+  const d=loadData();
+  if(d.emailjs){
+    document.getElementById('ejsPublicKey').value=d.emailjs.publicKey||'';
+    document.getElementById('ejsServiceId').value=d.emailjs.serviceId||'';
+    document.getElementById('ejsTemplateId').value=d.emailjs.templateId||'';
+    document.getElementById('ejsStatus').textContent='Config loaded. EmailJS is active.';
+    document.getElementById('ejsStatus').style.color='var(--success)';
+  }
+}
+
+function buildReportHTML(){
+  const dd=getDayData(dk(currentDate));
+  const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
+  const kitchenItems=items.filter(i=>i.category==='kitchen');
+  let tableRows='';
+  kitchenItems.forEach(item=>{
+    const d=dd[item.id]||{};
+    const par=getPar(item,currentDate);
+    const am=calcAM(item.id);
+    const pm=d.pm;
+    const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
+    const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+    const tmrwPar=getPar(item,nextDay);
+    const autoNo=calcNormalOrder(item,pm);
+    const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
+    const eo=d.extraOrder||0;
+    const total=sunNoOrder?0:r2((no||0)+Number(eo));
+    const usageColor=usage!==''?(usage<0?'#dc2626':usage>0?'#16a34a':'#333'):'#999';
+    const totalBg=total>0?'#1e3a5f':'#e5e7eb';
+    const totalColor=total>0?'#ffffff':'#999';
+    const reasonText=d.reason?(d.reason==='other'?(d.reasonOther||'Other'):(REASON_LABELS[d.reason]||d.reason)):'';
+    tableRows+=`<tr>
+      <td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600;font-size:13px">${item.name} <span style="color:#999;font-weight:400;font-size:11px">(${item.unit})</span></td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:#b45309;font-weight:600">${par}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${am!==null?r2(am):'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;background:#eff6ff;font-weight:600">${pm!==undefined?r2(pm):'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:${usageColor};font-weight:600">${usage!==''?usage:'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${no!==null?r2(no):'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${eo||'-'}</td>
+      <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:center;font-size:15px;font-weight:800;background:${totalBg};color:${totalColor};letter-spacing:0.5px">${total||'-'}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">${tmrwPar}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:11px;color:#666">${reasonText||'-'}</td>
+    </tr>`;
+  });
+  return tableRows;
+}
+
+function sendReport(){
+  const d=loadData();
+  const emails=d.emails||[];
+  const person=loadInventoryPerson();
+  if(!person){alert('Please enter the inventory person name before sending the report.');document.getElementById('inventoryPerson').focus();return}
+
+  const dateDisplay=MONTH_NAMES[currentDate.getMonth()]+' '+currentDate.getDate()+', '+currentDate.getFullYear();
+  const dayStr=DAY_NAMES[currentDate.getDay()];
+
+  // Build the HTML table for email body
+  const tableRows=buildReportHTML();
+  const htmlTable=`<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial">
+    <thead><tr style="background:#1e3a5f">
+      <th style="padding:8px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Item</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Today's Par</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">AM</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f;background:#2563eb;font-weight:700">PM</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Usage</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Order</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Extra</th>
+      <th style="padding:8px 10px;color:#fff;text-align:center;font-size:12px;text-transform:uppercase;font-weight:800;border:1px solid #1e3a5f;background:#b45309;letter-spacing:1px">TOTAL ORDER</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:10px;text-transform:uppercase;border:1px solid #1e3a5f;color:#94a3b8">Tmrw Par</th>
+      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Reason</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>`;
+
+  // If EmailJS is configured, send directly
+  if(d.emailjs&&d.emailjs.publicKey&&emails.length){
+    emailjs.init(d.emailjs.publicKey);
+    emailjs.send(d.emailjs.serviceId,d.emailjs.templateId,{
+      to_email:emails.join(','),
+      from_name:'NNC Inventory System',
+      subject:dateDisplay+' - Issaquah Daily Order',
+      date:dateDisplay,
+      day:dayStr,
+      inventory_by:person,
+      order_summary:htmlTable,
+      message:'NNC Main Kitchen - Daily Inventory Report'
+    }).then(()=>{
+      showToast('Report emailed to '+emails.length+' recipient(s)');
+    }).catch(err=>{
+      console.error('EmailJS error:',err);
+      showToast('Email failed. Check EmailJS config.');
+    });
+  }else if(emails.length){
+    showToast('Set up EmailJS in Settings to send reports directly.');
+  }else{
+    showToast('Add emails in Settings to send reports.');
+  }
+}
+
+// ==================== INIT ====================
+// Firebase auth state listener will handle initialization
+// The app will start once a user is authenticated
+</script>
+</body>
+</html>
