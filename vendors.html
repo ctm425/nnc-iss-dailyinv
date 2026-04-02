@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Inventory — Vendor Invoices</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root {
+  --primary: #1e3a5f; --primary-light: #2563eb; --primary-bg: #eff6ff;
+  --danger: #dc2626; --success: #16a34a;
+  --amber: #d97706; --amber-bg: #fffbeb;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+/* Login Overlay */
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-box button:hover{background:var(--primary)}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+/* Header */
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.header-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-outline{background:#fff;color:var(--primary);border:1px solid var(--gray-300)}
+.btn-outline:hover{border-color:var(--primary-light)}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+
+/* Stats bar */
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 24px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:14px 18px;border:1px solid var(--gray-200)}
+.stat-card .label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+.stat-card .value{font-size:1.4rem;font-weight:700;margin-top:2px}
+
+/* Tab bar */
+.tab-bar{display:flex;gap:0;background:#fff;border-bottom:2px solid var(--gray-200);padding:0 24px}
+.tab-btn{padding:12px 20px;border:none;background:transparent;font-size:.9rem;font-weight:600;color:var(--gray-500);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab-btn:hover{color:var(--primary)}
+.tab-btn.active{color:var(--primary);border-bottom-color:var(--primary-light)}
+
+/* Vendor filter bar */
+.filter-bar{padding:14px 24px;background:#fff;border-bottom:1px solid var(--gray-200);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.vendor-chip{padding:6px 14px;border-radius:20px;font-size:.82rem;font-weight:600;cursor:pointer;border:2px solid var(--gray-300);background:#fff;color:var(--gray-700);transition:all .15s}
+.vendor-chip:hover{border-color:var(--primary-light);color:var(--primary)}
+.vendor-chip.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.vendor-chip .count{font-weight:400;opacity:.7;margin-left:4px}
+.search-input{padding:8px 14px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.9rem;width:240px}
+.search-input:focus{outline:none;border-color:var(--primary-light)}
+
+/* Date range filter */
+.date-filter{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--gray-700)}
+.date-filter input{padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem}
+.date-filter input:focus{outline:none;border-color:var(--primary-light)}
+
+/* Date preset chips */
+.date-presets{display:flex;gap:6px;flex-wrap:wrap}
+.date-preset{padding:5px 12px;border-radius:16px;font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid var(--gray-300);background:#fff;color:var(--gray-600);transition:all .15s}
+.date-preset:hover{border-color:var(--primary-light);color:var(--primary)}
+.date-preset.active{background:var(--primary-light);color:#fff;border-color:var(--primary-light)}
+
+/* Invoice table view */
+.invoice-table-wrap{padding:16px 24px;overflow-x:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:800px}
+thead th{background:var(--gray-100);padding:8px 12px;text-align:left;font-size:.72rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200);position:sticky;top:0;z-index:5;cursor:pointer;user-select:none;white-space:nowrap}
+thead th:hover{background:var(--gray-200);color:var(--primary)}
+thead th .sort-arrow{margin-left:4px;font-size:.65rem;opacity:.5}
+thead th.sorted .sort-arrow{opacity:1;color:var(--primary-light)}
+tbody td{padding:8px 12px;border-bottom:1px solid var(--gray-100);font-size:.85rem}
+tbody tr:hover td{background:var(--primary-bg)}
+tbody td a{color:var(--primary-light);font-weight:600;text-decoration:none}
+tbody td a:hover{text-decoration:underline}
+td.amount{font-weight:700;font-family:'SF Mono',Monaco,Consolas,monospace;text-align:right}
+
+/* Analytics */
+.analytics-wrap{padding:24px}
+.analytics-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.analytics-header h2{font-size:1.1rem;color:var(--primary)}
+.analytics-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.summary-card{background:#fff;border-radius:var(--radius);padding:18px 20px;border:1px solid var(--gray-200)}
+.summary-card .label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+.summary-card .value{font-size:1.6rem;font-weight:800;margin-top:4px;color:var(--primary)}
+.summary-card .sub{font-size:.78rem;color:var(--gray-400);margin-top:2px}
+.vendor-breakdown{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);overflow:hidden}
+.vendor-breakdown .breakdown-header{padding:14px 18px;border-bottom:1px solid var(--gray-200);font-weight:700;font-size:.9rem;color:var(--primary)}
+.vendor-row{display:flex;align-items:center;padding:12px 18px;border-bottom:1px solid var(--gray-100);gap:12px}
+.vendor-row:last-child{border-bottom:none}
+.vendor-row .vname{font-weight:600;font-size:.9rem;min-width:150px}
+.vendor-row .vbar-wrap{flex:1;height:24px;background:var(--gray-100);border-radius:4px;overflow:hidden;position:relative}
+.vendor-row .vbar{height:100%;border-radius:4px;transition:width .4s ease}
+.vendor-row .vamount{font-weight:700;font-size:.9rem;min-width:90px;text-align:right;font-family:'SF Mono',Monaco,Consolas,monospace}
+.vendor-row .vcount{font-size:.78rem;color:var(--gray-400);min-width:60px;text-align:right}
+
+/* Monthly breakdown */
+.monthly-table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.monthly-table thead th{background:var(--gray-100);padding:10px 14px;text-align:left;font-size:.75rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200)}
+.monthly-table thead th:last-child,.monthly-table tbody td:last-child,.monthly-table tfoot td:last-child{text-align:right}
+.monthly-table tbody td{padding:10px 14px;border-bottom:1px solid var(--gray-100);font-size:.88rem}
+.monthly-table tbody tr:hover td{background:var(--primary-bg)}
+.monthly-table tfoot td{padding:10px 14px;font-weight:700;background:var(--gray-100);border-top:2px solid var(--gray-200)}
+.month-bar-wrap{height:18px;background:var(--gray-100);border-radius:3px;overflow:hidden;min-width:100px}
+.month-bar{height:100%;border-radius:3px;transition:width .4s ease}
+.vendor-detail-header{display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:16px 20px;background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200)}
+.vendor-detail-header .vd-name{font-size:1.3rem;font-weight:800;color:var(--primary)}
+.vendor-detail-header .vd-meta{font-size:.85rem;color:var(--gray-500)}
+
+/* Month accordion */
+.month-section{margin:0 24px 12px;background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);overflow:hidden}
+.month-section:first-child{margin-top:16px}
+.month-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;user-select:none;transition:background .15s}
+.month-header:hover{background:var(--gray-50)}
+.month-header .month-title{font-weight:700;font-size:.95rem;color:var(--primary);display:flex;align-items:center;gap:8px}
+.month-header .month-title .arrow{font-size:.7rem;transition:transform .2s;color:var(--gray-400)}
+.month-header .month-title .arrow.open{transform:rotate(90deg)}
+.month-header .month-meta{display:flex;gap:16px;align-items:center}
+.month-header .month-meta .badge{font-size:.75rem;font-weight:600;padding:3px 10px;border-radius:12px;background:var(--gray-100);color:var(--gray-600)}
+.month-header .month-meta .badge.current{background:var(--primary-bg);color:var(--primary-light)}
+.month-header .month-meta .month-total{font-weight:700;font-size:.92rem;font-family:'SF Mono',Monaco,Consolas,monospace;color:var(--gray-700)}
+.month-body{border-top:1px solid var(--gray-200);overflow-x:auto}
+.month-body.collapsed{display:none}
+.month-body table{border-radius:0;box-shadow:none;min-width:800px}
+.month-body table thead th{position:static}
+
+/* Loading */
+.loading{text-align:center;padding:60px 24px;color:var(--gray-400)}
+.loading .spinner{display:inline-block;width:32px;height:32px;border:3px solid var(--gray-200);border-top-color:var(--primary-light);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
+
+/* Responsive */
+@media(max-width:640px){
+  .header{padding:12px 16px}
+  .header h1{font-size:1.1rem}
+  .filter-bar{padding:10px 16px}
+  .invoice-grid{padding:8px 16px;grid-template-columns:1fr}
+  .stats-bar{padding:8px 16px}
+  .invoice-table-wrap{padding:8px}
+  .analytics-wrap{padding:12px}
+  .vendor-row .vname{min-width:100px}
+  .tab-bar{padding:0 12px}
+  .tab-btn{padding:10px 14px;font-size:.82rem}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>NNC Inventory System</h2>
+    <p class="subtitle">Sign in to access Vendor Invoices</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email address">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1 id="pageTitle">🧾 Vendor Info / Invoices</h1>
+    <div class="header-sub" id="pageSubtitle">NNC Issaquah — Live from Google Sheets</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" onclick="goToDashboard()">← Dashboard</button>
+    <button class="btn btn-ghost btn-sm" onclick="fetchInvoices()">🔄 Refresh</button>
+    <button class="btn btn-ghost btn-sm" onclick="auth.signOut()">Sign Out</button>
+  </div>
+</div>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-btn active" id="tabInvoices" onclick="switchTab('invoices')">Invoices</button>
+  <button class="tab-btn" id="tabAnalytics" onclick="switchTab('analytics')">Analytics</button>
+  <button class="tab-btn" id="tabResources" onclick="switchTab('resources')">Resources</button>
+</div>
+
+<!-- ==================== INVOICES TAB ==================== -->
+<div id="invoicesTab">
+  <!-- STATS BAR -->
+  <div class="stats-bar" id="statsBar"></div>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar" id="filterBar">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search invoices..." oninput="renderInvoices()">
+    <div class="date-filter">
+      <label>From:</label>
+      <input type="date" id="dateFrom" onchange="renderInvoices()">
+      <label>To:</label>
+      <input type="date" id="dateTo" onchange="renderInvoices()">
+      <button class="btn btn-sm btn-outline" onclick="clearDates()">Clear</button>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="btn btn-sm btn-outline" onclick="exportInvoicesExcel()">📊 Excel</button>
+      <button class="btn btn-sm btn-outline" onclick="exportInvoicesPDF()">📄 PDF</button>
+    </div>
+  </div>
+
+  <!-- VENDOR CHIPS -->
+  <div class="filter-bar" id="vendorChips" style="padding-top:0"></div>
+
+  <!-- CONTENT -->
+  <div id="invoiceContent">
+    <div class="loading" id="invoiceLoading"><div class="spinner"></div><div>Loading invoices from Google Sheets...</div></div>
+  </div>
+</div>
+
+<!-- ==================== ANALYTICS TAB ==================== -->
+<div id="analyticsTab" style="display:none">
+  <div class="analytics-wrap">
+    <div class="analytics-header">
+      <h2 id="analyticsTitle">Vendor Spending Analytics</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="date-presets" id="analyticsPresets"></div>
+        <div class="date-filter">
+          <label>From:</label>
+          <input type="date" id="analyticsDateFrom" onchange="setAnalyticsPreset('custom')">
+          <label>To:</label>
+          <input type="date" id="analyticsDateTo" onchange="setAnalyticsPreset('custom')">
+        </div>
+        <button class="btn btn-sm btn-outline" onclick="exportAnalyticsExcel()">📊 Excel</button>
+        <button class="btn btn-sm btn-outline" onclick="exportAnalyticsPDF()">📄 PDF</button>
+      </div>
+    </div>
+    <!-- Vendor picker chips for analytics -->
+    <div class="filter-bar" id="analyticsVendorChips" style="border-bottom:none;padding-bottom:0"></div>
+    <div class="analytics-summary" id="analyticsSummary"></div>
+    <div class="vendor-breakdown" id="vendorBreakdown"></div>
+    <!-- Monthly breakdown table for single vendor -->
+    <div id="monthlyBreakdown" style="margin-top:20px"></div>
+    <!-- Invoice list for single vendor -->
+    <div id="analyticsInvoiceList" style="margin-top:20px"></div>
+  </div>
+</div>
+
+<!-- ==================== RESOURCES TAB ==================== -->
+<div id="resourcesTab" style="display:none">
+  <div style="padding:24px;max-width:700px;margin:0 auto">
+    <h2 style="font-size:1.2rem;color:var(--primary);margin-bottom:8px">Vendor Invoice Resources</h2>
+    <p style="font-size:.88rem;color:var(--gray-500);margin-bottom:24px">Links for staff to submit invoices and for managers to view the raw data in Google Sheets.</p>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <!-- Upload Form -->
+      <div style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px 24px;display:flex;align-items:center;gap:16px">
+        <div style="width:48px;height:48px;border-radius:12px;background:var(--primary-bg);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">📋</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:.95rem;color:var(--gray-900)">Invoice Upload Form</div>
+          <div style="font-size:.82rem;color:var(--gray-500);margin-top:2px">Google Form used by staff to submit vendor invoices with photos</div>
+          <div style="font-size:.78rem;color:var(--gray-400);margin-top:2px">Formulario utilizado por el personal para enviar facturas de proveedores con fotos</div>
+        </div>
+        <a href="https://forms.gle/sjjhxNMRyQuWQcx87" target="_blank" rel="noopener"
+           style="padding:8px 18px;background:var(--primary-light);color:#fff;border-radius:var(--radius);font-size:.85rem;font-weight:600;text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">
+          Open Form ↗
+        </a>
+      </div>
+
+      <!-- Google Sheet (owner only) -->
+      <div id="sheetLinkCard" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px 24px;display:flex;align-items:center;gap:16px">
+        <div style="width:48px;height:48px;border-radius:12px;background:#ecfdf5;display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">📊</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:.95rem;color:var(--gray-900)">Invoice Data — Google Sheet</div>
+          <div style="font-size:.82rem;color:var(--gray-500);margin-top:2px">Raw form responses with all invoice details — owner access only</div>
+          <div style="font-size:.78rem;color:var(--gray-400);margin-top:2px">Respuestas del formulario con todos los detalles de las facturas — solo para propietarios</div>
+        </div>
+        <span id="sheetLinkBtn"></span>
+      </div>
+    </div>
+
+    <div style="margin-top:24px;padding:16px 20px;background:var(--amber-bg);border-radius:var(--radius);border:1px solid #fde68a">
+      <div style="font-weight:700;font-size:.85rem;color:var(--amber)">Note for Managers</div>
+      <div style="font-size:.82rem;color:#92400e;margin-top:4px">The Google Sheet is set to view-only. Staff submit invoices through the form above — they cannot edit existing entries. All data shown in the Invoices and Analytics tabs is pulled live from this sheet.</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+// ==================== CONFIG ====================
+const SHEET_ID = '1DlsnDQ81Eph7UdmpHMDc6VW26lojJx5lQZ8NPCKsMp4';
+const API_KEY = 'AIzaSyDYcDvkzPdehV-FYPQfPt-kFcXgru1Abd0';
+const SHEET_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/A:I?key=${API_KEY}`;
+
+// ==================== STATE ====================
+let allInvoices = [];
+let activeVendor = 'all';
+let currentTab = 'invoices';
+let restaurantKey = 'nnc-iss';
+let sortCol = 'invoiceDate';
+let sortDir = 'desc';
+let analyticsPreset = 'all';
+let analyticsVendor = 'all';
+
+const VENDOR_COLORS = [
+  '#2563eb','#16a34a','#d97706','#dc2626','#7c3aed',
+  '#0891b2','#be185d','#4f46e5','#ca8a04','#059669'
+];
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  if (!email || !password) { errorEl.textContent = 'Please enter email and password.'; errorEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in...'; errorEl.style.display = 'none';
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+  } catch (err) {
+    errorEl.textContent = err.message; errorEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+auth.onAuthStateChanged(async (user) => {
+  const loginOverlay = document.getElementById('loginOverlay');
+  if (user) {
+    loginOverlay.classList.add('hidden');
+    const profile = await loadUserProfile();
+    const urlRest = getParam('restaurant');
+    if (urlRest && RESTAURANTS[urlRest]) restaurantKey = urlRest;
+    const rest = RESTAURANTS[restaurantKey];
+    document.getElementById('pageTitle').textContent = `🧾 ${rest?.shortName || 'NNC'} — Vendor Info / Invoices`;
+    // Show sheet link only for owners
+    const sheetBtn = document.getElementById('sheetLinkBtn');
+    if (profile && profile.role === 'owner') {
+      sheetBtn.innerHTML = `<a href="https://docs.google.com/spreadsheets/d/1DlsnDQ81Eph7UdmpHMDc6VW26lojJx5lQZ8NPCKsMp4/edit?usp=sharing" target="_blank" rel="noopener"
+        style="padding:8px 18px;background:var(--success);color:#fff;border-radius:var(--radius);font-size:.85rem;font-weight:600;text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">Open Sheet ↗</a>`;
+    } else {
+      sheetBtn.innerHTML = `<span style="padding:8px 18px;background:var(--gray-200);color:var(--gray-500);border-radius:var(--radius);font-size:.82rem;font-weight:600;white-space:nowrap">Owner Only 🔒</span>`;
+    }
+    fetchInvoices();
+  } else {
+    loginOverlay.classList.remove('hidden');
+  }
+});
+
+// ==================== FETCH FROM GOOGLE SHEETS ====================
+async function fetchInvoices() {
+  try {
+    const resp = await fetch(SHEET_URL);
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      console.error('API error response:', errBody);
+      if (resp.status === 403) throw new Error('API key not authorized. Make sure the Google Sheets API is enabled in your Google Cloud project.');
+      if (resp.status === 404) throw new Error('Spreadsheet not found. Check the Sheet ID and make sure it is shared as "Anyone with the link".');
+      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+    }
+    const data = await resp.json();
+
+    const rows = data.values || [];
+    if (rows.length < 2) throw new Error('Sheet appears empty or has no data rows.');
+
+    const headers = rows[0];
+    console.log('Sheet headers:', headers);
+
+    allInvoices = rows.slice(1).map((row, idx) => {
+      const get = (i) => (row[i] || '').trim();
+
+      // Parse invoice total — strip $, commas, etc.
+      let totalRaw = get(8);
+      let invoiceTotal = null;
+      if (totalRaw) {
+        const cleaned = totalRaw.replace(/[^0-9.\-]/g, '');
+        const parsed = parseFloat(cleaned);
+        if (!isNaN(parsed)) invoiceTotal = parsed;
+      }
+
+      return {
+        id: idx,
+        timestamp: get(0),
+        submittedBy: get(1),
+        invoiceDate: get(2),
+        vendor: get(3),
+        otherVendor: get(4),
+        receivedBy: get(5),
+        doubleCheckedBy: get(6),
+        imageUrl: get(7),
+        invoiceTotal: invoiceTotal,
+        invoiceTotalRaw: totalRaw
+      };
+    }).filter(inv => inv.vendor);
+
+    // Convert Google Drive view links to thumbnail/preview links
+    allInvoices.forEach(inv => {
+      if (inv.imageUrl && inv.imageUrl.includes('drive.google.com')) {
+        const match = inv.imageUrl.match(/id=([a-zA-Z0-9_-]+)/);
+        if (match) {
+          inv.driveFileId = match[1];
+          inv.thumbnailUrl = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w400`;
+          inv.viewUrl = `https://drive.google.com/file/d/${match[1]}/view`;
+        }
+      }
+    });
+
+    showToast(`Loaded ${allInvoices.length} invoices`);
+    renderAll();
+  } catch (err) {
+    console.error('Fetch error:', err);
+    document.getElementById('invoiceContent').innerHTML =
+      `<div style="padding:40px;text-align:center;color:var(--danger)">
+        <strong>Could not load invoices.</strong><br>
+        <span style="font-size:.85rem;color:var(--gray-500)">${err.message}</span><br>
+        <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="fetchInvoices()">Retry</button>
+      </div>`;
+  }
+}
+
+// ==================== DATE HELPERS ====================
+function parseInvoiceDate(dateStr) {
+  if (!dateStr) return null;
+  // Handle M/D/YYYY format
+  const parts = dateStr.split('/');
+  if (parts.length === 3) {
+    const m = parts[0].padStart(2, '0');
+    const d = parts[1].padStart(2, '0');
+    const y = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+    return `${y}-${m}-${d}`;
+  }
+  return dateStr;
+}
+
+function toDateObj(dateStr) {
+  const iso = parseInvoiceDate(dateStr);
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00');
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatMoney(amount) {
+  if (amount === null || amount === undefined) return '—';
+  return '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0];
+}
+
+function monthStart(monthsBack) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - monthsBack);
+  d.setDate(1);
+  return d.toISOString().split('T')[0];
+}
+
+function monthEnd(monthsBack) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - monthsBack + 1);
+  d.setDate(0);
+  return d.toISOString().split('T')[0];
+}
+
+// ==================== TAB SWITCHING ====================
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabInvoices').classList.toggle('active', tab === 'invoices');
+  document.getElementById('tabAnalytics').classList.toggle('active', tab === 'analytics');
+  document.getElementById('tabResources').classList.toggle('active', tab === 'resources');
+  document.getElementById('invoicesTab').style.display = tab === 'invoices' ? '' : 'none';
+  document.getElementById('analyticsTab').style.display = tab === 'analytics' ? '' : 'none';
+  document.getElementById('resourcesTab').style.display = tab === 'resources' ? '' : 'none';
+  if (tab === 'analytics') renderAnalytics();
+}
+
+// ==================== RENDER ====================
+function renderAll() {
+  renderStats();
+  renderVendorChips();
+  renderInvoices();
+  renderAnalyticsPresets();
+  renderAnalyticsVendorChips();
+  if (currentTab === 'analytics') renderAnalytics();
+}
+
+function renderStats() {
+  const vendors = new Set(allInvoices.map(i => i.vendor));
+  const totalSpend = allInvoices.reduce((sum, i) => sum + (i.invoiceTotal || 0), 0);
+
+  // Current month spend
+  const currentMonthKey = getCurrentMonthKey();
+  const currentMonthSpend = allInvoices
+    .filter(i => { const iso = parseInvoiceDate(i.invoiceDate); return iso && iso.startsWith(currentMonthKey); })
+    .reduce((sum, i) => sum + (i.invoiceTotal || 0), 0);
+
+  // Last month spend
+  const now = new Date();
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}`;
+  const lastMonthSpend = allInvoices
+    .filter(i => { const iso = parseInvoiceDate(i.invoiceDate); return iso && iso.startsWith(lastMonthKey); })
+    .reduce((sum, i) => sum + (i.invoiceTotal || 0), 0);
+
+  // Month labels
+  const currentMonthLabel = now.toLocaleString('default', { month: 'short' });
+  const lastMonthLabel = lastMonthDate.toLocaleString('default', { month: 'short' });
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-card">
+      <div class="label">Total Invoices</div>
+      <div class="value">${allInvoices.length}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Spend</div>
+      <div class="value" style="color:var(--success)">${formatMoney(totalSpend)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Vendors</div>
+      <div class="value">${vendors.size}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">${currentMonthLabel} Spend</div>
+      <div class="value" style="color:var(--primary)">${formatMoney(currentMonthSpend)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">${lastMonthLabel} Spend</div>
+      <div class="value" style="color:var(--gray-500)">${formatMoney(lastMonthSpend)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Last Upload</div>
+      <div class="value" style="font-size:1rem">${allInvoices.length > 0 ? allInvoices[0].timestamp : '—'}</div>
+    </div>
+  `;
+}
+
+function renderVendorChips() {
+  const vendorCounts = {};
+  allInvoices.forEach(inv => {
+    vendorCounts[inv.vendor] = (vendorCounts[inv.vendor] || 0) + 1;
+  });
+
+  const sorted = Object.keys(vendorCounts).sort();
+  let html = `<div class="vendor-chip ${activeVendor==='all'?'active':''}" onclick="filterVendor('all')">All<span class="count">(${allInvoices.length})</span></div>`;
+  sorted.forEach(v => {
+    html += `<div class="vendor-chip ${activeVendor===v?'active':''}" onclick="filterVendor('${v.replace(/'/g,"\\'")}')">${v}<span class="count">(${vendorCounts[v]})</span></div>`;
+  });
+  document.getElementById('vendorChips').innerHTML = html;
+}
+
+function getFilteredInvoices() {
+  let filtered = [...allInvoices];
+
+  // Vendor filter
+  if (activeVendor !== 'all') {
+    filtered = filtered.filter(i => i.vendor === activeVendor);
+  }
+
+  // Search filter
+  const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  if (search) {
+    filtered = filtered.filter(i =>
+      i.vendor.toLowerCase().includes(search) ||
+      i.submittedBy.toLowerCase().includes(search) ||
+      i.invoiceDate.toLowerCase().includes(search) ||
+      (i.receivedBy || '').toLowerCase().includes(search) ||
+      (i.otherVendor || '').toLowerCase().includes(search) ||
+      (i.invoiceTotalRaw || '').toLowerCase().includes(search)
+    );
+  }
+
+  // Date range filter
+  const from = document.getElementById('dateFrom')?.value;
+  const to = document.getElementById('dateTo')?.value;
+  if (from || to) {
+    filtered = filtered.filter(i => {
+      const d = parseInvoiceDate(i.invoiceDate);
+      if (!d) return true;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+  }
+
+  return filtered;
+}
+
+// ==================== SORTING ====================
+function sortInvoices(invoices) {
+  const sorted = [...invoices];
+  sorted.sort((a, b) => {
+    let va, vb;
+    switch (sortCol) {
+      case 'invoiceDate':
+        va = parseInvoiceDate(a.invoiceDate) || '';
+        vb = parseInvoiceDate(b.invoiceDate) || '';
+        break;
+      case 'vendor':
+        va = a.vendor.toLowerCase();
+        vb = b.vendor.toLowerCase();
+        break;
+      case 'submittedBy':
+        va = (a.submittedBy || '').toLowerCase();
+        vb = (b.submittedBy || '').toLowerCase();
+        break;
+      case 'receivedBy':
+        va = (a.receivedBy || '').toLowerCase();
+        vb = (b.receivedBy || '').toLowerCase();
+        break;
+      case 'doubleCheckedBy':
+        va = (a.doubleCheckedBy || '').toLowerCase();
+        vb = (b.doubleCheckedBy || '').toLowerCase();
+        break;
+      case 'invoiceTotal':
+        va = a.invoiceTotal !== null ? a.invoiceTotal : -Infinity;
+        vb = b.invoiceTotal !== null ? b.invoiceTotal : -Infinity;
+        break;
+      case 'timestamp':
+        va = a.timestamp || '';
+        vb = b.timestamp || '';
+        break;
+      default:
+        va = ''; vb = '';
+    }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+  return sorted;
+}
+
+function toggleSort(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortCol = col;
+    sortDir = col === 'invoiceTotal' || col === 'invoiceDate' ? 'desc' : 'asc';
+  }
+  renderInvoices();
+}
+
+function sortArrow(col) {
+  if (sortCol !== col) return '<span class="sort-arrow">⇅</span>';
+  return `<span class="sort-arrow">${sortDir === 'asc' ? '↑' : '↓'}</span>`;
+}
+
+// ==================== RENDER INVOICES (MONTH ACCORDION) ====================
+const MONTH_NAMES_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+
+function groupByMonth(invoices) {
+  const groups = {};
+  invoices.forEach(inv => {
+    const iso = parseInvoiceDate(inv.invoiceDate);
+    const monthKey = iso ? iso.substring(0, 7) : 'unknown';
+    if (!groups[monthKey]) groups[monthKey] = [];
+    groups[monthKey].push(inv);
+  });
+  // Sort month keys descending (newest first)
+  const sortedKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  return sortedKeys.map(key => ({ key, invoices: groups[key] }));
+}
+
+function renderInvoices() {
+  const filtered = getFilteredInvoices();
+  const sorted = sortInvoices(filtered);
+  const container = document.getElementById('invoiceContent');
+  const currentMonth = getCurrentMonthKey();
+
+  if (sorted.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:60px 24px;color:var(--gray-400)">No invoices found</div>`;
+    return;
+  }
+
+  const monthGroups = groupByMonth(sorted);
+
+  // Grand total
+  const grandTotal = sorted.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+
+  let html = '';
+  monthGroups.forEach(group => {
+    const isCurrentMonth = group.key === currentMonth;
+    const isClosed = !isCurrentMonth;
+    const monthTotal = group.invoices.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+
+    let monthLabel;
+    if (group.key === 'unknown') {
+      monthLabel = 'No Date';
+    } else {
+      const [y, m] = group.key.split('-');
+      monthLabel = `${MONTH_NAMES_FULL[parseInt(m)-1]} ${y}`;
+    }
+
+    html += `
+      <div class="month-section">
+        <div class="month-header" onclick="toggleMonth('inv-${group.key}')">
+          <div class="month-title">
+            <span class="arrow ${isClosed ? '' : 'open'}" id="arrow-inv-${group.key}">▶</span>
+            ${monthLabel}
+          </div>
+          <div class="month-meta">
+            ${isCurrentMonth ? '<span class="badge current">Current Month</span>' : ''}
+            <span class="badge">${group.invoices.length} invoice${group.invoices.length !== 1 ? 's' : ''}</span>
+            <span class="month-total">${formatMoney(monthTotal)}</span>
+          </div>
+        </div>
+        <div class="month-body ${isClosed ? 'collapsed' : ''}" id="inv-${group.key}">
+          <table>
+            <thead><tr>
+              <th class="${sortCol==='invoiceDate'?'sorted':''}" onclick="toggleSort('invoiceDate')">Invoice Date ${sortArrow('invoiceDate')}</th>
+              <th class="${sortCol==='vendor'?'sorted':''}" onclick="toggleSort('vendor')">Vendor ${sortArrow('vendor')}</th>
+              <th class="${sortCol==='invoiceTotal'?'sorted':''}" onclick="toggleSort('invoiceTotal')">Total ${sortArrow('invoiceTotal')}</th>
+              <th class="${sortCol==='submittedBy'?'sorted':''}" onclick="toggleSort('submittedBy')">Submitted By ${sortArrow('submittedBy')}</th>
+              <th class="${sortCol==='receivedBy'?'sorted':''}" onclick="toggleSort('receivedBy')">Received By ${sortArrow('receivedBy')}</th>
+              <th class="${sortCol==='doubleCheckedBy'?'sorted':''}" onclick="toggleSort('doubleCheckedBy')">Double Checked ${sortArrow('doubleCheckedBy')}</th>
+              <th>Invoice</th>
+            </tr></thead>
+            <tbody>
+              ${group.invoices.map(inv => `
+                <tr>
+                  <td style="font-weight:600">${inv.invoiceDate || '—'}</td>
+                  <td style="font-weight:700;color:var(--primary)">${inv.vendor}</td>
+                  <td class="amount">${inv.invoiceTotal !== null ? formatMoney(inv.invoiceTotal) : '—'}</td>
+                  <td>${inv.submittedBy || '—'}</td>
+                  <td>${inv.receivedBy || '—'}</td>
+                  <td>${inv.doubleCheckedBy || '—'}</td>
+                  <td>${inv.viewUrl
+                    ? `<a href="${inv.viewUrl}" target="_blank" rel="noopener">View Image</a>`
+                    : inv.imageUrl
+                      ? `<a href="${inv.imageUrl}" target="_blank" rel="noopener">View</a>`
+                      : '—'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background:var(--gray-100);font-weight:700">
+                <td>${group.invoices.length} invoices</td>
+                <td></td>
+                <td class="amount" style="color:var(--primary)">${formatMoney(monthTotal)}</td>
+                <td colspan="4"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+  });
+
+  // Grand total bar
+  html += `
+    <div style="margin:0 24px 24px;padding:14px 18px;background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:700;color:var(--gray-700)">All Months Total (${sorted.length} invoices)</span>
+      <span style="font-weight:800;font-size:1.1rem;font-family:'SF Mono',Monaco,Consolas,monospace;color:var(--primary)">${formatMoney(grandTotal)}</span>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function toggleMonth(id) {
+  const body = document.getElementById(id);
+  const arrow = document.getElementById('arrow-' + id);
+  if (!body) return;
+  body.classList.toggle('collapsed');
+  if (arrow) arrow.classList.toggle('open');
+}
+
+// ==================== ANALYTICS ====================
+function renderAnalyticsPresets() {
+  const presets = [
+    { key: 'last7', label: 'Last 7 Days' },
+    { key: 'last30', label: 'Last 30 Days' },
+    { key: 'thisMonth', label: 'This Month' },
+    { key: 'lastMonth', label: 'Last Month' },
+    { key: 'last3Months', label: 'Last 3 Months' },
+    { key: 'last6Months', label: 'Last 6 Months' },
+    { key: 'all', label: 'All Time' },
+    { key: 'custom', label: 'Custom' }
+  ];
+
+  document.getElementById('analyticsPresets').innerHTML = presets.map(p =>
+    `<div class="date-preset ${analyticsPreset===p.key?'active':''}" onclick="setAnalyticsPreset('${p.key}')">${p.label}</div>`
+  ).join('');
+}
+
+function renderAnalyticsVendorChips() {
+  const vendorCounts = {};
+  allInvoices.forEach(inv => {
+    vendorCounts[inv.vendor] = (vendorCounts[inv.vendor] || 0) + 1;
+  });
+  const sorted = Object.keys(vendorCounts).sort();
+  let html = `<div class="vendor-chip ${analyticsVendor==='all'?'active':''}" onclick="setAnalyticsVendor('all')">All Vendors<span class="count">(${allInvoices.length})</span></div>`;
+  sorted.forEach(v => {
+    html += `<div class="vendor-chip ${analyticsVendor===v?'active':''}" onclick="setAnalyticsVendor('${v.replace(/'/g,"\\'")}')">${v}<span class="count">(${vendorCounts[v]})</span></div>`;
+  });
+  document.getElementById('analyticsVendorChips').innerHTML = html;
+}
+
+function setAnalyticsVendor(vendor) {
+  analyticsVendor = vendor;
+  renderAnalyticsVendorChips();
+  renderAnalytics();
+}
+
+function setAnalyticsPreset(preset) {
+  analyticsPreset = preset;
+  const fromEl = document.getElementById('analyticsDateFrom');
+  const toEl = document.getElementById('analyticsDateTo');
+  const today = new Date().toISOString().split('T')[0];
+
+  switch (preset) {
+    case 'last7':
+      fromEl.value = daysAgo(7); toEl.value = today; break;
+    case 'last30':
+      fromEl.value = daysAgo(30); toEl.value = today; break;
+    case 'thisMonth':
+      fromEl.value = monthStart(0); toEl.value = today; break;
+    case 'lastMonth':
+      fromEl.value = monthStart(1); toEl.value = monthEnd(1); break;
+    case 'last3Months':
+      fromEl.value = daysAgo(90); toEl.value = today; break;
+    case 'last6Months':
+      fromEl.value = daysAgo(180); toEl.value = today; break;
+    case 'all':
+      fromEl.value = ''; toEl.value = ''; break;
+    case 'custom':
+      break;
+  }
+
+  renderAnalyticsPresets();
+  renderAnalytics();
+}
+
+function getAnalyticsFiltered() {
+  let filtered = [...allInvoices];
+
+  // Vendor filter
+  if (analyticsVendor !== 'all') {
+    filtered = filtered.filter(i => i.vendor === analyticsVendor);
+  }
+
+  // Date filter
+  const from = document.getElementById('analyticsDateFrom')?.value;
+  const to = document.getElementById('analyticsDateTo')?.value;
+  if (from || to) {
+    filtered = filtered.filter(inv => {
+      const d = parseInvoiceDate(inv.invoiceDate);
+      if (!d) return true;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+  }
+
+  return filtered;
+}
+
+function renderAnalytics() {
+  const filtered = getAnalyticsFiltered();
+  const from = document.getElementById('analyticsDateFrom')?.value;
+  const to = document.getElementById('analyticsDateTo')?.value;
+
+  // Date range label
+  let rangeLabel = 'All Time';
+  if (from && to) rangeLabel = `${from} to ${to}`;
+  else if (from) rangeLabel = `From ${from}`;
+  else if (to) rangeLabel = `Through ${to}`;
+
+  // Title
+  const titleEl = document.getElementById('analyticsTitle');
+  titleEl.textContent = analyticsVendor === 'all'
+    ? 'Vendor Spending Analytics'
+    : `${analyticsVendor} — Analytics`;
+
+  if (analyticsVendor === 'all') {
+    renderAllVendorsAnalytics(filtered, rangeLabel);
+  } else {
+    renderSingleVendorAnalytics(filtered, rangeLabel);
+  }
+}
+
+// ==================== ALL VENDORS VIEW ====================
+function renderAllVendorsAnalytics(filtered, rangeLabel) {
+  const vendorData = {};
+  filtered.forEach(inv => {
+    if (!vendorData[inv.vendor]) vendorData[inv.vendor] = { total: 0, count: 0 };
+    vendorData[inv.vendor].count++;
+    vendorData[inv.vendor].total += inv.invoiceTotal || 0;
+  });
+
+  const grandTotal = filtered.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+  const invoiceCount = filtered.length;
+  const vendorCount = Object.keys(vendorData).length;
+  const avgPerInvoice = invoiceCount > 0 ? grandTotal / invoiceCount : 0;
+
+  // Summary cards
+  document.getElementById('analyticsSummary').innerHTML = `
+    <div class="summary-card">
+      <div class="label">Total Spend</div>
+      <div class="value">${formatMoney(grandTotal)}</div>
+      <div class="sub">${rangeLabel}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Invoices</div>
+      <div class="value">${invoiceCount}</div>
+      <div class="sub">${vendorCount} vendors</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Avg per Invoice</div>
+      <div class="value">${formatMoney(avgPerInvoice)}</div>
+      <div class="sub">${invoiceCount} invoices</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Highest Vendor</div>
+      <div class="value" style="font-size:1.1rem">${getTopVendor(vendorData)}</div>
+      <div class="sub">${formatMoney(getTopVendorAmount(vendorData))}</div>
+    </div>
+  `;
+
+  // Vendor breakdown bars
+  const sortedVendors = Object.entries(vendorData).sort((a, b) => b[1].total - a[1].total);
+  const maxTotal = sortedVendors.length > 0 ? sortedVendors[0][1].total : 1;
+
+  let breakdownHtml = `<div class="breakdown-header">Spending by Vendor</div>`;
+  sortedVendors.forEach(([vendor, data], idx) => {
+    const pct = maxTotal > 0 ? (data.total / maxTotal * 100) : 0;
+    const color = VENDOR_COLORS[idx % VENDOR_COLORS.length];
+    const pctOfTotal = grandTotal > 0 ? (data.total / grandTotal * 100).toFixed(1) : 0;
+    breakdownHtml += `
+      <div class="vendor-row" style="cursor:pointer" onclick="setAnalyticsVendor('${vendor.replace(/'/g,"\\'")}')">
+        <div class="vname">${vendor}</div>
+        <div class="vbar-wrap">
+          <div class="vbar" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <div class="vcount">${data.count} inv · ${pctOfTotal}%</div>
+        <div class="vamount">${formatMoney(data.total)}</div>
+      </div>
+    `;
+  });
+
+  document.getElementById('vendorBreakdown').innerHTML = breakdownHtml;
+
+  // Monthly spending across all vendors
+  const monthlyData = buildMonthlyData(filtered);
+  renderMonthlyTable(monthlyData, 'All Vendors — Monthly Spending');
+
+  // Hide single-vendor invoice list
+  document.getElementById('analyticsInvoiceList').innerHTML = '';
+}
+
+// ==================== SINGLE VENDOR VIEW ====================
+function renderSingleVendorAnalytics(filtered, rangeLabel) {
+  const totalSpend = filtered.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+  const invoiceCount = filtered.length;
+  const avgPerInvoice = invoiceCount > 0 ? totalSpend / invoiceCount : 0;
+  const withImages = filtered.filter(i => i.imageUrl).length;
+
+  // Find min/max invoice
+  let minInv = Infinity, maxInv = 0;
+  filtered.forEach(i => {
+    if (i.invoiceTotal !== null && i.invoiceTotal > 0) {
+      if (i.invoiceTotal < minInv) minInv = i.invoiceTotal;
+      if (i.invoiceTotal > maxInv) maxInv = i.invoiceTotal;
+    }
+  });
+  if (minInv === Infinity) minInv = 0;
+
+  // Summary cards
+  document.getElementById('analyticsSummary').innerHTML = `
+    <div class="summary-card">
+      <div class="label">Total Spend</div>
+      <div class="value">${formatMoney(totalSpend)}</div>
+      <div class="sub">${rangeLabel}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Invoices</div>
+      <div class="value">${invoiceCount}</div>
+      <div class="sub">${withImages} with images</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Avg per Invoice</div>
+      <div class="value">${formatMoney(avgPerInvoice)}</div>
+      <div class="sub">${invoiceCount} invoices</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Range</div>
+      <div class="value" style="font-size:1rem">${formatMoney(minInv)} – ${formatMoney(maxInv)}</div>
+      <div class="sub">Min – Max invoice</div>
+    </div>
+  `;
+
+  // No vendor breakdown bars for single vendor
+  document.getElementById('vendorBreakdown').innerHTML = '';
+
+  // Monthly breakdown for this vendor
+  const monthlyData = buildMonthlyData(filtered);
+  renderMonthlyTable(monthlyData, `${analyticsVendor} — Monthly Spending`);
+
+  // Invoice list
+  renderAnalyticsInvoiceList(filtered);
+}
+
+// ==================== MONTHLY BREAKDOWN ====================
+function buildMonthlyData(invoices) {
+  const months = {};
+  invoices.forEach(inv => {
+    const iso = parseInvoiceDate(inv.invoiceDate);
+    if (!iso) return;
+    const monthKey = iso.substring(0, 7); // YYYY-MM
+    if (!months[monthKey]) months[monthKey] = { total: 0, count: 0 };
+    months[monthKey].count++;
+    months[monthKey].total += inv.invoiceTotal || 0;
+  });
+  return Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])); // newest first
+}
+
+function renderMonthlyTable(monthlyData, title) {
+  const container = document.getElementById('monthlyBreakdown');
+
+  if (monthlyData.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const maxMonthTotal = Math.max(...monthlyData.map(([, d]) => d.total), 1);
+  const grandTotal = monthlyData.reduce((s, [, d]) => s + d.total, 0);
+  const totalCount = monthlyData.reduce((s, [, d]) => s + d.count, 0);
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  container.innerHTML = `
+    <div class="vendor-breakdown">
+      <div class="breakdown-header">${title}</div>
+      <div style="overflow-x:auto">
+        <table class="monthly-table">
+          <thead><tr>
+            <th>Month</th>
+            <th>Invoices</th>
+            <th style="min-width:180px">Spend</th>
+            <th>Total</th>
+          </tr></thead>
+          <tbody>
+            ${monthlyData.map(([month, data]) => {
+              const [y, m] = month.split('-');
+              const label = `${monthNames[parseInt(m)-1]} ${y}`;
+              const pct = maxMonthTotal > 0 ? (data.total / maxMonthTotal * 100) : 0;
+              const colorIdx = allInvoices.findIndex(i => i.vendor === analyticsVendor);
+              const color = analyticsVendor === 'all' ? '#2563eb' : VENDOR_COLORS[(colorIdx >= 0 ? colorIdx : 0) % VENDOR_COLORS.length];
+              return `
+                <tr>
+                  <td style="font-weight:600">${label}</td>
+                  <td>${data.count}</td>
+                  <td><div class="month-bar-wrap"><div class="month-bar" style="width:${pct}%;background:${color}"></div></div></td>
+                  <td style="font-weight:700;font-family:'SF Mono',Monaco,Consolas,monospace">${formatMoney(data.total)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+          <tfoot><tr>
+            <td>Total</td>
+            <td>${totalCount}</td>
+            <td></td>
+            <td>${formatMoney(grandTotal)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== VENDOR INVOICE LIST IN ANALYTICS (MONTH ACCORDION) ====================
+function renderAnalyticsInvoiceList(invoices) {
+  const container = document.getElementById('analyticsInvoiceList');
+
+  if (invoices.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Sort by date descending
+  const sorted = [...invoices].sort((a, b) => {
+    const da = parseInvoiceDate(a.invoiceDate) || '';
+    const db = parseInvoiceDate(b.invoiceDate) || '';
+    return db.localeCompare(da);
+  });
+
+  const monthGroups = groupByMonth(sorted);
+  const currentMonth = getCurrentMonthKey();
+  const grandTotal = sorted.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+
+  let html = `<div style="font-weight:700;font-size:.95rem;color:var(--primary);margin-bottom:12px">${analyticsVendor} — Invoices by Month (${sorted.length} total)</div>`;
+
+  monthGroups.forEach(group => {
+    const isCurrentMonth = group.key === currentMonth;
+    const isClosed = !isCurrentMonth;
+    const monthTotal = group.invoices.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+
+    let monthLabel;
+    if (group.key === 'unknown') {
+      monthLabel = 'No Date';
+    } else {
+      const [y, m] = group.key.split('-');
+      monthLabel = `${MONTH_NAMES_FULL[parseInt(m)-1]} ${y}`;
+    }
+
+    html += `
+      <div class="month-section" style="margin-left:0;margin-right:0">
+        <div class="month-header" onclick="toggleMonth('analytics-${group.key}')">
+          <div class="month-title">
+            <span class="arrow ${isClosed ? '' : 'open'}" id="arrow-analytics-${group.key}">▶</span>
+            ${monthLabel}
+          </div>
+          <div class="month-meta">
+            ${isCurrentMonth ? '<span class="badge current">Current Month</span>' : ''}
+            <span class="badge">${group.invoices.length} invoice${group.invoices.length !== 1 ? 's' : ''}</span>
+            <span class="month-total">${formatMoney(monthTotal)}</span>
+          </div>
+        </div>
+        <div class="month-body ${isClosed ? 'collapsed' : ''}" id="analytics-${group.key}">
+          <table>
+            <thead><tr>
+              <th>Invoice Date</th>
+              <th>Total</th>
+              <th>Submitted By</th>
+              <th>Received By</th>
+              <th>Double Checked</th>
+              <th>Invoice</th>
+            </tr></thead>
+            <tbody>
+              ${group.invoices.map(inv => `
+                <tr>
+                  <td style="font-weight:600">${inv.invoiceDate || '—'}</td>
+                  <td class="amount">${inv.invoiceTotal !== null ? formatMoney(inv.invoiceTotal) : '—'}</td>
+                  <td>${inv.submittedBy || '—'}</td>
+                  <td>${inv.receivedBy || '—'}</td>
+                  <td>${inv.doubleCheckedBy || '—'}</td>
+                  <td>${inv.viewUrl
+                    ? `<a href="${inv.viewUrl}" target="_blank" rel="noopener">View Image</a>`
+                    : inv.imageUrl
+                      ? `<a href="${inv.imageUrl}" target="_blank" rel="noopener">View</a>`
+                      : '—'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background:var(--gray-100);font-weight:700">
+                <td>${group.invoices.length} invoices</td>
+                <td class="amount" style="color:var(--primary)">${formatMoney(monthTotal)}</td>
+                <td colspan="4"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+  });
+
+  // Grand total
+  html += `
+    <div style="padding:14px 18px;background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      <span style="font-weight:700;color:var(--gray-700)">All Months Total (${sorted.length} invoices)</span>
+      <span style="font-weight:800;font-size:1.1rem;font-family:'SF Mono',Monaco,Consolas,monospace;color:var(--primary)">${formatMoney(grandTotal)}</span>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function getTopVendor(vendorData) {
+  let top = '—', max = 0;
+  for (const [v, d] of Object.entries(vendorData)) {
+    if (d.total > max) { max = d.total; top = v; }
+  }
+  return top;
+}
+
+function getTopVendorAmount(vendorData) {
+  let max = 0;
+  for (const d of Object.values(vendorData)) {
+    if (d.total > max) max = d.total;
+  }
+  return max;
+}
+
+// ==================== INTERACTIONS ====================
+function filterVendor(vendor) {
+  activeVendor = vendor;
+  renderVendorChips();
+  renderInvoices();
+}
+
+function clearDates() {
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  renderInvoices();
+}
+
+// ==================== EXPORT: INVOICES ====================
+function exportInvoicesExcel() {
+  const filtered = sortInvoices(getFilteredInvoices());
+  if (filtered.length === 0) { showToast('No invoices to export'); return; }
+
+  const monthGroups = groupByMonth(filtered);
+  const wb = XLSX.utils.book_new();
+
+  // Summary sheet
+  const summaryData = [['NNC Issaquah — Invoice Export'], ['Generated', new Date().toLocaleDateString()], ['Total Invoices', filtered.length], ['Total Spend', filtered.reduce((s,i) => s + (i.invoiceTotal || 0), 0)], []];
+  const vendorTotals = {};
+  filtered.forEach(i => { vendorTotals[i.vendor] = (vendorTotals[i.vendor] || 0) + (i.invoiceTotal || 0); });
+  summaryData.push(['Vendor', 'Total']);
+  Object.entries(vendorTotals).sort((a,b) => b[1]-a[1]).forEach(([v,t]) => summaryData.push([v, t]));
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+  // All invoices sheet
+  const headers = ['Invoice Date', 'Vendor', 'Invoice Total', 'Submitted By', 'Received By', 'Double Checked By', 'Upload Date', 'Invoice Image URL'];
+  const rows = filtered.map(inv => [
+    inv.invoiceDate || '', inv.vendor || '', inv.invoiceTotal, inv.submittedBy || '',
+    inv.receivedBy || '', inv.doubleCheckedBy || '', inv.timestamp || '',
+    inv.viewUrl || inv.imageUrl || ''
+  ]);
+  const allWs = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  // Format total column as currency
+  const range = XLSX.utils.decode_range(allWs['!ref']);
+  for (let r = 1; r <= range.e.r; r++) {
+    const cell = allWs[XLSX.utils.encode_cell({r, c: 2})];
+    if (cell && typeof cell.v === 'number') cell.z = '$#,##0.00';
+  }
+  allWs['!cols'] = [{wch:14},{wch:18},{wch:14},{wch:16},{wch:16},{wch:18},{wch:20},{wch:50}];
+  XLSX.utils.book_append_sheet(wb, allWs, 'All Invoices');
+
+  // Per-month sheets
+  monthGroups.forEach(group => {
+    const [y, m] = group.key === 'unknown' ? ['No','Date'] : group.key.split('-');
+    const sheetName = group.key === 'unknown' ? 'No Date' : `${MONTH_NAMES_FULL[parseInt(m)-1]} ${y}`;
+    const mRows = group.invoices.map(inv => [
+      inv.invoiceDate || '', inv.vendor || '', inv.invoiceTotal, inv.submittedBy || '',
+      inv.receivedBy || '', inv.doubleCheckedBy || '', inv.timestamp || '',
+      inv.viewUrl || inv.imageUrl || ''
+    ]);
+    const mWs = XLSX.utils.aoa_to_sheet([headers, ...mRows]);
+    mWs['!cols'] = [{wch:14},{wch:18},{wch:14},{wch:16},{wch:16},{wch:18},{wch:20},{wch:50}];
+    XLSX.utils.book_append_sheet(wb, mWs, sheetName.substring(0, 31));
+  });
+
+  const vendorLabel = activeVendor === 'all' ? 'All-Vendors' : activeVendor.replace(/\s+/g, '-');
+  XLSX.writeFile(wb, `NNC-Invoices-${vendorLabel}-${new Date().toISOString().split('T')[0]}.xlsx`);
+  showToast('Excel exported!');
+}
+
+function exportInvoicesPDF() {
+  const filtered = sortInvoices(getFilteredInvoices());
+  if (filtered.length === 0) { showToast('No invoices to export'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape', 'mm', 'letter');
+  const vendorLabel = activeVendor === 'all' ? 'All Vendors' : activeVendor;
+  const today = new Date().toLocaleDateString();
+
+  // Title
+  doc.setFontSize(16);
+  doc.setTextColor(30, 58, 95);
+  doc.text('NNC Issaquah — Vendor Invoices', 14, 15);
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`${vendorLabel} | Generated: ${today} | ${filtered.length} invoices`, 14, 22);
+
+  const grandTotal = filtered.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+  doc.setFontSize(11);
+  doc.setTextColor(30, 58, 95);
+  doc.text(`Total: ${formatMoney(grandTotal)}`, 14, 28);
+
+  // Month-grouped tables
+  const monthGroups = groupByMonth(filtered);
+  let startY = 34;
+
+  monthGroups.forEach((group, gIdx) => {
+    const monthTotal = group.invoices.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+    let monthLabel;
+    if (group.key === 'unknown') { monthLabel = 'No Date'; }
+    else { const [y, m] = group.key.split('-'); monthLabel = `${MONTH_NAMES_FULL[parseInt(m)-1]} ${y}`; }
+
+    if (startY > 170) { doc.addPage(); startY = 15; }
+
+    doc.setFontSize(11);
+    doc.setTextColor(30, 58, 95);
+    doc.text(`${monthLabel}  —  ${group.invoices.length} invoices  —  ${formatMoney(monthTotal)}`, 14, startY);
+    startY += 2;
+
+    doc.autoTable({
+      startY: startY,
+      head: [['Date', 'Vendor', 'Total', 'Submitted By', 'Received By', 'Double Checked']],
+      body: group.invoices.map(inv => [
+        inv.invoiceDate || '—', inv.vendor, inv.invoiceTotal !== null ? formatMoney(inv.invoiceTotal) : '—',
+        inv.submittedBy || '—', inv.receivedBy || '—', inv.doubleCheckedBy || '—'
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } },
+      margin: { left: 14, right: 14 },
+      didDrawPage: (data) => {
+        doc.setFontSize(7);
+        doc.setTextColor(150);
+        doc.text(`NNC Issaquah Invoices — Page ${doc.internal.getNumberOfPages()}`, 14, doc.internal.pageSize.height - 8);
+      }
+    });
+
+    startY = doc.lastAutoTable.finalY + 10;
+  });
+
+  const fileName = `NNC-Invoices-${vendorLabel.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
+  showToast('PDF exported!');
+}
+
+// ==================== EXPORT: ANALYTICS ====================
+function exportAnalyticsExcel() {
+  const filtered = getAnalyticsFiltered();
+  if (filtered.length === 0) { showToast('No data to export'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const from = document.getElementById('analyticsDateFrom')?.value || 'All';
+  const to = document.getElementById('analyticsDateTo')?.value || 'Time';
+  const rangeLabel = from === 'All' ? 'All Time' : `${from} to ${to}`;
+  const vendorLabel = analyticsVendor === 'all' ? 'All Vendors' : analyticsVendor;
+
+  // Summary sheet
+  const grandTotal = filtered.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+  const summaryData = [
+    ['NNC Issaquah — Vendor Analytics'],
+    ['Period', rangeLabel],
+    ['Vendor', vendorLabel],
+    ['Generated', new Date().toLocaleDateString()],
+    [],
+    ['Total Spend', grandTotal],
+    ['Total Invoices', filtered.length],
+    ['Avg per Invoice', filtered.length > 0 ? grandTotal / filtered.length : 0],
+  ];
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+  // Vendor breakdown (for "all" view)
+  if (analyticsVendor === 'all') {
+    const vendorData = {};
+    filtered.forEach(inv => {
+      if (!vendorData[inv.vendor]) vendorData[inv.vendor] = { total: 0, count: 0 };
+      vendorData[inv.vendor].count++;
+      vendorData[inv.vendor].total += inv.invoiceTotal || 0;
+    });
+    const vRows = Object.entries(vendorData).sort((a,b) => b[1].total - a[1].total).map(([v, d]) => [
+      v, d.count, d.total, grandTotal > 0 ? (d.total / grandTotal * 100).toFixed(1) + '%' : '0%'
+    ]);
+    const vWs = XLSX.utils.aoa_to_sheet([['Vendor', 'Invoices', 'Total Spend', '% of Total'], ...vRows]);
+    vWs['!cols'] = [{wch:20},{wch:10},{wch:14},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, vWs, 'Vendor Breakdown');
+  }
+
+  // Monthly breakdown
+  const monthlyData = buildMonthlyData(filtered);
+  if (monthlyData.length > 0) {
+    const mRows = monthlyData.map(([month, data]) => {
+      const [y, m] = month.split('-');
+      return [`${MONTH_NAMES_FULL[parseInt(m)-1]} ${y}`, data.count, data.total];
+    });
+    const mWs = XLSX.utils.aoa_to_sheet([['Month', 'Invoices', 'Total'], ...mRows]);
+    mWs['!cols'] = [{wch:18},{wch:10},{wch:14}];
+    XLSX.utils.book_append_sheet(wb, mWs, 'Monthly Breakdown');
+  }
+
+  // All invoices detail
+  const headers = ['Invoice Date', 'Vendor', 'Invoice Total', 'Submitted By', 'Received By', 'Double Checked By'];
+  const sorted = [...filtered].sort((a,b) => (parseInvoiceDate(b.invoiceDate)||'').localeCompare(parseInvoiceDate(a.invoiceDate)||''));
+  const detailRows = sorted.map(inv => [
+    inv.invoiceDate || '', inv.vendor, inv.invoiceTotal, inv.submittedBy || '', inv.receivedBy || '', inv.doubleCheckedBy || ''
+  ]);
+  const detailWs = XLSX.utils.aoa_to_sheet([headers, ...detailRows]);
+  detailWs['!cols'] = [{wch:14},{wch:18},{wch:14},{wch:16},{wch:16},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, detailWs, 'Invoice Details');
+
+  const fileName = `NNC-Analytics-${vendorLabel.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  showToast('Analytics Excel exported!');
+}
+
+function exportAnalyticsPDF() {
+  const filtered = getAnalyticsFiltered();
+  if (filtered.length === 0) { showToast('No data to export'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape', 'mm', 'letter');
+  const from = document.getElementById('analyticsDateFrom')?.value;
+  const to = document.getElementById('analyticsDateTo')?.value;
+  const rangeLabel = (!from && !to) ? 'All Time' : `${from || '...'} to ${to || '...'}`;
+  const vendorLabel = analyticsVendor === 'all' ? 'All Vendors' : analyticsVendor;
+  const grandTotal = filtered.reduce((s, i) => s + (i.invoiceTotal || 0), 0);
+  const today = new Date().toLocaleDateString();
+
+  // Title
+  doc.setFontSize(16);
+  doc.setTextColor(30, 58, 95);
+  doc.text('NNC Issaquah — Vendor Spending Analytics', 14, 15);
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`${vendorLabel} | Period: ${rangeLabel} | Generated: ${today}`, 14, 22);
+
+  // Summary line
+  const avgPerInv = filtered.length > 0 ? grandTotal / filtered.length : 0;
+  doc.setFontSize(11);
+  doc.setTextColor(30, 58, 95);
+  doc.text(`Total Spend: ${formatMoney(grandTotal)}   |   Invoices: ${filtered.length}   |   Avg: ${formatMoney(avgPerInv)}`, 14, 29);
+
+  let startY = 36;
+
+  // Vendor breakdown table (all vendors view)
+  if (analyticsVendor === 'all') {
+    const vendorData = {};
+    filtered.forEach(inv => {
+      if (!vendorData[inv.vendor]) vendorData[inv.vendor] = { total: 0, count: 0 };
+      vendorData[inv.vendor].count++;
+      vendorData[inv.vendor].total += inv.invoiceTotal || 0;
+    });
+    const vRows = Object.entries(vendorData).sort((a,b) => b[1].total - a[1].total).map(([v, d]) => [
+      v, d.count.toString(), formatMoney(d.total), grandTotal > 0 ? (d.total / grandTotal * 100).toFixed(1) + '%' : '0%'
+    ]);
+
+    doc.setFontSize(11);
+    doc.text('Spending by Vendor', 14, startY);
+    startY += 2;
+
+    doc.autoTable({
+      startY: startY,
+      head: [['Vendor', 'Invoices', 'Total Spend', '% of Total']],
+      body: vRows,
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right', fontStyle: 'bold' }, 3: { halign: 'right' } },
+      margin: { left: 14, right: 14 }
+    });
+    startY = doc.lastAutoTable.finalY + 12;
+  }
+
+  // Monthly breakdown
+  const monthlyData = buildMonthlyData(filtered);
+  if (monthlyData.length > 0) {
+    if (startY > 150) { doc.addPage(); startY = 15; }
+    doc.setFontSize(11);
+    doc.setTextColor(30, 58, 95);
+    doc.text('Monthly Breakdown', 14, startY);
+    startY += 2;
+
+    const mRows = monthlyData.map(([month, data]) => {
+      const [y, m] = month.split('-');
+      return [`${MONTH_NAMES_FULL[parseInt(m)-1]} ${y}`, data.count.toString(), formatMoney(data.total)];
+    });
+    // Add total row
+    const totalCount = monthlyData.reduce((s,[,d]) => s + d.count, 0);
+    mRows.push(['TOTAL', totalCount.toString(), formatMoney(grandTotal)]);
+
+    doc.autoTable({
+      startY: startY,
+      head: [['Month', 'Invoices', 'Total']],
+      body: mRows,
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right', fontStyle: 'bold' } },
+      margin: { left: 14, right: 14 },
+      didParseCell: (data) => {
+        // Bold the total row
+        if (data.row.index === mRows.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [230, 235, 240];
+        }
+      }
+    });
+    startY = doc.lastAutoTable.finalY + 12;
+  }
+
+  // Invoice detail (for single vendor or all)
+  if (startY > 150) { doc.addPage(); startY = 15; }
+  doc.setFontSize(11);
+  doc.setTextColor(30, 58, 95);
+  doc.text(`Invoice Details — ${vendorLabel}`, 14, startY);
+  startY += 2;
+
+  const sorted = [...filtered].sort((a,b) => (parseInvoiceDate(b.invoiceDate)||'').localeCompare(parseInvoiceDate(a.invoiceDate)||''));
+  doc.autoTable({
+    startY: startY,
+    head: [['Date', 'Vendor', 'Total', 'Submitted By', 'Received By', 'Double Checked']],
+    body: sorted.map(inv => [
+      inv.invoiceDate || '—', inv.vendor, inv.invoiceTotal !== null ? formatMoney(inv.invoiceTotal) : '—',
+      inv.submittedBy || '—', inv.receivedBy || '—', inv.doubleCheckedBy || '—'
+    ]),
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } },
+    margin: { left: 14, right: 14 },
+    didDrawPage: (data) => {
+      doc.setFontSize(7);
+      doc.setTextColor(150);
+      doc.text(`NNC Issaquah Analytics — Page ${doc.internal.getNumberOfPages()}`, 14, doc.internal.pageSize.height - 8);
+    }
+  });
+
+  const fileName = `NNC-Analytics-${vendorLabel.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
+  showToast('Analytics PDF exported!');
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+</script>
+</body>
+</html>

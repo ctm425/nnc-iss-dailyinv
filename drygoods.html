@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Inventory — Dry Goods</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --primary: #1e3a5f; --primary-light: #2563eb; --primary-bg: #eff6ff;
+  --danger: #dc2626; --success: #16a34a;
+  --amber: #d97706; --amber-bg: #fffbeb;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+/* Login Overlay */
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-box button:hover{background:var(--primary)}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+/* Header */
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.header-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-white{background:#fff;color:var(--gray-700)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-amber{background:var(--amber);color:#fff}
+
+/* Date nav */
+.date-nav{background:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:center;gap:16px;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.date-nav button{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:var(--radius);padding:6px 14px;cursor:pointer;font-weight:600;font-size:.85rem}
+.date-nav button:hover{background:var(--gray-200)}
+.date-nav .current-date{font-size:1.15rem;font-weight:700;color:var(--primary);min-width:220px;text-align:center}
+.date-nav .day-name{font-size:.85rem;color:var(--gray-500);font-weight:500;text-align:center}
+.date-picker-input{font-size:1rem;font-weight:700;color:var(--primary);border:2px solid var(--primary-light);border-radius:var(--radius);padding:8px 14px;cursor:pointer;background:#fff;text-align:center}
+.date-picker-input:focus{outline:none;box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.prev-count-bar{background:var(--primary-bg);padding:8px 24px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:16px;font-size:.82rem;color:var(--gray-700);flex-wrap:wrap}
+.prev-count-bar .label{font-weight:600;color:var(--gray-500)}
+.prev-count-bar .value{font-weight:700;color:var(--primary)}
+.usage-col{font-weight:600;font-size:.82rem}
+.usage-positive{color:var(--primary)}
+.usage-high{color:var(--danger)}
+.usage-zero{color:var(--gray-400)}
+
+/* Inventory person */
+.inventory-person-bar{background:#fff;padding:10px 24px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.inventory-person-bar label{font-size:.85rem;font-weight:600;color:var(--gray-700)}
+.inventory-person-bar input{padding:6px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem;width:250px}
+.inventory-person-bar input:focus{outline:none;border-color:var(--primary-light)}
+
+/* Tab bar */
+.tab-bar{padding:12px 24px;display:flex;gap:10px;background:#fff;overflow-x:auto;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.tab{padding:10px 22px;font-size:.9rem;font-weight:700;color:var(--gray-600);cursor:pointer;white-space:nowrap;transition:all .15s;border-radius:var(--radius);background:var(--gray-100);border:2px solid var(--gray-300)}
+.tab:hover{background:var(--primary-bg);border-color:var(--primary-light);color:var(--primary)}
+.tab.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 2px 6px rgba(30,58,95,.3)}
+
+/* Filter */
+.filter-bar{padding:12px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.search-input{padding:8px 14px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.9rem;width:260px}
+.search-input:focus{outline:none;border-color:var(--primary-light)}
+
+/* Table */
+.table-wrap{padding:16px 24px;overflow-x:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:700px}
+thead th{background:var(--gray-100);padding:6px 8px;text-align:left;font-size:.7rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200);position:sticky;top:0;z-index:5}
+thead th:first-child{min-width:180px;position:sticky;left:0;z-index:10;background:var(--gray-100);box-shadow:2px 0 4px rgba(0,0,0,.08)}
+tbody td{padding:4px 8px;border-bottom:1px solid var(--gray-100);font-size:.84rem}
+tbody td:first-child{position:sticky;left:0;z-index:2;background:#fff;box-shadow:2px 0 4px rgba(0,0,0,.06);font-weight:600}
+tbody tr:hover td{background:var(--primary-bg)}
+tbody tr:hover td:first-child{background:var(--primary-bg)}
+tbody tr.section-header td{background:var(--gray-100);font-weight:700;font-size:.8rem;text-transform:uppercase;color:var(--gray-500);letter-spacing:.5px;padding:8px 14px}
+input[type="number"]{width:60px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;text-align:center}
+input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+.status-ok{color:var(--success);font-weight:600}
+.status-low{color:var(--amber);font-weight:600}
+.status-critical{color:var(--danger);font-weight:700}
+.order-highlight{background:#fffbeb;font-weight:700;color:var(--amber)}
+.note-input{width:120px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem}
+.note-input:focus{outline:none;border-color:var(--primary-light)}
+
+/* Stats bar */
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:16px 24px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:14px 18px;border:1px solid var(--gray-200)}
+.stat-card .label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+.stat-card .value{font-size:1.4rem;font-weight:700;margin-top:2px}
+.stat-card .value.warn{color:var(--danger)}
+
+/* Settings panel */
+.settings-panel{display:none;padding:24px;background:#fff;margin:16px 24px;border-radius:var(--radius);border:1px solid var(--gray-200)}
+.settings-panel.visible{display:block}
+.settings-panel h3{font-size:1rem;font-weight:700;margin-bottom:16px}
+.settings-section{margin-bottom:24px}
+.settings-section h4{font-size:.85rem;font-weight:700;color:var(--gray-700);margin-bottom:8px}
+.item-edit-row{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--gray-100);flex-wrap:wrap}
+.item-edit-row input,.item-edit-row select{padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
+
+/* Responsive */
+@media(max-width:640px){
+  .header{padding:12px 16px}
+  .header h1{font-size:1.1rem}
+  .date-nav{padding:10px 16px;gap:8px}
+  .tab-bar{padding:10px 16px}
+  .table-wrap{padding:8px}
+  .filter-bar{padding:8px 16px}
+  .stats-bar{padding:8px 16px}
+  .settings-panel{margin:8px}
+  input[type="number"]{width:50px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>NNC Inventory System</h2>
+    <p class="subtitle">Sign in to access Dry Goods inventory</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email address">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1 id="pageTitle">📦 Dry Goods Inventory</h1>
+    <div class="header-sub" id="pageSubtitle">Weekly Inventory Count</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" onclick="goToDashboard()">← Dashboard</button>
+    <button class="btn btn-ghost btn-sm" id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📊 Excel</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportPDF()">📄 PDF</button>
+    <button class="btn btn-success btn-sm" onclick="sendEmailReport()">📧 Email</button>
+    <button class="btn btn-ghost btn-sm" onclick="auth.signOut()">Sign Out</button>
+  </div>
+</div>
+
+<!-- DATE NAV -->
+<div class="date-nav">
+  <button onclick="changeDay(-1)">←</button>
+  <div style="text-align:center">
+    <input type="date" class="date-picker-input" id="datePicker" onchange="onDatePick(this.value)">
+    <div class="day-name" id="dayName"></div>
+  </div>
+  <button onclick="changeDay(1)">→</button>
+  <button onclick="goToToday()" class="btn btn-sm btn-primary">Today</button>
+</div>
+<!-- PREVIOUS COUNT REFERENCE -->
+<div class="prev-count-bar" id="prevCountBar">
+  <span class="label">Previous count:</span>
+  <span class="value" id="prevCountDate">—</span>
+  <span style="color:var(--gray-400)">|</span>
+  <span class="label">Usage = Previous Stock + Orders − Today's Count</span>
+</div>
+
+<!-- INVENTORY PERSON -->
+<div class="inventory-person-bar">
+  <label>Counted By:</label>
+  <input type="text" id="inventoryPerson" placeholder="Enter your name" onchange="saveInventoryPerson(this.value)">
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar" id="statsBar"></div>
+
+<!-- TAB BAR (sub-categories) -->
+<div class="tab-bar" id="tabBar"></div>
+
+<!-- FILTER -->
+<div class="filter-bar">
+  <input type="text" class="search-input" id="searchInput" placeholder="Search items..." oninput="render()">
+</div>
+
+<!-- TABLE -->
+<div class="table-wrap" id="tableWrap"></div>
+
+<!-- SETTINGS PANEL -->
+<div class="settings-panel" id="settingsPanel">
+  <h3>⚙️ Dry Goods Settings</h3>
+  <div class="settings-section">
+    <h4>Manage Items</h4>
+    <p style="font-size:.82rem;color:var(--gray-500);margin-bottom:12px">Add, edit, or remove items. Changes are saved to the cloud automatically.</p>
+    <div id="itemEditor"></div>
+    <button class="btn btn-primary btn-sm" onclick="addNewItem()" style="margin-top:12px">+ Add Item</button>
+  </div>
+  <div class="settings-section">
+    <h4>Email Settings</h4>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <label style="font-size:.82rem;font-weight:600">EmailJS Public Key:</label>
+      <input type="text" id="emailjsKey" style="flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem" onchange="saveEmailSettings()">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <label style="font-size:.82rem;font-weight:600">Service ID:</label>
+      <input type="text" id="emailjsService" style="flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem" onchange="saveEmailSettings()">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <label style="font-size:.82rem;font-weight:600">Template ID:</label>
+      <input type="text" id="emailjsTemplate" style="flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem" onchange="saveEmailSettings()">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <label style="font-size:.82rem;font-weight:600">Email Recipients (comma-separated):</label>
+      <input type="text" id="emailRecipients" style="flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem" placeholder="manager@example.com, owner@example.com" onchange="saveEmailSettings()">
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+// ==================== SHEET MODE DEFINITIONS ====================
+const SHEET_MODES = {
+  'nnc-drygoods': {
+    title: 'Dry Goods & Spices',
+    icon: '🌶️',
+    storageKey: 'drygoods',
+    subCategories: {
+      spices: { name: 'Spices & Seasonings', icon: '🌶️', color: '#dc2626' },
+      ingredients: { name: 'Cooking Ingredients', icon: '🥘', color: '#b45309' },
+      beverages: { name: 'Drinks & Beverages', icon: '🥤', color: '#2563eb' },
+      other: { name: 'Other', icon: '📋', color: '#6b7280' }
+    },
+    defaultItems: [
+      // === SPICES ===
+      { id: 'chaat-masala-case', name: 'Chaat Masala (case)', subCategory: 'spices', unit: 'case', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'methi', name: 'Methi (5lb container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'cumin-ziploc', name: 'Cumin (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'green-cardamom-ziploc', name: 'Green Cardamom (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'black-cardamom-ziploc', name: 'Black Cardamom (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'garam-masala-ground', name: 'Garam Masala Ground (large nido)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'bay-leaf-ziploc', name: 'Bay Leaf (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'cinnamon-stick-ziploc', name: 'Cinnamon Stick (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'cloves-ziploc', name: 'Cloves (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'black-pepper-whole', name: 'Black Pepper - Whole (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'black-pepper-crush', name: 'Black Pepper Crush - Karahi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'coriander-crush', name: 'Coriander Crush - Karahi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'coriander-powder', name: 'Coriander Powder - Handi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'fennel-seed-crush', name: 'Fennel Seed Crush - Handi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'fennel-seed-whole', name: 'Fennel Seed Whole (5 lb container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'ground-almond', name: 'Ground Almond - Mughlai (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'ground-pistachio', name: 'Ground Pistachio (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'achaar-powder', name: 'Achaar Powder (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'anaar-dana', name: 'Anaar Dana (16 oz black container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'rice-garam-masala', name: 'Rice Whole Garam Masala', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'chaat-masala-ingr', name: 'Chaat Masala', subCategory: 'spices', unit: 'case', par: 1, vendor: 'Reshmi' },
+      { id: 'dry-red-chili', name: 'Dry Red Chili Whole', subCategory: 'spices', unit: 'bag', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'fennel-seeds-ingr', name: 'Fennel Seeds', subCategory: 'spices', unit: 'lb', par: 5, vendor: 'Reshmi' },
+      { id: 'green-cardamom-ingr', name: 'Green Cardamom', subCategory: 'spices', unit: 'lb', par: 5, vendor: 'Reshmi' },
+      { id: 'sesame-seeds', name: 'Sesame Seeds', subCategory: 'spices', unit: 'bottle', par: 1, vendor: 'Costco/Restaurant Depot' },
+      { id: 'salt', name: 'Salt', subCategory: 'spices', unit: 'bag', par: 1, vendor: 'Sysco' },
+      // === COOKING INGREDIENTS ===
+      { id: 'achaar-mango', name: 'Achaar (Mango Pickle)', subCategory: 'ingredients', unit: 'case', par: 2, vendor: 'Reshmi' },
+      { id: 'canola-oil', name: 'Canola Salad Oil (white box)', subCategory: 'ingredients', unit: 'case', par: 2, vendor: 'Sysco' },
+      { id: 'baking-powder', name: 'Baking Powder (case)', subCategory: 'ingredients', unit: 'case', par: 0.5, vendor: 'Restaurant Depot/Costco' },
+      { id: 'heavy-cream', name: 'Darigold Heavy Cream', subCategory: 'ingredients', unit: 'case', par: 4, vendor: 'Sysco/Springbrook' },
+      { id: 'chai-yellow-tea', name: 'Chai Yellow Tea', subCategory: 'ingredients', unit: 'case', par: 1, vendor: 'Reshmi' },
+      { id: 'egg-yellow-color', name: 'Egg Yellow Color (bottle)', subCategory: 'ingredients', unit: 'bottle', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'eggs-medium', name: 'Eggs (medium)', subCategory: 'ingredients', unit: 'case', par: 1, vendor: 'Sysco/Costco' },
+      { id: 'frying-oil', name: 'Frying Shortening Oil (brown box)', subCategory: 'ingredients', unit: 'case', par: 2, vendor: 'Sysco/Unity' },
+      { id: 'lemon-juice', name: 'Lemon Juice', subCategory: 'ingredients', unit: 'bottle', par: 1, vendor: 'Restaurant Depot/Costco' },
+      { id: 'peas', name: 'Peas (case)', subCategory: 'ingredients', unit: 'case', par: 1, vendor: 'Sysco' },
+      { id: 'okra', name: 'Okra (case)', subCategory: 'ingredients', unit: 'case', par: 1, vendor: 'Sysco' },
+      { id: 'paneer', name: 'Paneer', subCategory: 'ingredients', unit: 'case', par: 2, vendor: 'Reshmi/Sysco' },
+      { id: 'sugar-25lb', name: 'Sugar 25lb', subCategory: 'ingredients', unit: 'bag', par: 1, vendor: 'Costco' },
+      { id: 'ap-flour', name: 'Sysco All Purpose Flour (Naan)', subCategory: 'ingredients', unit: 'bag', par: 3, vendor: 'Sysco' },
+      { id: 'brown-sugar', name: 'Brown Sugar (case)', subCategory: 'ingredients', unit: 'case', par: 0.5, vendor: 'Costco' },
+      { id: 'carnation', name: 'Carnation (case)', subCategory: 'ingredients', unit: 'case', par: 2, vendor: 'Costco' },
+      { id: 'iced-chai-syrup', name: 'Iced Chai Syrup', subCategory: 'ingredients', unit: 'bottle', par: 1, vendor: 'Costco/Cash N Carry' },
+      { id: 'sweet-n-low', name: 'Sweet & Low (case)', subCategory: 'ingredients', unit: 'case', par: 0.5, vendor: 'Costco' },
+      { id: 'splenda', name: 'Splenda', subCategory: 'ingredients', unit: 'box', par: 0.5, vendor: 'Costco' },
+      { id: 'sugar-packets', name: 'Sugar Packets (case)', subCategory: 'ingredients', unit: 'case', par: 0.5, vendor: 'Costco' },
+      { id: 'golden-temple-atta', name: 'Golden Temple Atta (Roti)', subCategory: 'ingredients', unit: 'bag', par: 1, vendor: 'Sysco/Reshmi' },
+      { id: 'rooh-afza', name: 'Rooh Afza Kulfi Syrup', subCategory: 'ingredients', unit: 'bottle', par: 1, vendor: 'Reshmi/NNC Renton' },
+      // === BEVERAGES ===
+      { id: 'coke', name: 'Coke (case)', subCategory: 'beverages', unit: 'case', par: 3, vendor: 'Costco/Restaurant Depot' },
+      { id: 'diet-coke', name: 'Diet Coke (case)', subCategory: 'beverages', unit: 'case', par: 3, vendor: 'Costco/Restaurant Depot' },
+      { id: 'sprite', name: 'Sprite (case)', subCategory: 'beverages', unit: 'case', par: 3, vendor: 'Costco/Restaurant Depot' },
+      { id: 'mexican-coke', name: 'Mexican Coke (24 = 1 case)', subCategory: 'beverages', unit: 'case', par: 3, vendor: 'Costco/Restaurant Depot' },
+      { id: 'mexican-sprite', name: 'Mexican Sprite (24 = 1 case)', subCategory: 'beverages', unit: 'case', par: 3, vendor: 'Costco/Restaurant Depot' },
+      { id: 'mexican-fanta', name: 'Mexican Fanta (24 = 1 case)', subCategory: 'beverages', unit: 'case', par: 3, vendor: 'Costco/Restaurant Depot' },
+      { id: 'topo-chico', name: 'Topo Chico', subCategory: 'beverages', unit: 'case', par: 3, vendor: 'Costco/Restaurant Depot' },
+      { id: 'voss-water', name: 'Voss Water', subCategory: 'beverages', unit: 'case', par: 3, vendor: 'Costco/Restaurant Depot' },
+      { id: 'green-tea', name: 'Green Tea', subCategory: 'beverages', unit: 'box', par: 1, vendor: 'Costco/Restaurant Depot' },
+      { id: 'perrier', name: 'Perrier / San Pellegrino', subCategory: 'beverages', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'coke-zero', name: 'Coke Zero', subCategory: 'beverages', unit: 'case', par: 1, vendor: 'Costco' }
+    ]
+  },
+  'nnc-frozen': {
+    title: 'Frozen Inventory',
+    icon: '🧊',
+    storageKey: 'frozen',
+    subCategories: {
+      prepared: { name: 'Prepared Items (NNC Kitchen)', icon: '🍱', color: '#7c2d12' },
+      other: { name: 'Other Frozen', icon: '📋', color: '#6b7280' }
+    },
+    defaultItems: [
+      { id: 'haleem-lamb', name: 'Haleem (Lamb)', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'nehari-sauce', name: 'Nehari Sauce', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'lamb-chops', name: 'Lamb Chops', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'boti-kabab', name: 'Boti Kabab', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'chicken-seekh', name: 'Chicken Seekh Kabab', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'lamb-seekh', name: 'Lamb Seekh Kabab', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'karela', name: 'Karela', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'keema', name: 'Keema', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'samosa', name: 'Samosa', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'haleem-chicken', name: 'Haleem (Chicken)', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      { id: 'beef-seekh', name: 'Beef Seekh Kabab', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' }
+    ]
+  },
+  'nnc-supplies': {
+    title: 'Supplies',
+    icon: '🧴',
+    storageKey: 'supplies',
+    subCategories: {
+      togo: { name: 'To-Go Containers', icon: '🥡', color: '#7c2d12' },
+      cleaning: { name: 'Cleaning Supplies', icon: '🧹', color: '#0891b2' },
+      kitchen: { name: 'Kitchen Supplies', icon: '🍳', color: '#b45309' },
+      office: { name: 'Office Supplies', icon: '🖊️', color: '#4338ca' },
+      general: { name: 'General Supplies', icon: '📦', color: '#059669' },
+      other: { name: 'Other', icon: '📋', color: '#6b7280' }
+    },
+    defaultItems: [
+      // === TO-GO CONTAINERS ===
+      { id: 'rice-container-1', name: '#1 White Rice Containers', subCategory: 'togo', unit: 'case', par: 4, vendor: 'Howard Wellpack' },
+      { id: 'biryani-container-2', name: '#2 Biryani/Lunch Special Containers', subCategory: 'togo', unit: 'case', par: 7, vendor: 'Howard Wellpack' },
+      { id: 'kraft-2go', name: '#2 Kraft (brown) 2go Container (leftovers)', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Restaurant Depot' },
+      { id: 'chutney-1oz', name: '1 oz Chutney 2go (case)', subCategory: 'togo', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'chutney-1oz-lids', name: '1 oz Chutney 2go Lids (case)', subCategory: 'togo', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'half-alum-lids', name: '1/2 Size Aluminum Pan Lids', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Costco' },
+      { id: 'half-deep', name: '1/2 Size Deep Containers (3 biryani)', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Costco' },
+      { id: 'half-shallow', name: '1/2 Size Shallow Containers (2 biryanis)', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Costco' },
+      { id: 'clear-12oz', name: '12oz Clear 2go Container (leftovers)', subCategory: 'togo', unit: 'case', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'black-curry-16oz', name: '16oz Black Curry 2go (case)', subCategory: 'togo', unit: 'case', par: 8, vendor: 'US Foods' },
+      { id: 'chutney-2oz', name: '2 oz Chutney 2go (case)', subCategory: 'togo', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'chutney-2oz-lids', name: '2 oz Chutney 2go Lids (case)', subCategory: 'togo', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'chai-cup', name: 'Chai Cup (case)', subCategory: 'togo', unit: 'case', par: 0.75, vendor: 'Costco' },
+      { id: 'chai-cup-lids', name: 'Chai Cup Lids (case)', subCategory: 'togo', unit: 'case', par: 0.75, vendor: 'Costco' },
+      { id: 'chai-cup-sleeves', name: 'Chai Cup Sleeves', subCategory: 'togo', unit: 'case', par: 0.5, vendor: 'Webstaurant' },
+      { id: 'lassi-cup', name: 'Lassi Cup (case)', subCategory: 'togo', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'lassi-cup-lids', name: 'Lassi Cup Lids (case)', subCategory: 'togo', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'pakora-box', name: 'Pakora 2go White Box', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Howard Wellpack' },
+      { id: 'paper-bag-duro4', name: 'Paper Bag for Chutneys/Salads (Duro #4)', subCategory: 'togo', unit: 'box', par: 2, vendor: 'Costco/Restaurant Depot' },
+      { id: 'malai-boti-r24', name: 'R-24 Malai Boti/Achari Boti', subCategory: 'togo', unit: 'box', par: 2, vendor: 'Howard Wellpack' },
+      { id: 'seekh-r28', name: 'R-28 Seekh Kabab 2go', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Howard Wellpack' },
+      { id: 'fish-r58', name: 'R-58 (Fish Tandoori)', subCategory: 'togo', unit: 'case', par: 1, vendor: 'Howard Wellpack' },
+      { id: 'raita-8oz', name: 'Raita 8oz 2go Container (case)', subCategory: 'togo', unit: 'case', par: 0.75, vendor: 'Howard Wellpack' },
+      { id: 'sc8-clear', name: 'SC-8 oz Clear Lunch Special', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Howard Wellpack' },
+      { id: 'thank-you-bags', name: 'Thank You Bags (case)', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Costco/Restaurant Depot' },
+      { id: 'utensil-packets', name: 'Utensils Packets', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Costco/P&R' },
+      { id: 'full-alum-trays', name: 'Full Size Aluminum Trays', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Costco' },
+      { id: 'full-alum-lids', name: 'Full Size Aluminum Tray Lids', subCategory: 'togo', unit: 'case', par: 2, vendor: 'Costco' },
+      { id: 'full-shallow', name: 'Full Size Shallow', subCategory: 'togo', unit: 'case', par: 0, vendor: '' },
+      { id: 'salad-4oz', name: '4oz Containers for Salad', subCategory: 'togo', unit: 'case', par: 0, vendor: '' },
+      // === CLEANING SUPPLIES ===
+      { id: 'yellow-towels', name: 'Yellow Towels', subCategory: 'cleaning', unit: 'bag', par: 1, vendor: 'Costco' },
+      { id: 'bleach', name: 'Bleach (gal)', subCategory: 'cleaning', unit: 'gallon', par: 3, vendor: 'Restaurant Depot/P&R' },
+      { id: 'blue-dish-soap', name: 'Blue Dish Soap (case)', subCategory: 'cleaning', unit: 'case', par: 4, vendor: 'Unity' },
+      { id: 'brown-paper-towel', name: 'Brown Paper Towel (case)', subCategory: 'cleaning', unit: 'case', par: 1, vendor: 'Restaurant Depot/P&R' },
+      { id: 'comet', name: 'Comet', subCategory: 'cleaning', unit: 'bottle', par: 2, vendor: 'Costco' },
+      { id: 'degreaser', name: 'Degreaser (case)', subCategory: 'cleaning', unit: 'case', par: 0.5, vendor: 'Howard Wellpack' },
+      { id: 'glass-cleaner', name: 'Glass Cleaner (gal)', subCategory: 'cleaning', unit: 'gallon', par: 1, vendor: 'Costco' },
+      { id: 'hand-sanitizer', name: 'Hand Sanitizer (case)', subCategory: 'cleaning', unit: 'bottle', par: 2, vendor: 'Costco' },
+      { id: 'hand-soap', name: 'Handsoap (gal)', subCategory: 'cleaning', unit: 'gallon', par: 1, vendor: 'Costco' },
+      { id: 'pine-cleaner', name: 'Pine Sol / Pine Cleaner', subCategory: 'cleaning', unit: 'gallon', par: 1, vendor: 'Howard Wellpack' },
+      { id: 'scotch-brite', name: 'Scotch Brite Pads', subCategory: 'cleaning', unit: 'case', par: 0.5, vendor: 'Costco/Restaurant Depot' },
+      { id: 'steel-wool', name: 'Steel Wool Scrubbers (case)', subCategory: 'cleaning', unit: 'case', par: 0.25, vendor: 'Restaurant Depot' },
+      { id: 'customer-hand-soap', name: 'Hand Soap for Customer Bathrooms', subCategory: 'cleaning', unit: 'case', par: 1, vendor: 'Webstaurant' },
+      { id: 'mop-head', name: 'Mop Head', subCategory: 'cleaning', unit: 'each', par: 2, vendor: 'Restaurant Depot' },
+      { id: 'kitchen-towels-white', name: 'Kitchen Towels (White)', subCategory: 'cleaning', unit: 'bag', par: 1, vendor: 'Costco/Restaurant Depot' },
+      { id: 'spray-bottles', name: 'Spray Bottles', subCategory: 'cleaning', unit: 'bottle', par: 2, vendor: 'Costco/Restaurant Depot' },
+      // === KITCHEN SUPPLIES ===
+      { id: 'fryer-boil-out', name: 'Fryer Boil Out (limpiador de freidoras)', subCategory: 'kitchen', unit: 'bottle', par: 1, vendor: 'Cash N Carry/Restaurant Depot' },
+      { id: 'naan-wax-paper', name: 'Naan Wax Paper (box)', subCategory: 'kitchen', unit: 'box', par: 2, vendor: 'Costco' },
+      // === OFFICE SUPPLIES ===
+      { id: 'printer-paper', name: 'Printer Paper', subCategory: 'office', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'pens', name: 'Pens', subCategory: 'office', unit: 'box', par: 1, vendor: 'Costco' },
+      { id: 'staples', name: 'Staples', subCategory: 'office', unit: 'box', par: 2, vendor: 'Costco' },
+      // === GENERAL SUPPLIES ===
+      { id: 'plastic-film-12', name: '12" Plastic Film', subCategory: 'general', unit: 'box', par: 1, vendor: 'Restaurant Depot/P&R' },
+      { id: 'aluminum-foil-18', name: '18" Aluminum Foil', subCategory: 'general', unit: 'box', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'plastic-film-24', name: '24" Plastic Film', subCategory: 'general', unit: 'box', par: 1, vendor: 'Restaurant Depot/P&R' },
+      { id: '2go-drink-carrier', name: '2go Drink Carrier', subCategory: 'general', unit: 'bag', par: 1, vendor: 'Costco/P&R' },
+      { id: 'garbage-bags-33g', name: '33g Garbage Bags (case)', subCategory: 'general', unit: 'case', par: 2, vendor: 'Costco/P&R' },
+      { id: 'garbage-bags-55g', name: '55g Garbage Bags (case)', subCategory: 'general', unit: 'case', par: 2, vendor: 'Costco/P&R' },
+      { id: 'napkins-2ply', name: 'Napkins (2PLY Dinner) (case)', subCategory: 'general', unit: 'case', par: 1, vendor: 'Restaurant Depot/P&R' },
+      { id: 'tp-customer', name: 'Toilet Paper for Customers (Small Core)', subCategory: 'general', unit: 'case', par: 1, vendor: 'Webstaurant' },
+      { id: 'label-printer', name: 'Label Printer (case)', subCategory: 'general', unit: 'case', par: 1, vendor: 'Paper Direct' },
+      { id: 'monday-sticker', name: 'Monday Sticker', subCategory: 'general', unit: 'roll', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'tuesday-sticker', name: 'Tuesday Sticker', subCategory: 'general', unit: 'roll', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'wednesday-sticker', name: 'Wednesday Sticker', subCategory: 'general', unit: 'roll', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'thursday-sticker', name: 'Thursday Sticker', subCategory: 'general', unit: 'roll', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'friday-sticker', name: 'Friday Sticker', subCategory: 'general', unit: 'roll', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'saturday-sticker', name: 'Saturday Sticker', subCategory: 'general', unit: 'roll', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'sunday-sticker', name: 'Sunday Sticker', subCategory: 'general', unit: 'roll', par: 1, vendor: 'Restaurant Depot' },
+      { id: 'paper-plates', name: 'Paper Plates (bag)', subCategory: 'general', unit: 'bag', par: 1, vendor: 'Restaurant Depot/P&R' },
+      { id: 'plastic-fork', name: 'Plastic Fork', subCategory: 'general', unit: 'case', par: 0.75, vendor: 'Costco' },
+      { id: 'plastic-knife', name: 'Plastic Knife', subCategory: 'general', unit: 'case', par: 0.75, vendor: 'Costco' },
+      { id: 'plastic-spoons', name: 'Plastic Spoons', subCategory: 'general', unit: 'case', par: 0.75, vendor: 'Costco' },
+      { id: 'poly-apron', name: 'Poly Apron', subCategory: 'general', unit: 'box', par: 2, vendor: 'Restaurant Depot/P&R' },
+      { id: 'register-rolls', name: 'Register Thermal Rolls GT318-230" (case)', subCategory: 'general', unit: 'case', par: 1, vendor: 'Gorilla Paper' },
+      { id: 'straws', name: 'Straws (case)', subCategory: 'general', unit: 'case', par: 0.5, vendor: 'Costco' },
+      { id: 'stir-sticks', name: 'Stir Sticks', subCategory: 'general', unit: 'box', par: 1, vendor: 'Costco' },
+      { id: 'crayons-kids', name: 'Crayons for Kids', subCategory: 'general', unit: 'case', par: 1, vendor: 'Webstaurant/Costco' },
+      { id: 'gloves', name: 'Gloves (case)', subCategory: 'general', unit: 'case', par: 10, vendor: 'Global Gloves' },
+      { id: 'grill-briquettes', name: 'Ceramic Briquettes 41648 (rocks for grill)', subCategory: 'general', unit: 'box', par: 3, vendor: 'Online' },
+      { id: 'staff-coffee', name: 'Coffee for Staff', subCategory: 'general', unit: 'bottle', par: 1, vendor: 'Costco' },
+      { id: 'menus', name: 'Menus', subCategory: 'general', unit: 'each', par: 100, vendor: 'Costco' },
+      { id: 'ziplock-gallon', name: 'Zip Lock Gallon (box)', subCategory: 'general', unit: 'box', par: 2, vendor: 'Costco' },
+      { id: 'ziplock-quart', name: 'Zip Lock Quart (box)', subCategory: 'general', unit: 'box', par: 2, vendor: 'Costco' },
+      { id: 'tp-employee', name: 'Toilet Paper Rolls (Employees)', subCategory: 'general', unit: 'case', par: 1, vendor: 'Costco' },
+      { id: 'toilet-seat-cover', name: 'Toilet Seat Cover (case)', subCategory: 'general', unit: 'case', par: 0.5, vendor: 'Costco/Restaurant Depot' },
+      { id: 'chicken-cutting-bags', name: 'Plastic Bags for Cutting Chicken', subCategory: 'general', unit: 'case', par: 3, vendor: 'P&R' },
+      { id: 'staff-creamer', name: 'Creamer for Staff Coffee', subCategory: 'general', unit: 'case', par: 1, vendor: 'Costco' }
+    ]
+  }
+};
+
+const UNITS = ['each', 'case', 'bag', 'box', 'bottle', 'can', 'jar', 'lb', 'oz', 'gallon', 'pack', 'roll'];
+
+// ==================== STATE ====================
+let currentDate = new Date();
+currentDate.setHours(0, 0, 0, 0);
+let activeTab = 'all';
+let settingsVisible = false;
+let restaurantKey = 'nnc-iss';
+let sheetKey = 'nnc-drygoods'; // determined from URL
+let currentMode = SHEET_MODES['nnc-drygoods']; // active mode config
+
+// ==================== DATE HELPERS ====================
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function dateKey(date) {
+  const d = date || currentDate;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Keep weekKey as alias for backward compat with exports
+function weekKey(date) { return dateKey(date); }
+
+function formatDate(date) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+function formatDateFull(date) {
+  return `${DAY_NAMES[date.getDay()]}, ${formatDate(date)}`;
+}
+
+function changeDay(delta) {
+  currentDate = new Date(currentDate);
+  currentDate.setDate(currentDate.getDate() + delta);
+  render();
+  loadInventoryPerson();
+  setupFirestoreListener();
+}
+
+function goToToday() {
+  currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  render();
+  loadInventoryPerson();
+  setupFirestoreListener();
+}
+
+function onDatePick(val) {
+  if (!val) return;
+  const parts = val.split('-');
+  currentDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  currentDate.setHours(0, 0, 0, 0);
+  render();
+  loadInventoryPerson();
+  setupFirestoreListener();
+}
+
+// Find the most recent count date BEFORE the current date
+function findPreviousCountDate() {
+  const d = loadData();
+  if (!d.weeks) return null;
+  const currentKey = dateKey();
+  const dates = Object.keys(d.weeks)
+    .filter(k => k < currentKey && k !== '__meta')
+    .sort()
+    .reverse();
+  // Return the first date that actually has count data (not just meta)
+  for (const dk of dates) {
+    const wd = d.weeks[dk];
+    const hasData = Object.keys(wd).some(k => k !== '__meta' && wd[k]?.count !== undefined);
+    if (hasData) return dk;
+  }
+  return null;
+}
+
+function getPreviousCountData() {
+  const prevDate = findPreviousCountDate();
+  if (!prevDate) return { date: null, data: {} };
+  const d = loadData();
+  return { date: prevDate, data: d.weeks[prevDate] || {} };
+}
+
+// ==================== DATA PERSISTENCE ====================
+function storageId() {
+  return `${currentMode.storageKey}_${restaurantKey}`;
+}
+
+function firestoreDocPath() {
+  return storageId();
+}
+
+function loadData() {
+  const raw = localStorage.getItem(storageId());
+  if (raw) {
+    try { return JSON.parse(raw); } catch (e) {}
+  }
+  return { items: [...currentMode.defaultItems], weeks: {}, emailjs: {}, emails: '' };
+}
+
+function saveData(d) {
+  localStorage.setItem(storageId(), JSON.stringify(d));
+  // Also save to Firestore
+  saveToFirestore(d);
+}
+
+async function saveToFirestore(d) {
+  if (!auth.currentUser) return;
+  try {
+    await db.collection('inventory_config').doc(firestoreDocPath()).set({
+      items: d.items,
+      emailjs: d.emailjs || {},
+      emails: d.emails || '',
+      updatedAt: new Date(),
+      updatedBy: auth.currentUser.email
+    }, { merge: true });
+  } catch (err) { console.error('Firestore config save error:', err); }
+}
+
+async function saveWeekData(wk, data) {
+  if (!auth.currentUser) return;
+  try {
+    await db.collection('inventory_weeks').doc(`${firestoreDocPath()}_${wk}`).set(data);
+  } catch (err) { console.error('Firestore week save error:', err); }
+}
+
+function getWeekData(wk) {
+  const d = loadData();
+  return (d.weeks && d.weeks[wk]) || {};
+}
+
+function setField(wk, itemId, field, val) {
+  const d = loadData();
+  if (!d.weeks) d.weeks = {};
+  if (!d.weeks[wk]) d.weeks[wk] = {};
+  if (!d.weeks[wk][itemId]) d.weeks[wk][itemId] = {};
+  d.weeks[wk][itemId][field] = val;
+  saveData(d);
+  // Also save day data to Firestore
+  saveWeekData(wk, d.weeks[wk]);
+}
+
+// Listen for Firestore changes
+let unsubConfig = null;
+let unsubDate = null;
+
+function setupFirestoreListener() {
+  // Detach previous date listener when switching days
+  if (unsubDate) { unsubDate(); unsubDate = null; }
+
+  // Config listener (only set up once)
+  if (!unsubConfig) {
+    unsubConfig = db.collection('inventory_config').doc(firestoreDocPath()).onSnapshot(snap => {
+      if (!snap.exists) return;
+      const config = snap.data();
+      const d = loadData();
+      if (config.items) d.items = config.items;
+      // Protect emailjs settings
+      if (config.emailjs && config.emailjs.publicKey) {
+        d.emailjs = config.emailjs;
+      } else if (!d.emailjs || !d.emailjs.publicKey) {
+        d.emailjs = config.emailjs || d.emailjs || {};
+      }
+      if (config.emails) d.emails = config.emails;
+      localStorage.setItem(storageId(), JSON.stringify(d));
+      render();
+    });
+  }
+
+  // Current date data listener
+  unsubDate = db.collection('inventory_weeks').doc(`${firestoreDocPath()}_${dateKey()}`).onSnapshot(snap => {
+    if (!snap.exists) return;
+    const dayData = snap.data();
+    const d = loadData();
+    if (!d.weeks) d.weeks = {};
+    d.weeks[dateKey()] = dayData;
+    localStorage.setItem(storageId(), JSON.stringify(d));
+    render();
+  });
+}
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  if (!email || !password) { errorEl.textContent = 'Please enter email and password.'; errorEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in...'; errorEl.style.display = 'none';
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+  } catch (err) {
+    errorEl.textContent = err.message; errorEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+auth.onAuthStateChanged(async (user) => {
+  const loginOverlay = document.getElementById('loginOverlay');
+  if (user) {
+    loginOverlay.classList.add('hidden');
+    const profile = await loadUserProfile();
+    // Get sheet + restaurant from URL params
+    const urlSheet = getParam('sheet');
+    if (urlSheet && SHEET_MODES[urlSheet]) {
+      sheetKey = urlSheet;
+      currentMode = SHEET_MODES[urlSheet];
+    }
+    const urlRest = getParam('restaurant');
+    if (urlRest && RESTAURANTS[urlRest]) restaurantKey = urlRest;
+    // Check access
+    if (!canAccessSheet(sheetKey, profile)) {
+      document.getElementById('tableWrap').innerHTML = '<div style="padding:40px;text-align:center;color:var(--danger);font-weight:600">You do not have access to this inventory sheet. Contact your manager.</div>';
+      return;
+    }
+    const rest = RESTAURANTS[restaurantKey];
+    document.getElementById('pageTitle').textContent = `${currentMode.icon} ${rest?.shortName || 'NNC'} — ${currentMode.title}`;
+    document.getElementById('pageSubtitle').textContent = `${currentMode.title} — Inventory Count (2x Weekly)`;
+    setupFirestoreListener();
+    render();
+  } else {
+    loginOverlay.classList.remove('hidden');
+  }
+});
+
+// ==================== RENDER ====================
+function render() {
+  updateDateNav();
+  renderStats();
+  renderTabs();
+  renderTable();
+  if (settingsVisible) renderSettings();
+}
+
+function updateDateNav() {
+  // Set the date picker value
+  document.getElementById('datePicker').value = dateKey();
+  // Show day name
+  const today = new Date(); today.setHours(0,0,0,0);
+  const isToday = currentDate.getTime() === today.getTime();
+  document.getElementById('dayName').textContent = DAY_NAMES[currentDate.getDay()] + (isToday ? ' (Today)' : '');
+  // Show previous count reference
+  const prev = findPreviousCountDate();
+  const prevEl = document.getElementById('prevCountDate');
+  if (prev) {
+    const pd = new Date(prev + 'T00:00:00');
+    prevEl.textContent = formatDateFull(pd);
+  } else {
+    prevEl.textContent = 'No previous count found';
+  }
+}
+
+function renderStats() {
+  const d = loadData();
+  const items = d.items || [];
+  const wk = weekKey();
+  const weekData = getWeekData(wk);
+  const prev = getPreviousCountData();
+  const hasPrev = prev.date !== null;
+
+  let counted = 0, needsOrder = 0, total = items.length, totalUsage = 0, usageItems = 0;
+  items.forEach(item => {
+    const id = item.id;
+    const data = weekData[id] || {};
+    if (data.count !== undefined && data.count !== '') counted++;
+    const count = Number(data.count || 0);
+    const par = item.par || 0;
+    const order = Math.max(0, par - count);
+    if (order > 0) needsOrder++;
+
+    // Calculate usage for stats
+    if (hasPrev) {
+      const prevItemData = prev.data[id] || {};
+      const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
+      if (prevCount !== '' && data.count !== undefined && data.count !== '') {
+        const prevOrderAuto = Math.max(0, par - prevCount);
+        const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+        const usage = (prevCount + prevOrder) - count;
+        if (usage > 0) { totalUsage += usage; usageItems++; }
+      }
+    }
+  });
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-card">
+      <div class="label">Total Items</div>
+      <div class="value">${total}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Counted</div>
+      <div class="value">${counted} / ${total}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Needs Order</div>
+      <div class="value ${needsOrder>0?'warn':''}">${needsOrder}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Items w/ Usage</div>
+      <div class="value">${hasPrev ? usageItems : '—'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Progress</div>
+      <div class="value">${total>0?Math.round(counted/total*100):0}%</div>
+    </div>
+  `;
+}
+
+function renderTabs() {
+  const container = document.getElementById('tabBar');
+  let html = `<div class="tab ${activeTab==='all'?'active':''}" onclick="setTab('all')">All Items</div>`;
+  Object.keys(currentMode.subCategories).forEach(key => {
+    const cat = currentMode.subCategories[key];
+    const d = loadData();
+    const count = (d.items || []).filter(i => i.subCategory === key).length;
+    if (count === 0) return;
+    html += `<div class="tab ${activeTab===key?'active':''}" onclick="setTab('${key}')">${cat.icon} ${cat.name} (${count})</div>`;
+  });
+  container.innerHTML = html;
+}
+
+function setTab(tab) {
+  activeTab = tab;
+  render();
+}
+
+function renderTable() {
+  const container = document.getElementById('tableWrap');
+  const d = loadData();
+  const items = d.items || [];
+  const wk = weekKey();
+  const weekData = getWeekData(wk);
+  const prev = getPreviousCountData();
+  const hasPrev = prev.date !== null;
+  const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+
+  // Filter items
+  let filtered = items;
+  if (activeTab !== 'all') {
+    filtered = filtered.filter(i => i.subCategory === activeTab);
+  }
+  if (search) {
+    filtered = filtered.filter(i => i.name.toLowerCase().includes(search));
+  }
+
+  // Group by subCategory
+  const grouped = {};
+  filtered.forEach(item => {
+    const cat = item.subCategory || 'other';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(item);
+  });
+
+  let html = `<table>
+    <thead><tr>
+      <th>Item</th>
+      <th>Vendor</th>
+      <th>Unit</th>
+      <th>Par Level</th>
+      <th>Prev Count</th>
+      <th>Count</th>
+      <th>Usage</th>
+      <th>Status</th>
+      <th>Order Qty</th>
+      <th>Override</th>
+      <th>Notes</th>
+    </tr></thead>
+    <tbody>`;
+
+  const catOrder = Object.keys(currentMode.subCategories);
+  catOrder.forEach(catKey => {
+    if (!grouped[catKey]) return;
+    const cat = currentMode.subCategories[catKey];
+    html += `<tr class="section-header"><td colspan="11" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
+
+    grouped[catKey].forEach(item => {
+      const data = weekData[item.id] || {};
+      const count = data.count !== undefined && data.count !== '' ? Number(data.count) : '';
+      const par = item.par || 0;
+      const autoOrder = count !== '' ? Math.max(0, par - count) : '';
+      const isManual = data.manualOrder === true;
+      const orderQty = isManual && data.orderQty !== undefined ? Number(data.orderQty) : autoOrder;
+
+      // Previous count data
+      const prevItemData = prev.data[item.id] || {};
+      const prevCount = prevItemData.count !== undefined && prevItemData.count !== '' ? Number(prevItemData.count) : '';
+      const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
+      const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+
+      // Usage = previous count + previous order qty - today's count
+      let usage = '', usageClass = 'usage-col usage-zero';
+      if (hasPrev && prevCount !== '' && count !== '') {
+        usage = (prevCount + prevOrder) - count;
+        if (usage > par * 1.5) usageClass = 'usage-col usage-high';
+        else if (usage > 0) usageClass = 'usage-col usage-positive';
+        else usageClass = 'usage-col usage-zero';
+      }
+
+      let status = '', statusClass = '';
+      if (count === '') {
+        status = '—'; statusClass = '';
+      } else if (count >= par) {
+        status = '✓ Good'; statusClass = 'status-ok';
+      } else if (count >= par * 0.5) {
+        status = '⚠ Low'; statusClass = 'status-low';
+      } else {
+        status = '⛔ Critical'; statusClass = 'status-critical';
+      }
+
+      html += `<tr>
+        <td>${item.name}</td>
+        <td style="font-size:.78rem;color:var(--gray-500)">${item.vendor || ''}</td>
+        <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
+        <td style="text-align:center;font-weight:600">${par}</td>
+        <td style="text-align:center;color:var(--gray-400);font-size:.82rem">${prevCount !== '' ? prevCount : '—'}</td>
+        <td><input type="number" value="${count}" min="0" step="0.5"
+          onchange="onCountChange('${wk}','${item.id}',this.value)"
+          style="background:${count===''?'#fffbeb':'#fff'}"></td>
+        <td class="${usageClass}" style="text-align:center">${usage !== '' ? usage : '—'}</td>
+        <td class="${statusClass}">${status}</td>
+        <td style="text-align:center;${orderQty!==''&&orderQty>0?'font-weight:700;color:var(--amber)':''}">${orderQty !== '' ? orderQty : '—'}</td>
+        <td>
+          <input type="number" value="${isManual ? orderQty : ''}" min="0" step="0.5"
+            placeholder="auto"
+            style="width:55px;${isManual?'border-color:var(--amber);background:#fffbeb':''}"
+            onchange="onOrderOverride('${wk}','${item.id}',this.value)">
+          ${isManual ? `<button class="btn btn-sm" style="padding:2px 6px;font-size:.68rem;margin-left:2px" onclick="resetOrder('${wk}','${item.id}')" title="Reset to auto">↺</button>` : ''}
+        </td>
+        <td><input type="text" class="note-input" value="${data.notes||''}" placeholder="Notes..."
+          onchange="setField('${wk}','${item.id}','notes',this.value)"></td>
+      </tr>`;
+    });
+  });
+
+  if (filtered.length === 0) {
+    html += `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
+  }
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+// ==================== FIELD HANDLERS ====================
+function onCountChange(wk, itemId, val) {
+  if (val === '') {
+    const d = loadData();
+    if (d.weeks && d.weeks[wk] && d.weeks[wk][itemId]) {
+      delete d.weeks[wk][itemId].count;
+      saveData(d);
+    }
+  } else {
+    setField(wk, itemId, 'count', Number(val));
+  }
+  render();
+}
+
+function onOrderOverride(wk, itemId, val) {
+  if (val === '') {
+    // Clear override
+    const d = loadData();
+    if (d.weeks && d.weeks[wk] && d.weeks[wk][itemId]) {
+      delete d.weeks[wk][itemId].manualOrder;
+      delete d.weeks[wk][itemId].orderQty;
+      saveData(d);
+    }
+  } else {
+    setField(wk, itemId, 'orderQty', Number(val));
+    setField(wk, itemId, 'manualOrder', true);
+  }
+  render();
+}
+
+function resetOrder(wk, itemId) {
+  const d = loadData();
+  if (d.weeks && d.weeks[wk] && d.weeks[wk][itemId]) {
+    delete d.weeks[wk][itemId].manualOrder;
+    delete d.weeks[wk][itemId].orderQty;
+    saveData(d);
+  }
+  render();
+  showToast('Order reset to auto-calculate');
+}
+
+function saveInventoryPerson(name) {
+  setField(weekKey(), '__meta', 'inventoryPerson', name);
+}
+
+// ==================== SETTINGS ====================
+function toggleSettings() {
+  settingsVisible = !settingsVisible;
+  const panel = document.getElementById('settingsPanel');
+  panel.classList.toggle('visible', settingsVisible);
+  if (settingsVisible) renderSettings();
+}
+
+function renderSettings() {
+  const d = loadData();
+  const items = d.items || [];
+
+  // Load email settings into fields
+  document.getElementById('emailjsKey').value = d.emailjs?.publicKey || '';
+  document.getElementById('emailjsService').value = d.emailjs?.serviceId || '';
+  document.getElementById('emailjsTemplate').value = d.emailjs?.templateId || '';
+  document.getElementById('emailRecipients').value = d.emails || '';
+
+  const editor = document.getElementById('itemEditor');
+  let html = '';
+  items.forEach((item, idx) => {
+    const catOptions = Object.keys(currentMode.subCategories).map(k =>
+      `<option value="${k}"${item.subCategory===k?' selected':''}>${currentMode.subCategories[k].name}</option>`
+    ).join('');
+    const unitOptions = UNITS.map(u =>
+      `<option value="${u}"${item.unit===u?' selected':''}>${u}</option>`
+    ).join('');
+    html += `<div class="item-edit-row">
+      <input type="text" value="${item.name}" placeholder="Item name" style="width:180px" onchange="updateItem(${idx},'name',this.value)">
+      <select onchange="updateItem(${idx},'subCategory',this.value)">${catOptions}</select>
+      <select onchange="updateItem(${idx},'unit',this.value)">${unitOptions}</select>
+      <label style="font-size:.78rem">Par: <input type="number" value="${item.par||0}" min="0" step="0.25" style="width:50px" onchange="updateItem(${idx},'par',Number(this.value))"></label>
+      <input type="text" value="${item.vendor||''}" placeholder="Vendor" style="width:140px" onchange="updateItem(${idx},'vendor',this.value)">
+      <button class="btn btn-danger btn-sm" onclick="removeItem(${idx})" style="padding:3px 8px;font-size:.7rem">✕</button>
+    </div>`;
+  });
+  editor.innerHTML = html;
+}
+
+function updateItem(idx, field, val) {
+  const d = loadData();
+  if (d.items[idx]) {
+    d.items[idx][field] = val;
+    // Auto-generate ID from name if name changed
+    if (field === 'name') {
+      d.items[idx].id = val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    }
+    saveData(d);
+  }
+  render();
+}
+
+function removeItem(idx) {
+  if (!confirm('Remove this item? This cannot be undone.')) return;
+  const d = loadData();
+  d.items.splice(idx, 1);
+  saveData(d);
+  render();
+}
+
+function addNewItem() {
+  const d = loadData();
+  const newItem = {
+    id: `new-item-${Date.now()}`,
+    name: 'New Item',
+    subCategory: 'other',
+    unit: 'each',
+    par: 1,
+    vendor: ''
+  };
+  d.items.push(newItem);
+  saveData(d);
+  renderSettings();
+  renderTable();
+}
+
+function saveEmailSettings() {
+  const d = loadData();
+  d.emailjs = {
+    publicKey: document.getElementById('emailjsKey').value.trim(),
+    serviceId: document.getElementById('emailjsService').value.trim(),
+    templateId: document.getElementById('emailjsTemplate').value.trim()
+  };
+  d.emails = document.getElementById('emailRecipients').value.trim();
+  saveData(d);
+  showToast('Email settings saved');
+}
+
+// ==================== EXPORT EXCEL ====================
+function exportExcel() {
+  const d = loadData();
+  const items = d.items || [];
+  const wk = weekKey();
+  const weekData = getWeekData(wk);
+  const prev = getPreviousCountData();
+  const hasPrev = prev.date !== null;
+
+  const rows = [];
+  items.forEach(item => {
+    const data = weekData[item.id] || {};
+    const count = data.count !== undefined ? Number(data.count) : '';
+    const par = item.par || 0;
+    const autoOrder = count !== '' ? Math.max(0, par - count) : '';
+    const isManual = data.manualOrder === true;
+    const orderQty = isManual ? Number(data.orderQty) : autoOrder;
+
+    const prevItemData = prev.data[item.id] || {};
+    const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
+    const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
+    const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+    const usage = (hasPrev && prevCount !== '' && count !== '') ? (prevCount + prevOrder) - count : '';
+
+    rows.push({
+      'Item': item.name,
+      'Category': currentMode.subCategories[item.subCategory]?.name || item.subCategory,
+      'Vendor': item.vendor || '',
+      'Unit': item.unit,
+      'Par Level': par,
+      'Prev Count': prevCount,
+      'Today Count': count,
+      'Usage': usage,
+      'Status': count === '' ? 'Not Counted' : count >= par ? 'Good' : count >= par*0.5 ? 'Low' : 'Critical',
+      'Order Qty': orderQty,
+      'Notes': data.notes || ''
+    });
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, currentMode.title.substring(0,31));
+
+  ws['!cols'] = [
+    { wch: 32 }, { wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 10 },
+    { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 20 }
+  ];
+
+  XLSX.writeFile(wb, `Inventory_${currentMode.storageKey}_${weekKey()}.xlsx`);
+  showToast('Excel exported');
+}
+
+// ==================== EXPORT PDF ====================
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape');
+  const d = loadData();
+  const items = d.items || [];
+  const wk = weekKey();
+  const weekData = getWeekData(wk);
+  const rest = RESTAURANTS[restaurantKey];
+  const prev = getPreviousCountData();
+  const hasPrev = prev.date !== null;
+
+  doc.setFontSize(16);
+  doc.text(`${rest?.shortName || 'NNC'} — ${currentMode.title}`, 14, 15);
+  doc.setFontSize(10);
+  doc.text(`Count Date: ${formatDateFull(currentDate)}`, 14, 22);
+
+  const person = weekData.__meta?.inventoryPerson || '';
+  let startY = 27;
+  if (person) { doc.text(`Counted by: ${person}`, 14, 28); startY = 33; }
+  if (hasPrev) {
+    const pd = new Date(prev.date + 'T00:00:00');
+    doc.text(`Previous count: ${formatDateFull(pd)}  |  Usage = Prev Stock + Orders − Today`, 14, startY + 2);
+    startY += 7;
+  }
+
+  const rows = [];
+  items.forEach(item => {
+    const data = weekData[item.id] || {};
+    const count = data.count !== undefined ? Number(data.count) : '';
+    const par = item.par || 0;
+    const autoOrder = count !== '' ? Math.max(0, par - count) : '';
+    const isManual = data.manualOrder === true;
+    const orderQty = isManual ? Number(data.orderQty) : autoOrder;
+    const status = count === '' ? '—' : count >= par ? '✓ Good' : count >= par*0.5 ? '⚠ Low' : '⛔ Critical';
+
+    const prevItemData = prev.data[item.id] || {};
+    const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
+    const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
+    const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+    const usage = (hasPrev && prevCount !== '' && count !== '') ? (prevCount + prevOrder) - count : '';
+
+    rows.push([
+      item.name,
+      item.vendor || '',
+      item.unit,
+      par,
+      prevCount === '' ? '—' : prevCount,
+      count === '' ? '—' : count,
+      usage === '' ? '—' : usage,
+      status,
+      orderQty === '' ? '—' : orderQty,
+      data.notes || ''
+    ]);
+  });
+
+  doc.autoTable({
+    head: [['Item', 'Vendor', 'Unit', 'Par', 'Prev', 'Count', 'Usage', 'Status', 'Order', 'Notes']],
+    body: rows,
+    startY: startY,
+    styles: { fontSize: 6.5 },
+    headStyles: { fillColor: [30, 58, 95] },
+    columnStyles: {
+      0: { cellWidth: 38 },
+      1: { cellWidth: 24 },
+      6: { fontStyle: 'bold' },
+      8: { fontStyle: 'bold' }
+    }
+  });
+
+  doc.save(`Inventory_${currentMode.storageKey}_${weekKey()}.pdf`);
+  showToast('PDF exported');
+}
+
+// ==================== EMAIL ====================
+async function sendEmailReport() {
+  const d = loadData();
+  if (!d.emailjs?.publicKey || !d.emailjs?.serviceId || !d.emailjs?.templateId) {
+    showToast('Configure EmailJS settings first');
+    toggleSettings();
+    return;
+  }
+  if (!d.emails) {
+    showToast('Add email recipients in settings');
+    toggleSettings();
+    return;
+  }
+
+  const items = d.items || [];
+  const wk = weekKey();
+  const weekData = getWeekData(wk);
+  const rest = RESTAURANTS[restaurantKey];
+  const person = weekData.__meta?.inventoryPerson || 'Unknown';
+  const prev = getPreviousCountData();
+  const hasPrev = prev.date !== null;
+  const prevDateStr = hasPrev ? formatDateFull(new Date(prev.date + 'T00:00:00')) : 'N/A';
+
+  // Build HTML table
+  const thStyle = 'padding:8px 10px;background:#1e3a5f;color:#fff;border:1px solid #ddd';
+  let tableHtml = `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px">
+    <thead><tr>
+      <th style="${thStyle};text-align:left">Item</th>
+      <th style="${thStyle};text-align:left">Vendor</th>
+      <th style="${thStyle};text-align:center">Unit</th>
+      <th style="${thStyle};text-align:center">Par</th>
+      <th style="${thStyle};text-align:center">Prev</th>
+      <th style="${thStyle};text-align:center">Count</th>
+      <th style="padding:8px 10px;background:#7c2d12;color:#fff;border:1px solid #ddd;text-align:center;font-weight:bold">Usage</th>
+      <th style="${thStyle};text-align:center">Status</th>
+      <th style="padding:8px 10px;background:#d97706;color:#fff;border:1px solid #ddd;text-align:center;font-weight:bold">ORDER</th>
+      <th style="${thStyle};text-align:left">Notes</th>
+    </tr></thead><tbody>`;
+
+  let currentCat = '';
+  let totalOrders = 0;
+  items.forEach(item => {
+    if (item.subCategory !== currentCat) {
+      currentCat = item.subCategory;
+      const cat = currentMode.subCategories[currentCat];
+      tableHtml += `<tr><td colspan="10" style="padding:8px 10px;background:#f3f4f6;font-weight:bold;border:1px solid #ddd;color:#374151">${cat?.icon||''} ${cat?.name||currentCat}</td></tr>`;
+    }
+
+    const data = weekData[item.id] || {};
+    const count = data.count !== undefined ? Number(data.count) : '';
+    const par = item.par || 0;
+    const autoOrder = count !== '' ? Math.max(0, par - count) : '';
+    const isManual = data.manualOrder === true;
+    const orderQty = isManual ? Number(data.orderQty) : autoOrder;
+    if (orderQty > 0) totalOrders++;
+
+    const prevItemData = prev.data[item.id] || {};
+    const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
+    const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
+    const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+    const usage = (hasPrev && prevCount !== '' && count !== '') ? (prevCount + prevOrder) - count : '';
+
+    let statusColor = '#6b7280', statusText = '—';
+    if (count !== '') {
+      if (count >= par) { statusColor = '#16a34a'; statusText = '✓ Good'; }
+      else if (count >= par*0.5) { statusColor = '#d97706'; statusText = '⚠ Low'; }
+      else { statusColor = '#dc2626'; statusText = '⛔ Critical'; }
+    }
+
+    const orderBg = orderQty > 0 ? 'background:#fffbeb;font-weight:bold;color:#b45309' : '';
+    const usageBg = usage !== '' && usage > par * 1.5 ? 'color:#dc2626;font-weight:bold' : usage > 0 ? 'color:#1e3a5f;font-weight:600' : '';
+
+    tableHtml += `<tr>
+      <td style="padding:5px 8px;border:1px solid #eee;font-weight:600">${item.name}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;font-size:11px;color:#6b7280">${item.vendor||''}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;font-size:11px">${item.unit}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${par}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;color:#9ca3af">${prevCount===''?'—':prevCount}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${count===''?'—':count}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;${usageBg}">${usage===''?'—':usage}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;color:${statusColor};font-weight:600">${statusText}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;${orderBg}">${orderQty===''?'—':orderQty}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;font-size:11px">${data.notes||''}</td>
+    </tr>`;
+  });
+
+  tableHtml += `</tbody></table>`;
+
+  const subject = `${rest?.shortName||'NNC'} ${currentMode.title} — ${formatDateFull(currentDate)}`;
+  const body = `<h2 style="color:#1e3a5f">${rest?.shortName||'NNC'} — ${currentMode.title} Report</h2>
+    <p><strong>Count Date:</strong> ${formatDateFull(currentDate)}</p>
+    <p><strong>Counted by:</strong> ${person}</p>
+    <p><strong>Previous count:</strong> ${prevDateStr}</p>
+    <p><strong>Items needing order:</strong> ${totalOrders}</p>
+    <p style="font-size:12px;color:#6b7280"><em>Usage = Previous Stock + Orders Placed − Today's Count</em></p>
+    <br>${tableHtml}`;
+
+  try {
+    emailjs.init(d.emailjs.publicKey);
+    await emailjs.send(d.emailjs.serviceId, d.emailjs.templateId, {
+      to_email: d.emails,
+      subject: subject,
+      message_html: body,
+      message: body
+    });
+    showToast('Email sent successfully!');
+  } catch (err) {
+    console.error('Email error:', err);
+    showToast('Email failed: ' + (err.text || err.message || 'Unknown error'));
+  }
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+// ==================== INIT ====================
+// Load inventory person for current date
+function loadInventoryPerson() {
+  const weekData = getWeekData(weekKey());
+  const person = weekData.__meta?.inventoryPerson || '';
+  document.getElementById('inventoryPerson').value = person;
+}
+
+// Initial render when data loads
+function init() {
+  render();
+  loadInventoryPerson();
+}
+</script>
+</body>
+</html>
