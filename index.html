@@ -243,6 +243,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <div class="header-sub">Inventory Management System</div>
   </div>
   <div class="header-right">
+    <button class="btn btn-ghost btn-sm" onclick="window.location.href='dashboard.html'" title="Back to Dashboard">← Dashboard</button>
     <span id="userEmail" style="color:#fff;font-size:.85rem;margin-right:12px"></span>
     <button class="btn btn-ghost" onclick="sendReport()" title="Generate PDF and email report">Send Report</button>
     <button class="btn btn-ghost" onclick="promptSettings()">Settings</button>
@@ -273,11 +274,11 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 
   <div class="stats-bar" id="statsBar"></div>
 
-  <div class="tab-bar">
-    <div class="tab active" onclick="setTab(this,'kitchen')">NNC Main Kitchen</div>
-    <div class="tab" onclick="setTab(this,'produce')">Issaquah Produce</div>
-    <div class="tab" onclick="setTab(this,'history')">7-Day History</div>
-    <div class="tab" onclick="setTab(this,'analytics')">Analytics</div>
+  <div class="tab-bar" id="mainTabBar">
+    <div class="tab" data-tab="kitchen" onclick="setTab(this,'kitchen')">NNC Main Kitchen</div>
+    <div class="tab" data-tab="produce" onclick="setTab(this,'produce')">Issaquah Produce</div>
+    <div class="tab" data-tab="history" onclick="setTab(this,'history')">7-Day History</div>
+    <div class="tab" data-tab="analytics" onclick="setTab(this,'analytics')">Analytics</div>
   </div>
 
   <div class="filter-bar" id="filterBar">
@@ -443,6 +444,13 @@ const DEFAULT_ITEMS = [
 // ==================== STATE ====================
 let currentDate = new Date();
 let currentTab = 'kitchen';
+// Check URL params for sheet context from dashboard
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const sheet = params.get('sheet');
+  if (sheet === 'nnc-daily-produce') currentTab = 'produce';
+  else if (sheet === 'nnc-daily-kitchen') currentTab = 'kitchen';
+})();
 let searchQuery = '';
 let activeFilters = new Set();
 let items = [];
@@ -886,6 +894,10 @@ function render(){
   document.getElementById('noDeliveryBanner').style.display=isSunday(d)?'flex':'none';
   // Load inventory person
   document.getElementById('inventoryPerson').value=loadInventoryPerson();
+  // Sync tab bar active state
+  document.querySelectorAll('#mainTabBar .tab').forEach(t=>{
+    t.classList.toggle('active',t.dataset.tab===currentTab);
+  });
   renderStats();renderTable();
 }
 
