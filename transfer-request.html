@@ -84,17 +84,23 @@ tbody tr.empty-row td{padding:20px;text-align:center;color:var(--gray-500);font-
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
 #toast.show{opacity:1;pointer-events:auto}
 
-@media(max-width:640px){
+@media(max-width:768px){
   .header{padding:12px 16px}
   .header h1{font-size:1.1rem}
+  .header-right{gap:4px}
+  .header-right .btn{padding:6px 10px;font-size:.72rem}
   .content-wrapper{padding:12px}
   .form-row{grid-template-columns:1fr}
   .form-actions{flex-direction:column-reverse}
+  .form-actions button{min-height:44px;font-size:.95rem}
   .filter-bar{grid-template-columns:1fr}
   .filter-actions{grid-column:1}
-  table{font-size:.8rem}
-  thead th{padding:6px 8px}
+  .form-card{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{font-size:.8rem;min-width:500px}
+  thead th{padding:6px 8px;font-size:.62rem}
   tbody td{padding:6px 8px}
+  .cost-center-badge{font-size:.7rem;padding:3px 6px}
+  select,input[type="text"],input[type="number"],input[type="date"]{font-size:16px;padding:10px 12px;min-height:44px}
 }
 </style>
 </head>
@@ -496,7 +502,7 @@ function renderBalances() {
     return;
   }
 
-  let html = '<table><thead><tr><th>Owed From</th><th>Owed To</th><th>Item</th><th>Qty Owed</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Owed To</th><th>Owed From</th><th>Item</th><th>Qty Owed</th></tr></thead><tbody>';
   balances.forEach(b => {
     html += `<tr>
       <td><span class="cost-center-badge" style="background-color:${COST_CENTERS[b.from].color}22;color:${COST_CENTERS[b.from].color}">${COST_CENTERS[b.from].icon} ${COST_CENTERS[b.from].name}</span></td>
