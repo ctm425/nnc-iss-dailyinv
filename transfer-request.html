@@ -471,15 +471,21 @@ async function submitTransferRequest() {
 
 // ==================== OUTSTANDING BALANCES ====================
 function renderBalances() {
-  const accepted = allTransfers.filter(t => t.status === 'accepted' && t.from !== 'renton-wh' && t.to !== 'renton-wh');
+  // Only restaurant-to-restaurant transfers (exclude warehouse)
+  const relevant = allTransfers.filter(t => (t.status === 'accepted' || t.status === 'returned') && t.from !== 'renton-wh' && t.to !== 'renton-wh');
   const balanceMap = {};
 
-  accepted.forEach(t => {
+  relevant.forEach(t => {
     const key = `${t.from}|${t.to}|${t.itemName}`;
     if (!balanceMap[key]) {
       balanceMap[key] = { from: t.from, to: t.to, itemName: t.itemName, qty: 0 };
     }
-    balanceMap[key].qty += t.quantity;
+    // Accepted adds to balance, returned clears it
+    if (t.status === 'accepted') {
+      balanceMap[key].qty += t.quantity;
+    } else if (t.status === 'returned') {
+      balanceMap[key].qty -= t.quantity;
+    }
   });
 
   const balances = Object.values(balanceMap).filter(b => b.qty > 0);
@@ -490,7 +496,7 @@ function renderBalances() {
     return;
   }
 
-  let html = '<table><thead><tr><th>Owes</th><th>To</th><th>Item</th><th>Qty Owed</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Owed From</th><th>Owed To</th><th>Item</th><th>Qty Owed</th></tr></thead><tbody>';
   balances.forEach(b => {
     html += `<tr>
       <td><span class="cost-center-badge" style="background-color:${COST_CENTERS[b.from].color}22;color:${COST_CENTERS[b.from].color}">${COST_CENTERS[b.from].icon} ${COST_CENTERS[b.from].name}</span></td>
@@ -625,7 +631,8 @@ function renderHistory() {
       <td>${t.authorizedBy}</td>
       <td><span class="badge ${statusBadgeClass}">${t.status}</span></td>
       <td>
-        ${t.status === 'accepted' ? `<button class="btn btn-white btn-sm" onclick="updateTransferStatus('${t.id}', 'returned')">Mark Returned</button>` : ''}
+        ${t.status === 'accepted' ? `<button class="btn btn-white btn-sm" onclick="promptReturnDate('${t.id}')">Mark Returned</button>` : ''}
+        ${t.status === 'returned' && t.returnedDate ? `<span style="font-size:.75rem;color:var(--gray-500)">Returned ${t.returnedDate}</span>` : ''}
       </td>
     </tr>`;
   });
@@ -673,6 +680,41 @@ function setupRealTimeListener() {
 }
 
 // ==================== ACTIONS ====================
+function promptReturnDate(docId) {
+  // Create a small inline date picker instead of a plain prompt
+  const today = new Date().toISOString().split('T')[0];
+  const row = event.target.closest('td');
+  // Replace button with date input
+  row.innerHTML = `
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input type="date" id="returnDate-${docId}" value="${today}" style="padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem">
+      <button class="btn btn-success btn-sm" onclick="confirmReturn('${docId}')">Confirm</button>
+      <button class="btn btn-white btn-sm" onclick="applyFilters()">Cancel</button>
+    </div>
+  `;
+}
+
+async function confirmReturn(docId) {
+  const dateInput = document.getElementById('returnDate-' + docId);
+  const returnDate = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+
+  if (!returnDate) {
+    showToast('Please select a return date', 3000);
+    return;
+  }
+
+  try {
+    await db.collection('inter_transfers').doc(docId).update({
+      status: 'returned',
+      returnedDate: returnDate,
+      returnedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('Transfer marked as returned on ' + returnDate, 3000);
+  } catch (err) {
+    showToast('Error: ' + err.message, 3000);
+  }
+}
+
 async function updateTransferStatus(docId, newStatus) {
   try {
     await db.collection('inter_transfers').doc(docId).update({

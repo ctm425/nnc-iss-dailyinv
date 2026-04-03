@@ -353,8 +353,8 @@
       <p>Please sign in to view the inventory.</p>
       <div id="loginError" style="color:#dc2626;font-size:.85rem;margin-bottom:8px;display:none"></div>
       <input type="email" id="loginEmail" placeholder="Email address" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:6px;font-size:.95rem;margin-bottom:8px">
-      <input type="password" id="loginPassword" placeholder="Password" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:6px;font-size:.95rem;margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()">
-      <button id="loginBtn" onclick="doLogin()">Sign In</button>
+      <input type="password" id="loginPassword" placeholder="Password" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:6px;font-size:.95rem;margin-bottom:12px">
+      <button id="loginBtn">Sign In</button>
     </div>
   </div>
 
@@ -497,6 +497,7 @@
     });
 
     loginBtn.addEventListener('click', doLogin);
+    document.getElementById('loginPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
 
     async function doLogin() {
       const email = document.getElementById('loginEmail').value.trim();
