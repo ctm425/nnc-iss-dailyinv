@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Transfer Request</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --primary: #4338ca; --primary-light: #6366f1; --primary-bg: #eef2ff;
+  --danger: #dc2626; --success: #16a34a;
+  --amber: #d97706; --amber-bg: #fffbeb;
+  --frozen: #0891b2; --frozen-bg: #ecfeff;
+  --supply: #059669; --supply-bg: #ecfdf5;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#4338ca,#1e1b4b);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-box button:hover{background:var(--primary)}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+.header{background:linear-gradient(135deg,#4338ca,#1e1b4b);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.header-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-white{background:#fff;color:var(--gray-700)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+
+.content-wrapper{padding:24px;max-width:1400px;margin:0 auto}
+.section-title{font-size:1.2rem;font-weight:700;color:var(--gray-900);margin-top:28px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title:first-child{margin-top:0}
+
+.form-card{background:#fff;border-radius:var(--radius);padding:24px;border:1px solid var(--gray-200);margin-bottom:24px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.form-field{margin-bottom:16px}
+.form-field label{font-size:.85rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:8px}
+.form-field input,.form-field select{width:100%;padding:10px 14px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;font-family:inherit}
+.form-field input:focus,.form-field select:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.form-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.form-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:24px}
+
+.btn-lg{padding:12px 24px;font-size:.95rem}
+
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:24px}
+thead th{background:var(--gray-100);padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200)}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:.9rem}
+tbody tr:hover td{background:var(--primary-bg)}
+tbody tr.empty-row td{padding:20px;text-align:center;color:var(--gray-500);font-size:.9rem}
+
+.badge{display:inline-block;padding:3px 8px;border-radius:12px;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.badge-red{background:#fecaca;color:#991b1b}
+.badge-green{background:#bbf7d0;color:#065f46}
+.badge-amber{background:#fed7aa;color:#92400e}
+.badge-blue{background:#bfdbfe;color:#1e40af}
+
+.filter-bar{background:#fff;padding:16px;border-radius:var(--radius);border:1px solid var(--gray-200);margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end}
+.filter-field label{font-size:.8rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:6px}
+.filter-field input,.filter-field select{width:100%;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;font-family:inherit}
+.filter-field input:focus,.filter-field select:focus{outline:none;border-color:var(--primary-light)}
+.filter-actions{display:flex;gap:8px;grid-column:1/-1;justify-content:flex-end}
+
+.record-count{font-size:.85rem;color:var(--gray-600);font-weight:500;padding:8px 0}
+
+.cost-center-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;font-size:.8rem;font-weight:600;background:rgba(0,0,0,.05)}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.show{opacity:1;pointer-events:auto}
+
+@media(max-width:640px){
+  .header{padding:12px 16px}
+  .header h1{font-size:1.1rem}
+  .content-wrapper{padding:12px}
+  .form-row{grid-template-columns:1fr}
+  .form-actions{flex-direction:column-reverse}
+  .filter-bar{grid-template-columns:1fr}
+  .filter-actions{grid-column:1}
+  table{font-size:.8rem}
+  thead th{padding:6px 8px}
+  tbody td{padding:6px 8px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Transfer Request</h2>
+    <p class="subtitle">Sign in to submit inventory transfers</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email address">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1>📦 Inventory Transfer Request</h1>
+    <div class="header-sub">Inter-cost-center inventory transfers</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" onclick="goToDashboard()">← Dashboard</button>
+    <button class="btn btn-ghost btn-sm" onclick="auth.signOut()">Sign Out</button>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content-wrapper">
+
+  <!-- NEW TRANSFER FORM -->
+  <div class="section-title">📋 New Transfer Request</div>
+  <div class="form-card">
+    <div class="form-row">
+      <div class="form-field">
+        <label>From (Cost Center) <span style="color:var(--danger)">*</span></label>
+        <select id="fromSelect" required>
+          <option value="">-- Select Cost Center --</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>To (Cost Center) <span style="color:var(--danger)">*</span></label>
+        <select id="toSelect" required>
+          <option value="">-- Select Cost Center --</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-field">
+      <label>Item <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="itemInput" list="itemList" placeholder="Start typing to search..." autocomplete="off">
+      <datalist id="itemList"></datalist>
+    </div>
+    <div class="form-row">
+      <div class="form-field">
+        <label>Quantity <span style="color:var(--danger)">*</span></label>
+        <input type="number" id="quantityInput" min="0.1" step="0.5" placeholder="0" required>
+      </div>
+      <div class="form-field">
+        <label>Date <span style="color:var(--danger)">*</span></label>
+        <input type="date" id="dateInput" required>
+      </div>
+    </div>
+    <div class="form-field">
+      <label>Authorized By <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="authorizedByInput" placeholder="Name of person authorizing this transfer" required>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary btn-lg" onclick="submitTransferRequest()">Log Transfer</button>
+    </div>
+  </div>
+
+  <!-- OUTSTANDING BALANCES -->
+  <div class="section-title">💰 Outstanding Balances</div>
+  <div class="form-card" style="padding:0;overflow:hidden">
+    <div id="balancesContainer">
+      <div style="padding:24px;text-align:center;color:var(--gray-500)">Loading outstanding balances...</div>
+    </div>
+  </div>
+
+  <!-- PENDING TRANSFERS -->
+  <div class="section-title">⏳ Pending Transfers</div>
+  <div class="form-card" style="padding:0;overflow:hidden">
+    <div id="pendingContainer">
+      <div style="padding:24px;text-align:center;color:var(--gray-500)">Loading pending transfers...</div>
+    </div>
+  </div>
+
+  <!-- TRANSFER LOG -->
+  <div class="section-title">📜 Transfer History</div>
+
+  <!-- FILTERS -->
+  <div class="filter-bar">
+    <div class="filter-field">
+      <label>Search</label>
+      <input type="text" id="filterSearch" placeholder="Item or authorized by...">
+    </div>
+    <div class="filter-field">
+      <label>From</label>
+      <select id="filterFrom">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>To</label>
+      <select id="filterTo">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>Item</label>
+      <select id="filterItem">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>Status</label>
+      <select id="filterStatus">
+        <option value="">All</option>
+        <option value="pending">Pending</option>
+        <option value="accepted">Accepted</option>
+        <option value="rejected">Rejected</option>
+        <option value="returned">Returned</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>Date From</label>
+      <input type="date" id="filterDateFrom">
+    </div>
+    <div class="filter-field">
+      <label>Date To</label>
+      <input type="date" id="filterDateTo">
+    </div>
+    <div class="filter-field">
+      <label>Sort</label>
+      <select id="sortSelect">
+        <option value="date-desc">Date (Newest First)</option>
+        <option value="date-asc">Date (Oldest First)</option>
+        <option value="item-asc">Item (A-Z)</option>
+        <option value="item-desc">Item (Z-A)</option>
+        <option value="qty-high">Quantity (High to Low)</option>
+        <option value="qty-low">Quantity (Low to High)</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-white btn-sm" onclick="clearFilters()">Clear Filters</button>
+    </div>
+  </div>
+
+  <div class="record-count" id="recordCount"></div>
+
+  <!-- HISTORY TABLE -->
+  <div id="historyContainer">
+    <div style="text-align:center;color:var(--gray-500);padding:24px">Loading transfer history...</div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+const COST_CENTERS = {
+  'nnc-iss': { name: 'Issaquah - NNC', icon: '🍛', color: '#1e3a5f' },
+  'nnc-renton': { name: 'Renton - NNC', icon: '🍛', color: '#0f766e' },
+  'ondemand-renton': { name: 'On Demand Renton', icon: '⚡', color: '#9333ea' },
+  'babas-bel': { name: "Baba's Bellevue", icon: '🥘', color: '#7c2d12' },
+  'renton-wh': { name: 'Warehouse', icon: '🏭', color: '#4338ca' }
+};
+
+const HARDCODED_ITEMS = {
+  'Frozen': ['ALOO PARATHA', 'PUNJABI SAMOSA', 'Roll Paratha', 'RUMALI ROTI', 'VEG. CUTLET', 'KULFI', 'LACHHA PARATHA', 'LAHORI KULCHA', 'PURI PARATHA', 'SUJI HALWA', 'WHOLE WHEAT PARATHA', 'Ghulab Jamun', 'MANGO KULFI', 'Ras Malai'],
+  'Togo/Packaging': [],
+  'Supplies': [],
+  'Ingredients': [],
+  'Catering': []
+};
+
+let allItems = {};
+let allTransfers = [];
+let filteredTransfers = [];
+
+// ==================== INIT ====================
+window.addEventListener('DOMContentLoaded', initPage);
+
+function initPage() {
+  setDateToday();
+  populateCostCenterDropdowns();
+  loadItems();
+  setupFilterListeners();
+  setupRealTimeListener();
+}
+
+// ==================== AUTH ====================
+function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value.trim();
+  const errorEl = document.getElementById('loginError');
+
+  if (!email || !password) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Please enter email and password';
+    return;
+  }
+
+  auth.signInWithEmailAndPassword(email, password)
+    .catch(err => {
+      errorEl.style.display = 'block';
+      errorEl.textContent = err.message;
+    });
+}
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    document.getElementById('loginOverlay').classList.add('hidden');
+  } else {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+  }
+});
+
+function goToDashboard() {
+  window.location.href = 'index.html';
+}
+
+// ==================== SETUP ====================
+function setDateToday() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('dateInput').value = today;
+}
+
+function populateCostCenterDropdowns() {
+  const fromSel = document.getElementById('fromSelect');
+  const toSel = document.getElementById('toSelect');
+  const filterFrom = document.getElementById('filterFrom');
+  const filterTo = document.getElementById('filterTo');
+
+  Object.entries(COST_CENTERS).forEach(([key, val]) => {
+    const opt1 = new Option(`${val.icon} ${val.name}`, key);
+    const opt2 = new Option(`${val.icon} ${val.name}`, key);
+    const opt3 = new Option(`${val.icon} ${val.name}`, key);
+    const opt4 = new Option(`${val.icon} ${val.name}`, key);
+    fromSel.appendChild(opt1);
+    toSel.appendChild(opt2);
+    filterFrom.appendChild(opt3);
+    filterTo.appendChild(opt4);
+  });
+}
+
+async function loadItems() {
+  try {
+    const doc = await db.collection('warehouse_config').doc('warehouse_renton-wh').get();
+    if (doc.exists) {
+      const data = doc.data();
+      if (data.items) {
+        const categoryMap = {
+          frozen: 'Frozen',
+          togo: 'Togo/Packaging',
+          supplies: 'Supplies',
+          ingredients: 'Ingredients',
+          catering: 'Catering'
+        };
+
+        Object.entries(categoryMap).forEach(([key, cat]) => {
+          if (data.items[key] && Array.isArray(data.items[key])) {
+            allItems[cat] = data.items[key].map(item => ({
+              id: item.id || item.name,
+              name: item.name
+            }));
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load warehouse items, using hardcoded:', err);
+  }
+
+  if (Object.keys(allItems).length === 0) {
+    allItems = { ...HARDCODED_ITEMS };
+  }
+
+  renderItemDatalist();
+  renderFilterItemDropdown();
+}
+
+function renderItemDatalist() {
+  const list = document.getElementById('itemList');
+  list.innerHTML = '';
+
+  Object.entries(allItems).forEach(([cat, items]) => {
+    const group = document.createElement('optgroup');
+    const iconMap = { 'Frozen': '🧊', 'Togo/Packaging': '📦', 'Supplies': '🧴', 'Ingredients': '🥘', 'Catering': '🍽️' };
+    group.label = (iconMap[cat] || '•') + ' ' + cat;
+    items.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.name;
+      group.appendChild(opt);
+    });
+    list.appendChild(group);
+  });
+}
+
+function renderFilterItemDropdown() {
+  const select = document.getElementById('filterItem');
+  select.innerHTML = '<option value="">All</option>';
+
+  const allNames = new Set();
+  Object.values(allItems).forEach(items => {
+    items.forEach(item => allNames.add(item.name));
+  });
+
+  Array.from(allNames).sort().forEach(name => {
+    const opt = new Option(name, name);
+    select.appendChild(opt);
+  });
+}
+
+// ==================== FORM SUBMIT ====================
+async function submitTransferRequest() {
+  const from = document.getElementById('fromSelect').value.trim();
+  const to = document.getElementById('toSelect').value.trim();
+  const itemName = document.getElementById('itemInput').value.trim();
+  const qty = document.getElementById('quantityInput').value.trim();
+  const dateVal = document.getElementById('dateInput').value.trim();
+  const authorizedBy = document.getElementById('authorizedByInput').value.trim();
+
+  if (!from || !to || !itemName || !qty || !dateVal || !authorizedBy) {
+    showToast('Please fill in all required fields', 3000);
+    return;
+  }
+
+  if (from === to) {
+    showToast('From and To cost centers must be different', 3000);
+    return;
+  }
+
+  try {
+    const qtyNum = parseFloat(qty);
+    if (isNaN(qtyNum) || qtyNum <= 0) {
+      showToast('Quantity must be a positive number', 3000);
+      return;
+    }
+
+    const dateObj = new Date(dateVal);
+
+    await db.collection('inter_transfers').add({
+      from,
+      to,
+      fromName: COST_CENTERS[from].name,
+      toName: COST_CENTERS[to].name,
+      itemName,
+      quantity: qtyNum,
+      date: dateObj.toLocaleDateString(),
+      transferDate: dateVal,
+      timestamp: dateObj,
+      createdAt: new Date(),
+      status: 'pending',
+      authorizedBy,
+      transferredBy: auth.currentUser.email
+    });
+
+    showToast('Transfer request submitted successfully', 3000);
+    document.getElementById('fromSelect').value = '';
+    document.getElementById('toSelect').value = '';
+    document.getElementById('itemInput').value = '';
+    document.getElementById('quantityInput').value = '';
+    setDateToday();
+    document.getElementById('authorizedByInput').value = '';
+  } catch (err) {
+    showToast('Error: ' + err.message, 3000);
+  }
+}
+
+// ==================== OUTSTANDING BALANCES ====================
+function renderBalances() {
+  const accepted = allTransfers.filter(t => t.status === 'accepted');
+  const balanceMap = {};
+
+  accepted.forEach(t => {
+    const key = `${t.from}|${t.to}|${t.itemName}`;
+    if (!balanceMap[key]) {
+      balanceMap[key] = { from: t.from, to: t.to, itemName: t.itemName, qty: 0 };
+    }
+    balanceMap[key].qty += t.quantity;
+  });
+
+  const balances = Object.values(balanceMap).filter(b => b.qty > 0);
+  const container = document.getElementById('balancesContainer');
+
+  if (balances.length === 0) {
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--gray-500)">No outstanding balances</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Owes</th><th>To</th><th>Item</th><th>Qty Owed</th></tr></thead><tbody>';
+  balances.forEach(b => {
+    html += `<tr>
+      <td><span class="cost-center-badge" style="background-color:${COST_CENTERS[b.from].color}22;color:${COST_CENTERS[b.from].color}">${COST_CENTERS[b.from].icon} ${COST_CENTERS[b.from].name}</span></td>
+      <td><span class="cost-center-badge" style="background-color:${COST_CENTERS[b.to].color}22;color:${COST_CENTERS[b.to].color}">${COST_CENTERS[b.to].icon} ${COST_CENTERS[b.to].name}</span></td>
+      <td><strong>${b.itemName}</strong></td>
+      <td><span class="badge badge-red">${b.qty}</span></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ==================== PENDING TRANSFERS ====================
+function renderPending() {
+  const pending = allTransfers.filter(t => t.status === 'pending');
+  const container = document.getElementById('pendingContainer');
+
+  if (pending.length === 0) {
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--gray-500)">No pending transfers</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Date</th><th>From</th><th>To</th><th>Item</th><th>Qty</th><th>Authorized By</th><th>Actions</th></tr></thead><tbody>';
+  pending.forEach(t => {
+    html += `<tr>
+      <td>${t.date}</td>
+      <td><span class="cost-center-badge" style="background-color:${COST_CENTERS[t.from].color}22;color:${COST_CENTERS[t.from].color}">${COST_CENTERS[t.from].icon} ${COST_CENTERS[t.from].name}</span></td>
+      <td><span class="cost-center-badge" style="background-color:${COST_CENTERS[t.to].color}22;color:${COST_CENTERS[t.to].color}">${COST_CENTERS[t.to].icon} ${COST_CENTERS[t.to].name}</span></td>
+      <td><strong>${t.itemName}</strong></td>
+      <td>${t.quantity}</td>
+      <td>${t.authorizedBy}</td>
+      <td>
+        <button class="btn btn-success btn-sm" onclick="updateTransferStatus('${t.id}', 'accepted')">Accept</button>
+        <button class="btn btn-danger btn-sm" onclick="updateTransferStatus('${t.id}', 'rejected')">Reject</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ==================== HISTORY TABLE ====================
+function applyFilters() {
+  let result = [...allTransfers];
+
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+  const from = document.getElementById('filterFrom').value;
+  const to = document.getElementById('filterTo').value;
+  const item = document.getElementById('filterItem').value;
+  const status = document.getElementById('filterStatus').value;
+  const dateFrom = document.getElementById('filterDateFrom').value;
+  const dateTo = document.getElementById('filterDateTo').value;
+
+  if (search) {
+    result = result.filter(t =>
+      t.itemName.toLowerCase().includes(search) ||
+      t.authorizedBy.toLowerCase().includes(search)
+    );
+  }
+  if (from) result = result.filter(t => t.from === from);
+  if (to) result = result.filter(t => t.to === to);
+  if (item) result = result.filter(t => t.itemName === item);
+  if (status) result = result.filter(t => t.status === status);
+
+  if (dateFrom) {
+    const dfrom = new Date(dateFrom);
+    result = result.filter(t => new Date(t.date) >= dfrom);
+  }
+  if (dateTo) {
+    const dto = new Date(dateTo);
+    result = result.filter(t => new Date(t.date) <= dto);
+  }
+
+  applySort(result);
+  filteredTransfers = result;
+  renderHistory();
+}
+
+function applySort(arr) {
+  const sort = document.getElementById('sortSelect').value;
+
+  switch (sort) {
+    case 'date-desc':
+      arr.sort((a, b) => new Date(b.date) - new Date(a.date));
+      break;
+    case 'date-asc':
+      arr.sort((a, b) => new Date(a.date) - new Date(b.date));
+      break;
+    case 'item-asc':
+      arr.sort((a, b) => a.itemName.localeCompare(b.itemName));
+      break;
+    case 'item-desc':
+      arr.sort((a, b) => b.itemName.localeCompare(a.itemName));
+      break;
+    case 'qty-high':
+      arr.sort((a, b) => b.quantity - a.quantity);
+      break;
+    case 'qty-low':
+      arr.sort((a, b) => a.quantity - b.quantity);
+      break;
+  }
+}
+
+function renderHistory() {
+  const container = document.getElementById('historyContainer');
+  const count = document.getElementById('recordCount');
+
+  if (filteredTransfers.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--gray-500);padding:24px">No transfers found</div>';
+    count.textContent = '';
+    return;
+  }
+
+  count.textContent = `Showing ${filteredTransfers.length} of ${allTransfers.length} records`;
+
+  let html = '<table><thead><tr><th>Date</th><th>From</th><th>To</th><th>Item</th><th>Qty</th><th>Authorized By</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+
+  filteredTransfers.forEach(t => {
+    const statusBadgeClass = {
+      'pending': 'badge-amber',
+      'accepted': 'badge-green',
+      'rejected': 'badge-red',
+      'returned': 'badge-blue'
+    }[t.status] || 'badge-blue';
+
+    html += `<tr>
+      <td>${t.date}</td>
+      <td><span class="cost-center-badge" style="background-color:${COST_CENTERS[t.from].color}22;color:${COST_CENTERS[t.from].color}">${COST_CENTERS[t.from].icon} ${COST_CENTERS[t.from].name}</span></td>
+      <td><span class="cost-center-badge" style="background-color:${COST_CENTERS[t.to].color}22;color:${COST_CENTERS[t.to].color}">${COST_CENTERS[t.to].icon} ${COST_CENTERS[t.to].name}</span></td>
+      <td><strong>${t.itemName}</strong></td>
+      <td>${t.quantity}</td>
+      <td>${t.authorizedBy}</td>
+      <td><span class="badge ${statusBadgeClass}">${t.status}</span></td>
+      <td>
+        ${t.status === 'accepted' ? `<button class="btn btn-white btn-sm" onclick="updateTransferStatus('${t.id}', 'returned')">Mark Returned</button>` : ''}
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function clearFilters() {
+  document.getElementById('filterSearch').value = '';
+  document.getElementById('filterFrom').value = '';
+  document.getElementById('filterTo').value = '';
+  document.getElementById('filterItem').value = '';
+  document.getElementById('filterStatus').value = '';
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value = '';
+  document.getElementById('sortSelect').value = 'date-desc';
+  applyFilters();
+}
+
+function setupFilterListeners() {
+  const filterIds = ['filterSearch', 'filterFrom', 'filterTo', 'filterItem', 'filterStatus', 'filterDateFrom', 'filterDateTo', 'sortSelect'];
+  filterIds.forEach(id => {
+    document.getElementById(id).addEventListener('change', applyFilters);
+    document.getElementById(id).addEventListener('input', applyFilters);
+  });
+}
+
+// ==================== REAL-TIME ====================
+function setupRealTimeListener() {
+  db.collection('inter_transfers')
+    .orderBy('createdAt', 'desc')
+    .limit(300)
+    .onSnapshot(snap => {
+      allTransfers = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        date: doc.data().date || new Date(doc.data().createdAt).toLocaleDateString()
+      }));
+
+      renderBalances();
+      renderPending();
+      applyFilters();
+    });
+}
+
+// ==================== ACTIONS ====================
+async function updateTransferStatus(docId, newStatus) {
+  try {
+    await db.collection('inter_transfers').doc(docId).update({
+      status: newStatus
+    });
+    showToast(`Transfer marked as ${newStatus}`, 3000);
+  } catch (err) {
+    showToast('Error: ' + err.message, 3000);
+  }
+}
+
+function showToast(msg, dur = 3000) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), dur);
+}
+</script>
+</body>
+</html>

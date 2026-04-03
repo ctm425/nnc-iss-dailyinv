@@ -98,6 +98,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sheet-card .tag.coming-soon{background:var(--gray-100);color:var(--gray-400)}
 .sheet-card .accent-bar{position:absolute;top:0;left:0;right:0;height:4px}
 
+/* Tool tiles */
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;margin-bottom:32px}
+.tool-tile{background:#fff;border-radius:14px;border:2px solid var(--gray-200);padding:24px 28px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.tool-tile:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,.12);border-color:transparent}
+.tool-tile .tile-accent{position:absolute;top:0;left:0;right:0;height:5px}
+.tool-tile .tile-icon{font-size:2rem;margin-bottom:8px}
+.tool-tile .tile-title{font-size:1.1rem;font-weight:700;margin-bottom:4px}
+.tool-tile .tile-desc{font-size:.82rem;color:var(--gray-500);line-height:1.4;margin-bottom:12px}
+.tool-tile .tile-meta{display:flex;gap:8px;flex-wrap:wrap}
+.tool-tile .tile-tag{font-size:.7rem;padding:3px 10px;border-radius:12px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+
+/* Tool expanded panel */
+.tool-panel{display:none;background:#fff;border-radius:14px;border:2px solid var(--gray-200);margin-bottom:32px;overflow:hidden}
+.tool-panel.visible{display:block}
+.tool-panel-header{padding:20px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gray-100)}
+.tool-panel-header h2{font-size:1.2rem;font-weight:700;display:flex;align-items:center;gap:10px}
+.tool-panel-body{padding:24px 28px}
+
+/* Transfer ledger */
+.ledger-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.ledger-table th{text-align:left;font-size:.7rem;text-transform:uppercase;color:var(--gray-500);padding:8px 10px;border-bottom:2px solid var(--gray-200);font-weight:700;letter-spacing:.3px}
+.ledger-table td{padding:8px 10px;border-bottom:1px solid var(--gray-100)}
+.ledger-table tr:hover td{background:var(--gray-50)}
+.balance-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700}
+.balance-badge.owes{background:#fef2f2;color:#dc2626}
+.balance-badge.clear{background:#f0fdf4;color:#16a34a}
+
+/* Filter bar for tools */
+.tool-filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;padding:12px 16px;background:var(--gray-50);border-radius:8px;margin-bottom:16px}
+.tool-filter-bar .ff{display:flex;flex-direction:column;gap:3px}
+.tool-filter-bar .ff label{font-size:.7rem;font-weight:600;color:var(--gray-500);text-transform:uppercase}
+.tool-filter-bar .ff select,.tool-filter-bar .ff input{padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem}
+
 /* User Management */
 .user-mgmt{background:#fff;border-radius:12px;border:1px solid var(--gray-200);padding:24px;margin-bottom:32px}
 .user-mgmt h3{font-size:1rem;font-weight:700;margin-bottom:16px}
@@ -179,6 +212,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <div class="section-title" style="font-size:1.15rem">Your Locations</div>
     </div>
     <div class="locations-grid" id="locationsGrid"></div>
+
+    <!-- TOOL TILES -->
+    <div style="margin-bottom:20px;margin-top:12px">
+      <div class="section-title" style="font-size:1.15rem">Tools & Reports</div>
+    </div>
+    <div class="tools-grid" id="toolsGrid"></div>
 
     <!-- PREP DATA SECTION -->
     <div id="prepDataSection" style="margin-top:12px"></div>
@@ -264,6 +303,7 @@ function onViewAsRole(role) {
 // ==================== MAIN RENDER ====================
 function renderMain() {
   renderQuickStats();
+  renderToolTiles();
   if (selectedRestaurant) {
     showLocationDetail(selectedRestaurant);
   } else {
@@ -316,60 +356,69 @@ function showLocationsView() {
   renderLocationCards();
 }
 
+function buildLocationCard(key, profile) {
+  const loc = RESTAURANTS[key];
+  const hasAccess = canAccessRestaurant(key, profile);
+  const isPlaceholder = loc.status === 'placeholder';
+  const cardClass = (isPlaceholder || !hasAccess) ? 'placeholder' : '';
+  const sheets = Object.keys(SHEET_TYPES).filter(sk => {
+    const s = SHEET_TYPES[sk];
+    return s.restaurants && s.restaurants.includes(key) && !s.comingSoon;
+  });
+  const comingSoonSheets = Object.keys(SHEET_TYPES).filter(sk => {
+    const s = SHEET_TYPES[sk];
+    return s.restaurants && s.restaurants.includes(key) && s.comingSoon;
+  });
+  const allSheets = [...sheets, ...comingSoonSheets].map(sk => SHEET_TYPES[sk]);
+  const onclick = (!isPlaceholder && hasAccess) ? `onclick="openLocation('${key}')"` : '';
+
+  return `<div class="location-card ${cardClass}" ${onclick}>
+    <div class="location-accent" style="background:${loc.color}"></div>
+    <div class="location-header">
+      <div class="location-icon" style="background:${loc.color}15">${loc.icon}</div>
+      <div class="location-info">
+        <h3>${loc.shortName}</h3>
+        <div class="loc-desc">${loc.description}</div>
+      </div>
+    </div>
+    <div class="location-body">
+      <div class="location-sheets">
+        ${allSheets.map(s => `<span class="location-sheet-tag">${s.icon} ${s.name}</span>`).join('')}
+      </div>
+    </div>
+    <div class="location-footer">
+      ${isPlaceholder
+        ? '<span class="status coming">Coming Soon</span><span></span>'
+        : hasAccess
+          ? `<span class="status active">${sheets.length} active sheet${sheets.length!==1?'s':''}</span><span class="arrow">→</span>`
+          : '<span class="status coming">No Access</span><span></span>'
+      }
+    </div>
+  </div>`;
+}
+
 function renderLocationCards() {
   const container = document.getElementById('locationsGrid');
   const profile = getEffectiveProfile();
+
+  const restaurantKeys = ['nnc-iss', 'nnc-renton', 'babas-bel'];
+  const warehouseKeys = ['renton-wh', 'ondemand-renton'];
+
   let html = '';
 
-  Object.keys(RESTAURANTS).forEach(key => {
-    const loc = RESTAURANTS[key];
-    const hasAccess = canAccessRestaurant(key, profile);
-    const isPlaceholder = loc.status === 'placeholder';
-    const cardClass = (isPlaceholder || !hasAccess) ? 'placeholder' : '';
+  // Restaurants section
+  html += `<div style="grid-column:1/-1;margin-bottom:-8px"><div class="section-title" style="font-size:1rem;margin-bottom:0">🍛 Restaurants</div></div>`;
+  restaurantKeys.forEach(key => {
+    if (RESTAURANTS[key]) html += buildLocationCard(key, profile);
+  });
 
-    // Count sheets for this location
-    const sheets = Object.keys(SHEET_TYPES).filter(sk => {
-      const s = SHEET_TYPES[sk];
-      return s.restaurants && s.restaurants.includes(key) && !s.comingSoon;
-    });
-    const comingSoonSheets = Object.keys(SHEET_TYPES).filter(sk => {
-      const s = SHEET_TYPES[sk];
-      return s.restaurants && s.restaurants.includes(key) && s.comingSoon;
-    });
-
-    // Sheet tags preview
-    const allSheets = [...sheets, ...comingSoonSheets].map(sk => SHEET_TYPES[sk]);
-
-    const onclick = (!isPlaceholder && hasAccess) ? `onclick="openLocation('${key}')"` : '';
-
-    html += `<div class="location-card ${cardClass}" ${onclick}>
-      <div class="location-accent" style="background:${loc.color}"></div>
-      <div class="location-header">
-        <div class="location-icon" style="background:${loc.color}15">${loc.icon}</div>
-        <div class="location-info">
-          <h3>${loc.shortName}</h3>
-          <div class="loc-desc">${loc.description}</div>
-        </div>
-      </div>
-      <div class="location-body">
-        <div class="location-sheets">
-          ${allSheets.map(s => `<span class="location-sheet-tag">${s.icon} ${s.name}</span>`).join('')}
-        </div>
-      </div>
-      <div class="location-footer">
-        ${isPlaceholder
-          ? '<span class="status coming">Coming Soon</span><span></span>'
-          : hasAccess
-            ? `<span class="status active">${sheets.length} active sheet${sheets.length!==1?'s':''}</span><span class="arrow">→</span>`
-            : '<span class="status coming">No Access</span><span></span>'
-        }
-      </div>
-    </div>`;
+  // Warehouse & Distribution section
+  html += `<div style="grid-column:1/-1;margin-top:12px;margin-bottom:-8px"><div class="section-title" style="font-size:1rem;margin-bottom:0">🏭 Warehouse & Distribution</div></div>`;
+  warehouseKeys.forEach(key => {
+    if (RESTAURANTS[key]) html += buildLocationCard(key, profile);
   });
 
   container.innerHTML = html;
-
-  // Render prep data section below locations
   renderPrepSection();
 }
 
@@ -585,6 +634,42 @@ async function onRestaurantToggle(uid, checkbox) {
   await db.collection('users').doc(uid).update({ restaurants: updated });
   showToastShared('Location access updated');
 }
+
+// ==================== TOOL TILES ====================
+const COST_CENTERS = {
+  'nnc-iss': { name: 'Issaquah - NNC', icon: '🍛', color: '#1e3a5f' },
+  'nnc-renton': { name: 'Renton - NNC', icon: '🍛', color: '#0f766e' },
+  'ondemand-renton': { name: 'On Demand Renton', icon: '⚡', color: '#9333ea' },
+  'babas-bel': { name: "Baba's Bellevue", icon: '🥘', color: '#7c2d12' },
+  'renton-wh': { name: 'Warehouse', icon: '🏭', color: '#4338ca' }
+};
+
+function renderToolTiles() {
+  document.getElementById('toolsGrid').innerHTML = `
+    <div class="tool-tile" onclick="navigateTo('transfer-request.html')">
+      <div class="tile-accent" style="background:linear-gradient(90deg,#4338ca,#7c3aed)"></div>
+      <div class="tile-icon">📋</div>
+      <div class="tile-title">Inventory Transfer Request</div>
+      <div class="tile-desc">Log inter-cost-center transfers, track balances owed, and manage returns across all locations.</div>
+      <div class="tile-meta">
+        <span class="tile-tag" style="background:#eff6ff;color:#2563eb">Live Ledger</span>
+        <span class="tile-tag" style="background:#f0fdf4;color:#16a34a">All Locations</span>
+      </div>
+    </div>
+    <div class="tool-tile" onclick="navigateTo('total-inventory.html')">
+      <div class="tile-accent" style="background:linear-gradient(90deg,#059669,#0891b2)"></div>
+      <div class="tile-icon">📊</div>
+      <div class="tile-title">Total Operational Inventory</div>
+      <div class="tile-desc">See exactly how much of each item exists across all cost centers. Filterable and sortable.</div>
+      <div class="tile-meta">
+        <span class="tile-tag" style="background:#ecfdf5;color:#059669">Cross-Location</span>
+        <span class="tile-tag" style="background:#ecfeff;color:#0891b2">Real-Time</span>
+      </div>
+    </div>
+  `;
+}
+
+// Transfer/inventory features moved to standalone pages (transfer-request.html, total-inventory.html)
 </script>
 </body>
 </html>

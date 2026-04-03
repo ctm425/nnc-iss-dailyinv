@@ -1127,9 +1127,7 @@ function toggleSettings() {
 }
 function renderSettings() {
   const d = loadData();
-  const sectionItems = (d.items && d.items[activeSection]) || [];
-  const sec = SECTIONS[activeSection];
-  document.getElementById('settingsTabLabel').textContent = sec.name;
+  const nonFrozenSections = ['togo','supplies','ingredients','catering'];
   document.getElementById('emailjsKey').value = d.emailjs?.publicKey || '';
   document.getElementById('emailjsService').value = d.emailjs?.serviceId || '';
   document.getElementById('emailjsTemplate').value = d.emailjs?.templateId || '';
@@ -1137,23 +1135,60 @@ function renderSettings() {
 
   const editor = document.getElementById('itemEditor');
   let html = '';
-  sectionItems.forEach((item, idx) => {
-    const catOptions = Object.keys(sec.subCategories).map(k =>
-      `<option value="${k}"${item.subCategory===k?' selected':''}>${sec.subCategories[k].name}</option>`
-    ).join('');
-    const unitOptions = UNITS.map(u =>
-      `<option value="${u}"${item.unit===u?' selected':''}>${u}</option>`
-    ).join('');
-    html += `<div class="item-edit-row">
-      <input type="text" value="${item.name}" placeholder="Item name" style="width:180px" onchange="updateItem(${idx},'name',this.value)">
-      <select onchange="updateItem(${idx},'subCategory',this.value)">${catOptions}</select>
-      <select onchange="updateItem(${idx},'unit',this.value)">${unitOptions}</select>
-      <label style="font-size:.78rem">Par: <input type="number" value="${item.par||0}" min="0" style="width:50px" onchange="updateItem(${idx},'par',Number(this.value))"></label>
-      <label style="font-size:.78rem">Item#: <input type="text" value="${item.itemNumber||''}" placeholder="—" style="width:80px" onchange="updateItem(${idx},'itemNumber',this.value)"></label>
-      <label style="font-size:.78rem">Batch#: <input type="text" value="${item.batchNumber||''}" placeholder="—" style="width:80px" onchange="updateItem(${idx},'batchNumber',this.value)"></label>
-      <button class="btn btn-danger btn-sm" onclick="removeItem(${idx})" style="padding:3px 8px;font-size:.7rem">✕</button>
-    </div>`;
-  });
+
+  // If showing allnonfrozen, render all non-frozen sections with headers
+  if (activeSection === 'allnonfrozen') {
+    document.getElementById('settingsTabLabel').textContent = 'All Non-Frozen Sections';
+    nonFrozenSections.forEach(secKey => {
+      const sec = SECTIONS[secKey];
+      const sectionItems = (d.items && d.items[secKey]) || [];
+      if (sectionItems.length === 0) return;
+
+      html += `<h5 style="font-size:.85rem;font-weight:700;color:${sec.color};margin-top:16px;margin-bottom:8px;padding:8px 12px;background:var(--gray-50);border-radius:6px;border-left:4px solid ${sec.color}">${sec.icon} ${sec.name}</h5>`;
+
+      sectionItems.forEach((item, idx) => {
+        const catOptions = Object.keys(sec.subCategories).map(k =>
+          `<option value="${k}"${item.subCategory===k?' selected':''}>${sec.subCategories[k].name}</option>`
+        ).join('');
+        const unitOptions = UNITS.map(u =>
+          `<option value="${u}"${item.unit===u?' selected':''}>${u}</option>`
+        ).join('');
+        html += `<div class="item-edit-row">
+          <input type="text" value="${item.name}" placeholder="Item name" style="width:180px" onchange="updateItemInSection('${secKey}',${idx},'name',this.value)">
+          <select onchange="updateItemInSection('${secKey}',${idx},'subCategory',this.value)">${catOptions}</select>
+          <select onchange="updateItemInSection('${secKey}',${idx},'unit',this.value)">${unitOptions}</select>
+          <label style="font-size:.78rem">Par: <input type="number" value="${item.par||0}" min="0" style="width:50px" onchange="updateItemInSection('${secKey}',${idx},'par',Number(this.value))"></label>
+          <label style="font-size:.78rem">Item#: <input type="text" value="${item.itemNumber||''}" placeholder="—" style="width:80px" onchange="updateItemInSection('${secKey}',${idx},'itemNumber',this.value)"></label>
+          <label style="font-size:.78rem">Batch#: <input type="text" value="${item.batchNumber||''}" placeholder="—" style="width:80px" onchange="updateItemInSection('${secKey}',${idx},'batchNumber',this.value)"></label>
+          <button class="btn btn-danger btn-sm" onclick="removeItemFromSection('${secKey}',${idx})" style="padding:3px 8px;font-size:.7rem">✕</button>
+        </div>`;
+      });
+    });
+  } else {
+    // Single section (frozen, togo, supplies, ingredients, or catering)
+    const sec = SECTIONS[activeSection];
+    document.getElementById('settingsTabLabel').textContent = sec.name;
+    const sectionItems = (d.items && d.items[activeSection]) || [];
+
+    sectionItems.forEach((item, idx) => {
+      const catOptions = Object.keys(sec.subCategories).map(k =>
+        `<option value="${k}"${item.subCategory===k?' selected':''}>${sec.subCategories[k].name}</option>`
+      ).join('');
+      const unitOptions = UNITS.map(u =>
+        `<option value="${u}"${item.unit===u?' selected':''}>${u}</option>`
+      ).join('');
+      html += `<div class="item-edit-row">
+        <input type="text" value="${item.name}" placeholder="Item name" style="width:180px" onchange="updateItem(${idx},'name',this.value)">
+        <select onchange="updateItem(${idx},'subCategory',this.value)">${catOptions}</select>
+        <select onchange="updateItem(${idx},'unit',this.value)">${unitOptions}</select>
+        <label style="font-size:.78rem">Par: <input type="number" value="${item.par||0}" min="0" style="width:50px" onchange="updateItem(${idx},'par',Number(this.value))"></label>
+        <label style="font-size:.78rem">Item#: <input type="text" value="${item.itemNumber||''}" placeholder="—" style="width:80px" onchange="updateItem(${idx},'itemNumber',this.value)"></label>
+        <label style="font-size:.78rem">Batch#: <input type="text" value="${item.batchNumber||''}" placeholder="—" style="width:80px" onchange="updateItem(${idx},'batchNumber',this.value)"></label>
+        <button class="btn btn-danger btn-sm" onclick="removeItem(${idx})" style="padding:3px 8px;font-size:.7rem">✕</button>
+      </div>`;
+    });
+  }
+
   editor.innerHTML = html;
 }
 function updateItem(idx, field, val) {
@@ -1169,6 +1204,19 @@ function updateItem(idx, field, val) {
   }
   render();
 }
+function updateItemInSection(secKey, idx, field, val) {
+  const d = loadData();
+  if (!d.items) d.items = {};
+  if (!d.items[secKey]) d.items[secKey] = [];
+  if (d.items[secKey][idx]) {
+    d.items[secKey][idx][field] = val;
+    if (field === 'name') {
+      d.items[secKey][idx].id = val.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+    }
+    saveData(d);
+  }
+  renderSettings();
+}
 function removeItem(idx) {
   if (!confirm('Remove this item?')) return;
   const d = loadData();
@@ -1176,16 +1224,33 @@ function removeItem(idx) {
   saveData(d);
   render();
 }
+function removeItemFromSection(secKey, idx) {
+  if (!confirm('Remove this item?')) return;
+  const d = loadData();
+  if (d.items && d.items[secKey]) {
+    d.items[secKey].splice(idx, 1);
+    saveData(d);
+    renderSettings();
+  }
+}
 function addNewItem() {
   const d = loadData();
   if (!d.items) d.items = {};
-  if (!d.items[activeSection]) d.items[activeSection] = [];
-  const sec = SECTIONS[activeSection];
+
+  // Determine which section to add to
+  let targetSection = activeSection;
+  if (activeSection === 'allnonfrozen') {
+    // Add to the first non-frozen section
+    targetSection = 'togo';
+  }
+
+  if (!d.items[targetSection]) d.items[targetSection] = [];
+  const sec = SECTIONS[targetSection];
   const firstSubCat = Object.keys(sec.subCategories)[0];
-  d.items[activeSection].push({ id: `new-${Date.now()}`, name: 'New Item', subCategory: firstSubCat, unit: 'each', par: 1 });
+  d.items[targetSection].push({ id: `new-${Date.now()}`, name: 'New Item', subCategory: firstSubCat, unit: 'each', par: 1 });
   saveData(d);
   renderSettings();
-  renderTable();
+  if (activeSection !== 'allnonfrozen') renderTable();
 }
 function saveEmailSettings() {
   const d = loadData();
@@ -1652,8 +1717,8 @@ function renderAllNonFrozenTab() {
         html += '<td>' + item.name + '</td>';
         html += '<td style="font-size:.78rem;color:var(--gray-500)">' + (item.costCenter || '') + '</td>';
         html += '<td style="font-size:.78rem;color:var(--gray-500)">' + item.unit + '</td>';
-        html += '<td style="text-align:center;font-weight:600">' + (count === '' ? '—' : count) + '</td>';
-        html += '<td style="font-size:.82rem;color:var(--gray-500)">' + (data.notes || '') + '</td>';
+        html += '<td style="text-align:center"><input type="number" value="' + (count === '' ? '' : count) + '" style="width:70px;text-align:center" onchange="setField(dateKey(), \'' + secKey + '\', \'' + item.id + '\', \'count\', this.value === \'\' ? \'\' : Number(this.value))"></td>';
+        html += '<td style="font-size:.82rem"><input type="text" value="' + (data.notes || '') + '" class="note-input" onchange="setField(dateKey(), \'' + secKey + '\', \'' + item.id + '\', \'notes\', this.value)"></td>';
         html += '<td><button class="btn-transfer" onclick="openTransferModal(\'' + item.id + '\',\'' + escapedName + '\',' + (count||0) + ',\'warehouse\',\'' + secKey + '\')">→ Transfer</button></td>';
         html += '</tr>';
       });

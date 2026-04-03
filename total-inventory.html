@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Total Operational Inventory</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: #f9fafb;
+      color: #1f2937;
+    }
+
+    /* Login Overlay */
+    #loginOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    #loginOverlay.hidden {
+      display: none;
+    }
+
+    .login-modal {
+      background: white;
+      padding: 2rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      min-width: 300px;
+    }
+
+    .login-modal h2 {
+      margin-bottom: 1rem;
+      color: #059669;
+    }
+
+    .login-modal button {
+      margin-top: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: #059669;
+      color: white;
+      border: none;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .login-modal button:hover {
+      background: #047857;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(135deg, #059669 0%, #065f46 100%);
+      color: white;
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    header button {
+      padding: 0.5rem 1rem;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    header button:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    header a.btn-back {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Main Container */
+    main {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    /* Summary Cards */
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      border-left: 4px solid;
+    }
+
+    .card h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .card .total {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .card.warehouse { border-left-color: #4338ca; }
+    .card.ondemand { border-left-color: #9333ea; }
+    .card.nnc-iss { border-left-color: #1e3a5f; }
+    .card.nnc-renton { border-left-color: #0f766e; }
+    .card.babas { border-left-color: #7c2d12; }
+
+    /* Filters */
+    .filters {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 2rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .filter-group label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #6b7280;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .filter-group input,
+    .filter-group select {
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+    }
+
+    .filter-group input:focus,
+    .filter-group select:focus {
+      outline: none;
+      border-color: #059669;
+      box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+    }
+
+    /* Table */
+    .table-wrapper {
+      background: white;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: #f3f4f6;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    thead th {
+      padding: 1rem;
+      text-align: left;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    thead th:hover {
+      background: #e5e7eb;
+    }
+
+    thead th.sortable::after {
+      content: ' ⇅';
+      opacity: 0.5;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid #e5e7eb;
+      transition: background 0.2s;
+    }
+
+    tbody tr:hover {
+      background: #f9fafb;
+    }
+
+    tbody tr.totals {
+      background: #f3f4f6;
+      font-weight: 600;
+      border-top: 2px solid #e5e7eb;
+    }
+
+    tbody td {
+      padding: 1rem;
+      font-size: 0.875rem;
+    }
+
+    /* Category column */
+    .category-cell {
+      font-weight: 500;
+    }
+
+    /* Quantity cells */
+    .qty-cell {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .qty-cell.zero {
+      color: #9ca3af;
+    }
+
+    .qty-cell.warehouse { color: #4338ca; }
+    .qty-cell.warehouse.nonzero { font-weight: 600; }
+
+    .qty-cell.ondemand { color: #9333ea; }
+    .qty-cell.ondemand.nonzero { font-weight: 600; }
+
+    .qty-cell.nnc-iss { color: #1e3a5f; }
+    .qty-cell.nnc-iss.nonzero { font-weight: 600; }
+
+    .qty-cell.nnc-renton { color: #0f766e; }
+    .qty-cell.nnc-renton.nonzero { font-weight: 600; }
+
+    .qty-cell.babas { color: #7c2d12; }
+    .qty-cell.babas.nonzero { font-weight: 600; }
+
+    .qty-cell.total {
+      color: #1f2937;
+      font-weight: 600;
+    }
+
+    /* Loading & Empty states */
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: #6b7280;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 2rem;
+      height: 2rem;
+      border: 3px solid #e5e7eb;
+      border-top-color: #059669;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #6b7280;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+      }
+
+      .filters {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-cards {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        padding: 1rem;
+      }
+
+      thead th, tbody td {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Overlay -->
+  <div id="loginOverlay">
+    <div class="login-modal">
+      <h2>Sign In Required</h2>
+      <p>Please sign in to view the inventory.</p>
+      <button id="loginBtn">Sign In with Google</button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <h1>📊 Total Operational Inventory</h1>
+    <div class="header-actions">
+      <a href="index.html" class="btn-back">← Dashboard</a>
+      <button id="signOutBtn">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Summary Cards -->
+    <div class="summary-cards" id="summaryCards"></div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <label for="searchInput">Search Item</label>
+        <input type="text" id="searchInput" placeholder="e.g., chicken breast">
+      </div>
+      <div class="filter-group">
+        <label for="categoryFilter">Category</label>
+        <select id="categoryFilter">
+          <option value="">All Categories</option>
+          <option value="frozen">Frozen</option>
+          <option value="togo">Togo/Packaging</option>
+          <option value="supplies">Supplies</option>
+          <option value="ingredients">Ingredients</option>
+          <option value="catering">Catering</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="locationFilter">Location</label>
+        <select id="locationFilter">
+          <option value="">All Locations</option>
+          <option value="renton-wh">Warehouse</option>
+          <option value="ondemand-renton">On Demand</option>
+          <option value="nnc-iss">Issaquah</option>
+          <option value="nnc-renton">Renton</option>
+          <option value="babas-bel">Baba's</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="sortFilter">Sort By</label>
+        <select id="sortFilter">
+          <option value="name-asc">Item A → Z</option>
+          <option value="name-desc">Item Z → A</option>
+          <option value="total-desc">Total High → Low</option>
+          <option value="total-asc">Total Low → High</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrapper">
+      <div id="tableContainer"></div>
+    </div>
+  </main>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- Shared Auth -->
+  <script src="shared.js"></script>
+
+  <!-- Main Script -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAvOFC9jqt-nSk26uN6CVXoDr6O-JnXz3k",
+      authDomain: "nnc-inventory.firebaseapp.com",
+      projectId: "nnc-inventory",
+      storageBucket: "nnc-inventory.firebasestorage.app",
+      messagingSenderId: "315174538558",
+      appId: "1:315174538558:web:2c34c11ea6e99bfbb3706f"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    const LOC_KEYS = ['renton-wh', 'ondemand-renton', 'nnc-iss', 'nnc-renton', 'babas-bel'];
+    const LOC_LABELS = {
+      'renton-wh': { name: 'Warehouse', icon: '🏭', color: '#4338ca' },
+      'ondemand-renton': { name: 'On Demand', icon: '⚡', color: '#9333ea' },
+      'nnc-iss': { name: 'Issaquah', icon: '🍛', color: '#1e3a5f' },
+      'nnc-renton': { name: 'Renton', icon: '🍛', color: '#0f766e' },
+      'babas-bel': { name: "Baba's", icon: '🥘', color: '#7c2d12' }
+    };
+
+    const CATEGORY_EMOJI = {
+      frozen: '🧊',
+      togo: '📦',
+      supplies: '🔧',
+      ingredients: '🥘',
+      catering: '🍽️'
+    };
+
+    const CATEGORY_LABELS = {
+      frozen: 'Frozen',
+      togo: 'Togo',
+      supplies: 'Supplies',
+      ingredients: 'Ingredients',
+      catering: 'Catering'
+    };
+
+    let inventory = {};
+    let items = {};
+    let transfers = [];
+    let interTransfers = [];
+    let userLoggedIn = false;
+
+    const loginOverlay = document.getElementById('loginOverlay');
+    const loginBtn = document.getElementById('loginBtn');
+    const signOutBtn = document.getElementById('signOutBtn');
+    const searchInput = document.getElementById('searchInput');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const locationFilter = document.getElementById('locationFilter');
+    const sortFilter = document.getElementById('sortFilter');
+    const tableContainer = document.getElementById('tableContainer');
+    const summaryCards = document.getElementById('summaryCards');
+
+    // Auth State
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        userLoggedIn = true;
+        loginOverlay.classList.add('hidden');
+        loadData();
+      } else {
+        userLoggedIn = false;
+        loginOverlay.classList.remove('hidden');
+      }
+    });
+
+    loginBtn.addEventListener('click', () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(e => console.error('Login error:', e));
+    });
+
+    signOutBtn.addEventListener('click', () => {
+      auth.signOut();
+    });
+
+    async function loadData() {
+      tableContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading inventory...</p></div>';
+
+      try {
+        // Load warehouse config and items
+        await loadWarehouseConfig();
+
+        // Load warehouse weeks data
+        await loadWarehouseWeeks();
+
+        // Load restaurant configs
+        await loadRestaurantConfigs();
+
+        // Subscribe to transfers
+        subscribeToTransfers();
+
+        // Subscribe to inter-transfers
+        subscribeToInterTransfers();
+
+        // Render initial state
+        render();
+      } catch (error) {
+        console.error('Error loading data:', error);
+        tableContainer.innerHTML = '<div class="empty-state"><p>Error loading data. Please refresh.</p></div>';
+      }
+    }
+
+    async function loadWarehouseConfig() {
+      try {
+        const doc = await db.collection('warehouse_config').doc('warehouse_renton-wh').get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (data.items) {
+            // Index items by category
+            ['frozen', 'togo', 'supplies', 'ingredients', 'catering'].forEach(cat => {
+              if (data.items[cat]) {
+                items[cat] = data.items[cat];
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading warehouse config:', error);
+      }
+    }
+
+    async function loadWarehouseWeeks() {
+      try {
+        const snapshot = await db.collection('warehouse_weeks')
+          .where('__name__', '>=', 'warehouse_renton-wh_2026')
+          .orderBy('__name__', 'desc')
+          .limit(100)
+          .get();
+
+        if (!snapshot.empty) {
+          const docs = snapshot.docs;
+          const categories = ['frozen', 'togo', 'supplies', 'ingredients', 'catering'];
+
+          // Find most recent doc for each category
+          const latestByCat = {};
+          docs.forEach(doc => {
+            const docId = doc.id;
+            categories.forEach(cat => {
+              if (docId.includes('_' + cat) && !latestByCat[cat]) {
+                latestByCat[cat] = doc.data();
+              }
+            });
+          });
+
+          // Initialize inventory from warehouse weeks
+          LOC_KEYS.forEach(loc => {
+            inventory[loc] = inventory[loc] || {};
+          });
+
+          categories.forEach(cat => {
+            if (latestByCat[cat]) {
+              const counts = latestByCat[cat].counts || {};
+              Object.entries(counts).forEach(([itemId, qty]) => {
+                inventory['renton-wh'] = inventory['renton-wh'] || {};
+                inventory['renton-wh'][itemId] = (inventory['renton-wh'][itemId] || 0) + qty;
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error loading warehouse weeks:', error);
+      }
+    }
+
+    async function loadRestaurantConfigs() {
+      try {
+        const restaurants = ['nnc-iss', 'nnc-renton', 'babas-bel'];
+        for (const rest of restaurants) {
+          try {
+            const doc = await db.collection('inventory_config').doc(rest).get();
+            if (doc.exists) {
+              const data = doc.data();
+              if (data.items) {
+                Object.assign(items, data.items);
+              }
+            }
+          } catch (e) {
+            console.log(`No config for ${rest}`);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading restaurant configs:', error);
+      }
+    }
+
+    function subscribeToTransfers() {
+      db.collection('warehouse_transfers')
+        .orderBy('timestamp', 'desc')
+        .limit(500)
+        .onSnapshot(snapshot => {
+          transfers = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.status !== 'rejected') {
+              transfers.push(data);
+            }
+          });
+          processTransfers();
+          render();
+        }, error => console.error('Transfer subscription error:', error));
+    }
+
+    function subscribeToInterTransfers() {
+      db.collection('inter_transfers')
+        .orderBy('timestamp', 'desc')
+        .limit(300)
+        .onSnapshot(snapshot => {
+          interTransfers = [];
+          snapshot.forEach(doc => {
+            interTransfers.push(doc.data());
+          });
+          processInterTransfers();
+          render();
+        }, error => console.error('Inter-transfer subscription error:', error));
+    }
+
+    function processTransfers() {
+      // Reset transfer-based quantities
+      LOC_KEYS.forEach(loc => {
+        inventory[loc] = inventory[loc] || {};
+      });
+
+      transfers.forEach(t => {
+        if (t.from && t.to && t.items) {
+          Object.entries(t.items).forEach(([itemId, qty]) => {
+            // From location loses qty
+            inventory[t.from] = inventory[t.from] || {};
+            inventory[t.from][itemId] = (inventory[t.from][itemId] || 0) - qty;
+
+            // To location gains qty
+            inventory[t.to] = inventory[t.to] || {};
+            inventory[t.to][itemId] = (inventory[t.to][itemId] || 0) + qty;
+          });
+        }
+      });
+    }
+
+    function processInterTransfers() {
+      interTransfers.forEach(t => {
+        if (t.from && t.to && t.items) {
+          Object.entries(t.items).forEach(([itemId, qty]) => {
+            inventory[t.from] = inventory[t.from] || {};
+            inventory[t.to] = inventory[t.to] || {};
+            inventory[t.from][itemId] = (inventory[t.from][itemId] || 0) - qty;
+            inventory[t.to][itemId] = (inventory[t.to][itemId] || 0) + qty;
+          });
+        }
+      });
+    }
+
+    function getItemCategory(itemId) {
+      for (const [cat, itemList] of Object.entries(items)) {
+        if (itemList && Array.isArray(itemList)) {
+          if (itemList.find(i => i.id === itemId)) {
+            return cat;
+          }
+        }
+      }
+      return null;
+    }
+
+    function getItemName(itemId) {
+      for (const [cat, itemList] of Object.entries(items)) {
+        if (itemList && Array.isArray(itemList)) {
+          const item = itemList.find(i => i.id === itemId);
+          if (item) return item.name || itemId;
+        }
+      }
+      return itemId;
+    }
+
+    function getItemUnit(itemId) {
+      for (const [cat, itemList] of Object.entries(items)) {
+        if (itemList && Array.isArray(itemList)) {
+          const item = itemList.find(i => i.id === itemId);
+          if (item) return item.unit || '';
+        }
+      }
+      return '';
+    }
+
+    function getFilteredItems() {
+      const searchTerm = searchInput.value.toLowerCase();
+      const catFilter = categoryFilter.value;
+      const locFilter = locationFilter.value;
+
+      const allItemIds = new Set();
+
+      // Collect all unique item IDs
+      ['frozen', 'togo', 'supplies', 'ingredients', 'catering'].forEach(cat => {
+        if (items[cat] && Array.isArray(items[cat])) {
+          items[cat].forEach(item => allItemIds.add(item.id));
+        }
+      });
+
+      LOC_KEYS.forEach(loc => {
+        if (inventory[loc]) {
+          Object.keys(inventory[loc]).forEach(itemId => allItemIds.add(itemId));
+        }
+      });
+
+      let filtered = Array.from(allItemIds).map(itemId => {
+        const cat = getItemCategory(itemId);
+        const name = getItemName(itemId);
+        const unit = getItemUnit(itemId);
+        const quantities = {};
+        let total = 0;
+
+        LOC_KEYS.forEach(loc => {
+          const qty = Math.max(0, inventory[loc]?.[itemId] || 0);
+          quantities[loc] = qty;
+          total += qty;
+        });
+
+        return { itemId, name, cat, unit, quantities, total };
+      });
+
+      // Apply filters
+      if (searchTerm) {
+        filtered = filtered.filter(i => i.name.toLowerCase().includes(searchTerm));
+      }
+
+      if (catFilter) {
+        filtered = filtered.filter(i => i.cat === catFilter);
+      }
+
+      if (locFilter) {
+        filtered = filtered.filter(i => i.quantities[locFilter] > 0);
+      }
+
+      return filtered;
+    }
+
+    function getSortedItems(items) {
+      const sortType = sortFilter.value;
+      const sorted = [...items];
+
+      if (sortType === 'name-asc') {
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (sortType === 'name-desc') {
+        sorted.sort((a, b) => b.name.localeCompare(a.name));
+      } else if (sortType === 'total-desc') {
+        sorted.sort((a, b) => b.total - a.total);
+      } else if (sortType === 'total-asc') {
+        sorted.sort((a, b) => a.total - b.total);
+      }
+
+      return sorted;
+    }
+
+    function renderSummaryCards() {
+      const cards = [];
+      const totals = {};
+
+      LOC_KEYS.forEach(loc => {
+        totals[loc] = 0;
+        if (inventory[loc]) {
+          Object.values(inventory[loc]).forEach(qty => {
+            totals[loc] += Math.max(0, qty);
+          });
+        }
+      });
+
+      LOC_KEYS.forEach(loc => {
+        const label = LOC_LABELS[loc];
+        const card = document.createElement('div');
+        card.className = `card ${loc}`;
+        card.innerHTML = `
+          <h3>${label.icon} ${label.name}</h3>
+          <div class="total">${Math.round(totals[loc])}</div>
+        `;
+        cards.push(card);
+      });
+
+      summaryCards.innerHTML = '';
+      cards.forEach(card => summaryCards.appendChild(card));
+    }
+
+    function renderTable() {
+      const filteredItems = getFilteredItems();
+      const sortedItems = getSortedItems(filteredItems);
+
+      if (sortedItems.length === 0) {
+        tableContainer.innerHTML = '<div class="empty-state"><p>No items found.</p></div>';
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th class="sortable" data-sort="name">Item</th>
+              <th class="qty-cell">Warehouse</th>
+              <th class="qty-cell">On Demand</th>
+              <th class="qty-cell">Issaquah</th>
+              <th class="qty-cell">Renton</th>
+              <th class="qty-cell">Baba's</th>
+              <th class="qty-cell sortable" data-sort="total">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      let grandTotal = {};
+      LOC_KEYS.forEach(loc => { grandTotal[loc] = 0; });
+
+      sortedItems.forEach(item => {
+        const catEmoji = CATEGORY_EMOJI[item.cat] || '❓';
+        const catLabel = CATEGORY_LABELS[item.cat] || item.cat || 'Unknown';
+
+        html += `
+          <tr>
+            <td class="category-cell">${catEmoji} ${catLabel}</td>
+            <td>${item.name}</td>
+        `;
+
+        LOC_KEYS.forEach(loc => {
+          const qty = item.quantities[loc];
+          const isZero = qty === 0;
+          const cls = isZero ? 'zero' : `nonzero ${loc}`;
+          const display = isZero ? '—' : Math.round(qty);
+          html += `<td class="qty-cell ${cls}">${display}</td>`;
+          grandTotal[loc] += qty;
+        });
+
+        html += `<td class="qty-cell total">${Math.round(item.total)}</td></tr>`;
+      });
+
+      // Totals row
+      html += `<tr class="totals"><td colspan="2">TOTAL</td>`;
+      LOC_KEYS.forEach(loc => {
+        html += `<td class="qty-cell total">${Math.round(grandTotal[loc])}</td>`;
+      });
+      const grandSum = Object.values(grandTotal).reduce((a, b) => a + b, 0);
+      html += `<td class="qty-cell total">${Math.round(grandSum)}</td></tr>`;
+
+      html += `</tbody></table>`;
+      tableContainer.innerHTML = html;
+
+      // Attach sort listeners
+      document.querySelectorAll('thead th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+          const sortType = th.getAttribute('data-sort');
+          if (sortType === 'name') {
+            sortFilter.value = sortFilter.value === 'name-asc' ? 'name-desc' : 'name-asc';
+          } else if (sortType === 'total') {
+            sortFilter.value = sortFilter.value === 'total-desc' ? 'total-asc' : 'total-desc';
+          }
+          render();
+        });
+      });
+    }
+
+    function render() {
+      renderSummaryCards();
+      renderTable();
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', render);
+    categoryFilter.addEventListener('change', render);
+    locationFilter.addEventListener('change', render);
+    sortFilter.addEventListener('change', render);
+  </script>
+</body>
+</html>
