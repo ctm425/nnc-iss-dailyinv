@@ -20,7 +20,7 @@ const db = firebase.firestore();
 const RESTAURANTS = {
   'nnc-iss': {
     name: 'Naan N Curry Issaquah',
-    shortName: 'NNC Issaquah',
+    shortName: 'Issaquah - NNC',
     color: '#1e3a5f',
     icon: '🍛',
     description: 'Full-service restaurant — daily operations, dry goods, frozen, supplies',
@@ -35,12 +35,20 @@ const RESTAURANTS = {
     status: 'active'
   },
   'nnc-renton': {
-    name: 'NNC Renton',
-    shortName: 'NNC Renton',
+    name: 'Renton - NNC',
+    shortName: 'Renton - NNC',
     color: '#0f766e',
     icon: '🍛',
     description: 'Coming soon — inventory system setup in progress',
     status: 'placeholder'
+  },
+  'ondemand-renton': {
+    name: 'On Demand Renton',
+    shortName: 'On Demand Renton',
+    color: '#9333ea',
+    icon: '⚡',
+    description: 'Rapid-access buffer stock held at Renton for immediate restaurant needs',
+    status: 'active'
   },
   'babas-bel': {
     name: "Baba's Bellevue",

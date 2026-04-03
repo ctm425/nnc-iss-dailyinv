@@ -106,6 +106,23 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 /* Location badge */
 .location-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(255,255,255,.2);border-radius:12px;font-size:.78rem;font-weight:600}
 
+/* Transfer modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.visible{opacity:1;pointer-events:auto}
+.modal{background:#fff;border-radius:12px;padding:28px;width:90%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h3{font-size:1.1rem;font-weight:700;margin-bottom:16px;color:var(--gray-900)}
+.modal-field{margin-bottom:16px}
+.modal-field label{font-size:.85rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:6px}
+.modal-field .info{font-size:1rem;font-weight:700;color:var(--primary)}
+.modal-field input,.modal-field select{width:100%;padding:10px 14px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem}
+.modal-field input:focus,.modal-field select:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+.btn-cancel{padding:10px 20px;border:none;border-radius:8px;font-weight:600;cursor:pointer;background:var(--gray-200);color:var(--gray-700)}
+.btn-confirm{padding:10px 20px;border:none;border-radius:8px;font-weight:600;cursor:pointer;background:var(--primary-light);color:#fff}
+.btn-confirm:hover{background:var(--primary)}
+.btn-transfer{background:var(--primary-bg);color:var(--primary);border:1px solid var(--primary-light);border-radius:6px;padding:4px 10px;font-size:.75rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-transfer:hover{background:var(--primary-light);color:#fff}
+
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
 
 @media(max-width:640px){
@@ -152,13 +169,13 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 
 <!-- DATE NAV -->
 <div class="date-nav">
-  <button onclick="changeWeek(-1)">← Prev Week</button>
+  <button onclick="changeDay(-1)">← Prev Day</button>
   <div>
-    <div class="current-date" id="weekLabel"></div>
-    <div class="day-name" id="weekDayRange"></div>
+    <div class="current-date" id="dateLabel"></div>
+    <div class="day-name" id="dateDayName"></div>
   </div>
-  <button onclick="changeWeek(1)">Next Week →</button>
-  <button onclick="goToThisWeek()" class="btn btn-sm btn-primary" style="background:#4338ca;color:#fff;font-weight:800;padding:8px 18px;font-size:.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(67,56,202,.3)">📅 This Week</button>
+  <button onclick="changeDay(1)">Next Day →</button>
+  <button onclick="goToToday()" class="btn btn-sm btn-primary" style="background:#4338ca;color:#fff;font-weight:800;padding:8px 18px;font-size:.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(67,56,202,.3)">📅 Today</button>
 </div>
 
 <!-- INVENTORY PERSON -->
@@ -183,6 +200,72 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 
 <!-- TABLE -->
 <div class="table-wrap" id="tableWrap"></div>
+
+<!-- TRANSFER MODAL -->
+<!-- UNIFIED TRANSFER MODAL -->
+<div class="modal-overlay" id="transferModal">
+  <div class="modal">
+    <h3 id="transferModalTitle">📤 Transfer</h3>
+    <div class="modal-field">
+      <label>Item:</label>
+      <div class="info" id="transferItemName" style="font-weight:700">—</div>
+    </div>
+    <div class="modal-field">
+      <label id="transferCountLabel">Current Count:</label>
+      <div class="info" id="transferCurrentCount">—</div>
+    </div>
+    <div class="modal-field">
+      <label>From:</label>
+      <div class="info" id="transferFromName" style="font-size:.85rem;color:var(--gray-700)">Warehouse</div>
+    </div>
+    <div class="modal-field">
+      <label>Quantity to Transfer:</label>
+      <input type="number" id="transferQty" min="0" step="0.5" placeholder="0">
+    </div>
+    <div class="modal-field">
+      <label>Destination:</label>
+      <select id="transferDest">
+        <option value="issaquah">Issaquah - NNC</option>
+        <option value="renton">Renton - NNC</option>
+        <option value="ondemand-renton">On Demand Renton</option>
+        <option value="babas">Baba's Bellevue</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Authorized By: <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="transferAuthorizedBy" placeholder="Name of person authorizing this transfer" style="width:100%;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeTransferModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmUnifiedTransfer()">Confirm Transfer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD CONTAINER MODAL -->
+<div class="modal-overlay" id="addContainerModal">
+  <div class="modal" style="max-width:560px">
+    <h3>📦 Add New Container</h3>
+    <div class="modal-field">
+      <label>Date Received:</label>
+      <input type="date" id="newContainerDate">
+    </div>
+    <div class="modal-field">
+      <label>Vendor:</label>
+      <input type="text" id="newContainerVendor" placeholder="e.g. MAZEDAAR - MULTI FOOD" list="vendorSuggestions">
+      <datalist id="vendorSuggestions"></datalist>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:.85rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:8px">Items:</label>
+      <div id="newContainerItems"></div>
+      <button onclick="addContainerItemRow()" style="margin-top:8px;padding:6px 14px;background:var(--gray-100);border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;color:var(--gray-600)">+ Add Item</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddContainerModal()">Cancel</button>
+      <button class="btn-confirm" onclick="saveNewContainer()">Save Container</button>
+    </div>
+  </div>
+</div>
 
 <!-- SETTINGS -->
 <div class="settings-panel" id="settingsPanel">
@@ -227,58 +310,57 @@ const SECTIONS = {
     tabClass: 'frozen',
     sheetKey: 'wh-frozen',
     subCategories: {
-      meats: { name: 'Meats & Poultry', icon: '🥩', color: '#dc2626' },
-      seafood: { name: 'Seafood', icon: '🐟', color: '#0284c7' },
-      vegetables: { name: 'Frozen Vegetables', icon: '🥦', color: '#16a34a' },
-      breads: { name: 'Breads & Naan', icon: '🫓', color: '#b45309' },
-      prepared: { name: 'Prepared / Pre-Made', icon: '🍱', color: '#7c2d12' },
-      other_frozen: { name: 'Other Frozen', icon: '❄️', color: '#6b7280' }
+      mazedaar: { name: 'MAZEDAAR - MULTI FOOD', icon: '🥘', color: '#dc2626', receivedDate: '5/2/25' },
+      rehmat: { name: 'REHMAT-E-SHEREEN', icon: '🍛', color: '#b45309', receivedDate: '2/6/25' },
+      unitedking: { name: 'United King', icon: '❄️', color: '#0891b2', receivedDate: '12/11/24' }
     }
   },
-  packaging: {
-    name: 'Packaging Supplies',
-    icon: '📦',
-    color: '#7c2d12',
+  togo: {
+    name: 'To-Go Containers',
+    icon: '🥡',
+    color: '#b45309',
     tabClass: '',
-    sheetKey: 'wh-packaging',
+    sheetKey: 'wh-togo',
     subCategories: {
-      containers: { name: 'To-Go Containers', icon: '🥡', color: '#b45309' },
-      bags: { name: 'Bags & Wraps', icon: '🛍️', color: '#7c2d12' },
-      foil_wrap: { name: 'Foil & Plastic Wrap', icon: '🫙', color: '#6b7280' },
-      labels: { name: 'Labels & Stickers', icon: '🏷️', color: '#4338ca' },
-      other_pkg: { name: 'Other Packaging', icon: '📋', color: '#6b7280' }
+      renton: { name: 'Renton - NNC', icon: '🏭', color: '#4338ca' },
+      issaquah: { name: 'Issaquah - NNC', icon: '🏪', color: '#059669' },
+      bellevue: { name: "Baba's Bellevue", icon: '🏬', color: '#7c2d12' }
     }
   },
-  general: {
-    name: 'General Supplies',
-    icon: '🧹',
+  supplies: {
+    name: 'Supplies',
+    icon: '🧤',
     color: '#059669',
     tabClass: 'supply',
-    sheetKey: 'wh-general',
+    sheetKey: 'wh-supplies',
     subCategories: {
-      cleaning: { name: 'Cleaning Products', icon: '🧹', color: '#0891b2' },
-      paper: { name: 'Paper Goods', icon: '🧻', color: '#b45309' },
-      safety: { name: 'Safety & First Aid', icon: '🩹', color: '#16a34a' },
-      trash: { name: 'Trash & Waste', icon: '🗑️', color: '#6b7280' },
-      smallwares: { name: 'Smallwares & Utensils', icon: '🥄', color: '#dc2626' },
-      other_gen: { name: 'Other General', icon: '📋', color: '#6b7280' }
+      renton: { name: 'Renton - NNC', icon: '🏭', color: '#4338ca' },
+      issaquah: { name: 'Issaquah - NNC', icon: '🏪', color: '#059669' },
+      bellevue: { name: "Baba's Bellevue", icon: '🏬', color: '#7c2d12' }
     }
   },
-  restaurant: {
-    name: 'Restaurant Supplies',
+  ingredients: {
+    name: 'Ingredients',
+    icon: '🫒',
+    color: '#dc2626',
+    tabClass: '',
+    sheetKey: 'wh-ingredients',
+    subCategories: {
+      renton: { name: 'Renton - NNC', icon: '🏭', color: '#4338ca' },
+      issaquah: { name: 'Issaquah - NNC', icon: '🏪', color: '#059669' },
+      bellevue: { name: "Baba's Bellevue", icon: '🏬', color: '#7c2d12' }
+    }
+  },
+  catering: {
+    name: 'Onsite Catering Supplies',
     icon: '🍽️',
     color: '#4338ca',
     tabClass: '',
-    sheetKey: 'wh-restaurant',
+    sheetKey: 'wh-catering',
     subCategories: {
-      spices: { name: 'Spices & Seasonings', icon: '🌶️', color: '#dc2626' },
-      grains: { name: 'Rice, Flour & Grains', icon: '🌾', color: '#65a30d' },
-      canned: { name: 'Canned & Jarred Goods', icon: '🥫', color: '#b45309' },
-      oils: { name: 'Oils & Sauces', icon: '🫒', color: '#059669' },
-      drinks: { name: 'Drinks & Beverages', icon: '🥤', color: '#2563eb' },
-      nnc_specific: { name: 'NNC Issaquah Items', icon: '🍛', color: '#1e3a5f' },
-      babas_specific: { name: "Baba's Bellevue Items", icon: '🥘', color: '#7c2d12' },
-      other_rest: { name: 'Other Restaurant', icon: '📋', color: '#6b7280' }
+      renton: { name: 'Renton - NNC', icon: '🏭', color: '#4338ca' },
+      issaquah: { name: 'Issaquah - NNC', icon: '🏪', color: '#059669' },
+      bellevue: { name: "Baba's Bellevue", icon: '🏬', color: '#7c2d12' }
     }
   }
 };
@@ -286,107 +368,195 @@ const SECTIONS = {
 const UNITS = ['each','case','bag','box','bottle','can','jar','lb','oz','gallon','pack','pallet','roll','sleeve'];
 
 // ==================== STATE ====================
-let currentWeekStart = getWeekStart(new Date());
+let currentDate = new Date();
+currentDate.setHours(0,0,0,0);
 let activeSection = 'frozen'; // which section tab
 let activeSubCat = 'all';     // which sub-category
 let settingsVisible = false;
 let restaurantKey = 'renton-wh';
+let transferModalItem = null;
+let cachedTransfers = [];
+
+// Containers Received state
+let containerFilterVendor = 'all';
+let containerFilterDate = 'all';
+let containerSort = 'date-desc'; // date-desc, date-asc, vendor-az, vendor-za, qty-desc, qty-asc
+let expandedShipments = {}; // keyed by index, true = expanded
+let expandedLocations = {}; // keyed by location, true = expanded
+
+// ==================== SHIPMENTS RECEIVED ====================
+const SHIPMENTS = [
+  { date: '2025-05-02', vendor: 'MAZEDAAR - MULTI FOOD', items: [
+    { name: 'ALOO PARATHA', qty: 365, costPerUnit: '' },
+    { name: 'PUNJABI SAMOSA', qty: 185, costPerUnit: '' },
+    { name: 'Roll Paratha', qty: 240, costPerUnit: '' },
+    { name: 'RUMALI ROTI', qty: 260, costPerUnit: '' },
+    { name: 'VEG. CUTLET', qty: 150, costPerUnit: '' }
+  ]},
+  { date: '2025-02-06', vendor: 'REHMAT-E-SHEREEN', items: [
+    { name: 'KULFI', qty: 130, costPerUnit: '' },
+    { name: 'LACHHA PARATHA', qty: 184, costPerUnit: '' },
+    { name: 'LAHORI KULCHA', qty: 908, costPerUnit: '' },
+    { name: 'PURI PARATHA', qty: 410, costPerUnit: '' },
+    { name: 'SUJI HALWA', qty: 524, costPerUnit: '' },
+    { name: 'WHOLE WHEAT PARATHA', qty: 130, costPerUnit: '' }
+  ]},
+  { date: '2024-12-11', vendor: 'United King', items: [
+    { name: 'Ghulab Jamun', qty: 180, costPerUnit: '' },
+    { name: 'MANGO KULFI', qty: 550, costPerUnit: '' },
+    { name: 'Ras Malai', qty: 550, costPerUnit: '' }
+  ]}
+];
+
+// ==================== PRELOADED SHIPMENT DATA ====================
+const PRELOADED_WEEKS = {
+  // United King — received 12/11/24
+  '2024-12-11_frozen': {
+    'ghulab-jamun': { count: 180 },
+    'mango-kulfi': { count: 550 },
+    'ras-malai': { count: 550 }
+  },
+  // REHMAT-E-SHEREEN — received 2/6/25
+  '2025-02-06_frozen': {
+    'kulfi': { count: 130 },
+    'lachha-paratha': { count: 184 },
+    'lahori-kulcha': { count: 908 },
+    'puri-paratha': { count: 410 },
+    'suji-halwa': { count: 524 },
+    'whole-wheat-paratha': { count: 130 }
+  },
+  // MAZEDAAR - MULTI FOOD — received 5/2/25
+  '2025-05-02_frozen': {
+    'aloo-paratha': { count: 365 },
+    'punjabi-samosa': { count: 185 },
+    'roll-paratha': { count: 240 },
+    'rumali-roti': { count: 260 },
+    'veg-cutlet': { count: 150 }
+  },
+  // ===== WAREHOUSE INVENTORY COUNTS (by actual count date) =====
+  // Counted 12/29/25
+  '2025-12-29_togo': { 'togo-bags-reusable-renton':{count:40},'16oz-black-curry-renton':{count:82},'alum-half-pans-renton':{count:50},'alum-half-shallow-renton':{count:10},'alum-half-lids-renton':{count:52},'alum-full-pans-renton':{count:20},'alum-full-shallow-renton':{count:25},'alum-full-lids-renton':{count:46},'togo-bags-reusable-issaquah':{count:100},'alum-half-pans-issaquah':{count:50},'alum-half-lids-issaquah':{count:50},'alum-full-pans-issaquah':{count:22},'alum-full-lids-issaquah':{count:25},'16oz-black-curry-issaquah':{count:84} },
+  '2025-12-29_supplies': { 'gloves-china-renton':{count:206},'gloves-s-blue-renton':{count:17},'bulk-pax-gloves-l-renton':{count:75},'bulk-pax-gloves-s-blk-renton':{count:18},'plastic-wrap-renton':{count:21},'foil-renton':{count:22},'bulk-pax-gloves-l-issaquah':{count:60},'bulk-pax-gloves-l-bellevue':{count:60} },
+  '2025-12-29_ingredients': { 'canola-frying-oil-renton':{count:16},'cooking-oil-renton':{count:40},'canola-salad-oil-issaquah':{count:0} },
+  '2025-12-29_catering': { 'metal-chafing-dishes-issaquah':{count:30} },
+  // Counted 1/8/26
+  '2026-01-08_togo': { 'togo-bags-reusable-renton':{count:40},'16oz-black-curry-renton':{count:82},'alum-half-pans-renton':{count:50},'alum-half-shallow-renton':{count:10},'alum-half-lids-renton':{count:52},'alum-full-pans-renton':{count:20},'alum-full-shallow-renton':{count:25},'alum-full-lids-renton':{count:46},'togo-bags-reusable-issaquah':{count:100},'alum-half-pans-issaquah':{count:50},'alum-half-lids-issaquah':{count:50},'alum-full-pans-issaquah':{count:21},'alum-full-lids-issaquah':{count:25},'16oz-black-curry-issaquah':{count:64} },
+  '2026-01-08_supplies': { 'gloves-china-renton':{count:206},'gloves-s-blue-renton':{count:17},'bulk-pax-gloves-l-renton':{count:75},'bulk-pax-gloves-s-blk-renton':{count:18},'plastic-wrap-renton':{count:21},'foil-renton':{count:22},'bulk-pax-gloves-l-issaquah':{count:60},'bulk-pax-gloves-l-bellevue':{count:60} },
+  '2026-01-08_ingredients': { 'canola-frying-oil-renton':{count:16},'cooking-oil-renton':{count:0},'canola-salad-oil-issaquah':{count:0} },
+  '2026-01-08_catering': { 'metal-chafing-dishes-issaquah':{count:30} },
+  // Counted 1/27/26
+  '2026-01-27_togo': { 'togo-bags-reusable-renton':{count:30},'16oz-black-curry-renton':{count:82},'alum-half-pans-renton':{count:50},'alum-half-shallow-renton':{count:10},'alum-half-lids-renton':{count:52},'alum-full-pans-renton':{count:20},'alum-full-shallow-renton':{count:25},'alum-full-lids-renton':{count:46},'togo-bags-reusable-issaquah':{count:80},'alum-half-pans-issaquah':{count:50},'alum-half-lids-issaquah':{count:50},'alum-full-pans-issaquah':{count:21},'alum-full-lids-issaquah':{count:25},'16oz-black-curry-issaquah':{count:64} },
+  '2026-01-27_supplies': { 'gloves-china-renton':{count:201},'gloves-s-blue-renton':{count:17},'bulk-pax-gloves-l-renton':{count:75},'bulk-pax-gloves-s-blk-renton':{count:18},'plastic-wrap-renton':{count:21},'foil-renton':{count:22},'bulk-pax-gloves-l-issaquah':{count:55},'bulk-pax-gloves-l-bellevue':{count:60} },
+  '2026-01-27_ingredients': { 'canola-frying-oil-renton':{count:0},'cooking-oil-renton':{count:0},'canola-salad-oil-issaquah':{count:0} },
+  '2026-01-27_catering': { 'metal-chafing-dishes-issaquah':{count:30} },
+  // Counted 1/31/26
+  '2026-01-31_togo': { 'togo-bags-reusable-renton':{count:30},'16oz-black-curry-renton':{count:82},'alum-half-pans-renton':{count:50},'alum-half-shallow-renton':{count:10},'alum-half-lids-renton':{count:50},'alum-full-pans-renton':{count:18},'alum-full-shallow-renton':{count:25},'alum-full-lids-renton':{count:46},'togo-bags-reusable-issaquah':{count:80},'alum-half-pans-issaquah':{count:50},'alum-half-lids-issaquah':{count:50},'alum-full-pans-issaquah':{count:20},'alum-full-lids-issaquah':{count:25},'16oz-black-curry-issaquah':{count:44} },
+  '2026-01-31_supplies': { 'gloves-china-renton':{count:196},'gloves-s-blue-renton':{count:17},'bulk-pax-gloves-l-renton':{count:75},'bulk-pax-gloves-s-blk-renton':{count:18},'plastic-wrap-renton':{count:21},'foil-renton':{count:21},'bulk-pax-gloves-l-issaquah':{count:55},'bulk-pax-gloves-l-bellevue':{count:60} },
+  '2026-01-31_ingredients': { 'canola-frying-oil-renton':{count:0},'cooking-oil-renton':{count:0},'canola-salad-oil-issaquah':{count:0} },
+  '2026-01-31_catering': { 'metal-chafing-dishes-issaquah':{count:30} },
+  // Counted 2/17/26
+  '2026-02-17_togo': { 'togo-bags-reusable-renton':{count:30},'16oz-black-curry-renton':{count:82},'alum-half-pans-renton':{count:50},'alum-half-shallow-renton':{count:10},'alum-half-lids-renton':{count:50},'alum-full-pans-renton':{count:18},'alum-full-shallow-renton':{count:25},'alum-full-lids-renton':{count:46},'togo-bags-reusable-issaquah':{count:60},'alum-half-pans-issaquah':{count:50},'alum-half-lids-issaquah':{count:50},'alum-full-pans-issaquah':{count:19},'alum-full-lids-issaquah':{count:25},'16oz-black-curry-issaquah':{count:14} },
+  '2026-02-17_supplies': { 'gloves-china-renton':{count:196},'gloves-s-blue-renton':{count:17},'bulk-pax-gloves-l-renton':{count:75},'bulk-pax-gloves-s-blk-renton':{count:18},'plastic-wrap-renton':{count:21},'foil-renton':{count:21},'bulk-pax-gloves-l-issaquah':{count:47},'bulk-pax-gloves-l-bellevue':{count:60} },
+  '2026-02-17_ingredients': { 'canola-frying-oil-renton':{count:0},'cooking-oil-renton':{count:0},'canola-salad-oil-issaquah':{count:0} },
+  '2026-02-17_catering': { 'metal-chafing-dishes-issaquah':{count:30} },
+  // Counted 3/7/26
+  '2026-03-07_togo': { 'togo-bags-reusable-renton':{count:20},'16oz-black-curry-renton':{count:82},'alum-half-pans-renton':{count:50},'alum-half-shallow-renton':{count:10},'alum-half-lids-renton':{count:47},'alum-full-pans-renton':{count:18},'alum-full-shallow-renton':{count:25},'alum-full-lids-renton':{count:46},'togo-bags-reusable-issaquah':{count:40},'alum-half-pans-issaquah':{count:50},'alum-half-lids-issaquah':{count:50},'alum-full-pans-issaquah':{count:17},'alum-full-lids-issaquah':{count:25},'16oz-black-curry-issaquah':{count:0} },
+  '2026-03-07_supplies': { 'gloves-china-renton':{count:185},'gloves-s-blue-renton':{count:17},'bulk-pax-gloves-l-renton':{count:75},'bulk-pax-gloves-s-blk-renton':{count:18},'plastic-wrap-renton':{count:21},'foil-renton':{count:21},'bulk-pax-gloves-l-issaquah':{count:41},'bulk-pax-gloves-l-bellevue':{count:60} },
+  '2026-03-07_ingredients': { 'canola-frying-oil-renton':{count:0},'cooking-oil-renton':{count:0},'canola-salad-oil-issaquah':{count:0} },
+  '2026-03-07_catering': { 'metal-chafing-dishes-issaquah':{count:30} },
+  // Counted 3/31/26
+  '2026-03-31_togo': { 'togo-bags-reusable-renton':{count:0},'16oz-black-curry-renton':{count:82},'alum-half-pans-renton':{count:50},'alum-half-shallow-renton':{count:10},'alum-half-lids-renton':{count:44},'alum-full-pans-renton':{count:16},'alum-full-shallow-renton':{count:25},'alum-full-lids-renton':{count:44},'togo-bags-reusable-issaquah':{count:20},'alum-half-pans-issaquah':{count:50},'alum-half-lids-issaquah':{count:50},'alum-full-pans-issaquah':{count:17},'alum-full-lids-issaquah':{count:25},'16oz-black-curry-issaquah':{count:0} },
+  '2026-03-31_supplies': { 'gloves-china-renton':{count:175},'gloves-s-blue-renton':{count:17},'bulk-pax-gloves-l-renton':{count:75},'bulk-pax-gloves-s-blk-renton':{count:18},'plastic-wrap-renton':{count:21},'foil-renton':{count:21},'bulk-pax-gloves-l-issaquah':{count:33},'bulk-pax-gloves-l-bellevue':{count:60} },
+  '2026-03-31_ingredients': { 'canola-frying-oil-renton':{count:0},'cooking-oil-renton':{count:0},'canola-salad-oil-issaquah':{count:48} },
+  '2026-03-31_catering': { 'metal-chafing-dishes-issaquah':{count:30} }
+};
 
 // ==================== DEFAULT ITEMS ====================
 const DEFAULT_ITEMS = {
   frozen: [
-    { id:'chicken-breast-frozen', name:'Chicken Breast (40 lb case)', subCategory:'meats', unit:'case', par:10 },
-    { id:'chicken-thigh-frozen', name:'Chicken Thigh (40 lb case)', subCategory:'meats', unit:'case', par:8 },
-    { id:'lamb-leg-frozen', name:'Lamb Leg (case)', subCategory:'meats', unit:'case', par:6 },
-    { id:'goat-meat-frozen', name:'Goat Meat (case)', subCategory:'meats', unit:'case', par:4 },
-    { id:'ground-beef-frozen', name:'Ground Beef (case)', subCategory:'meats', unit:'case', par:3 },
-    { id:'fish-tilapia', name:'Tilapia Fillets', subCategory:'seafood', unit:'case', par:4 },
-    { id:'shrimp-frozen', name:'Shrimp 21/25 (bag)', subCategory:'seafood', unit:'bag', par:6 },
-    { id:'peas-frozen', name:'Green Peas (bag)', subCategory:'vegetables', unit:'bag', par:8 },
-    { id:'spinach-frozen', name:'Spinach (bag)', subCategory:'vegetables', unit:'bag', par:6 },
-    { id:'mixed-veg-frozen', name:'Mixed Vegetables (bag)', subCategory:'vegetables', unit:'bag', par:5 },
-    { id:'naan-plain-frozen', name:'Plain Naan (pack)', subCategory:'breads', unit:'pack', par:20 },
-    { id:'naan-garlic-frozen', name:'Garlic Naan (pack)', subCategory:'breads', unit:'pack', par:15 },
-    { id:'paratha-frozen', name:'Paratha (pack)', subCategory:'breads', unit:'pack', par:10 },
-    { id:'samosa-frozen', name:'Samosa (case)', subCategory:'prepared', unit:'case', par:6 },
-    { id:'pakora-frozen', name:'Pakora Mix (case)', subCategory:'prepared', unit:'case', par:4 }
+    // MAZEDAAR - MULTI FOOD (received 5/2/25)
+    { id:'aloo-paratha', name:'ALOO PARATHA', subCategory:'mazedaar', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'MAZEDAAR - MULTI FOOD', receivedDate:'2025-05-02' },
+    { id:'punjabi-samosa', name:'PUNJABI SAMOSA', subCategory:'mazedaar', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'MAZEDAAR - MULTI FOOD', receivedDate:'2025-05-02' },
+    { id:'roll-paratha', name:'Roll Paratha', subCategory:'mazedaar', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'MAZEDAAR - MULTI FOOD', receivedDate:'2025-05-02' },
+    { id:'rumali-roti', name:'RUMALI ROTI', subCategory:'mazedaar', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'MAZEDAAR - MULTI FOOD', receivedDate:'2025-05-02' },
+    { id:'veg-cutlet', name:'VEG. CUTLET', subCategory:'mazedaar', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'MAZEDAAR - MULTI FOOD', receivedDate:'2025-05-02' },
+    // REHMAT-E-SHEREEN (received 2/6/25)
+    { id:'kulfi', name:'KULFI', subCategory:'rehmat', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'REHMAT-E-SHEREEN', receivedDate:'2025-02-06' },
+    { id:'lachha-paratha', name:'LACHHA PARATHA', subCategory:'rehmat', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'REHMAT-E-SHEREEN', receivedDate:'2025-02-06' },
+    { id:'lahori-kulcha', name:'LAHORI KULCHA', subCategory:'rehmat', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'REHMAT-E-SHEREEN', receivedDate:'2025-02-06' },
+    { id:'puri-paratha', name:'PURI PARATHA', subCategory:'rehmat', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'REHMAT-E-SHEREEN', receivedDate:'2025-02-06' },
+    { id:'suji-halwa', name:'SUJI HALWA', subCategory:'rehmat', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'REHMAT-E-SHEREEN', receivedDate:'2025-02-06' },
+    { id:'whole-wheat-paratha', name:'WHOLE WHEAT PARATHA', subCategory:'rehmat', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'REHMAT-E-SHEREEN', receivedDate:'2025-02-06' },
+    // United King (received 12/11/24)
+    { id:'ghulab-jamun', name:'Ghulab Jamun', subCategory:'unitedking', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'United King', receivedDate:'2024-12-11' },
+    { id:'mango-kulfi', name:'MANGO KULFI', subCategory:'unitedking', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'United King', receivedDate:'2024-12-11' },
+    { id:'ras-malai', name:'Ras Malai', subCategory:'unitedking', unit:'case', par:0, itemNumber:'', batchNumber:'', vendor:'United King', receivedDate:'2024-12-11' }
   ],
-  packaging: [
-    { id:'togo-lg-case', name:'To-Go Container Large (case)', subCategory:'containers', unit:'case', par:10 },
-    { id:'togo-sm-case', name:'To-Go Container Small (case)', subCategory:'containers', unit:'case', par:10 },
-    { id:'togo-round', name:'To-Go Round Containers (case)', subCategory:'containers', unit:'case', par:6 },
-    { id:'soup-containers', name:'Soup Containers (case)', subCategory:'containers', unit:'case', par:4 },
-    { id:'plastic-bags-lg', name:'Plastic Bags Large (case)', subCategory:'bags', unit:'case', par:6 },
-    { id:'plastic-bags-sm', name:'Plastic Bags Small (case)', subCategory:'bags', unit:'case', par:6 },
-    { id:'paper-bags', name:'Paper Bags (case)', subCategory:'bags', unit:'case', par:4 },
-    { id:'foil-roll-bulk', name:'Aluminum Foil (bulk roll)', subCategory:'foil_wrap', unit:'each', par:12 },
-    { id:'plastic-wrap-bulk', name:'Plastic Wrap (bulk)', subCategory:'foil_wrap', unit:'each', par:8 },
-    { id:'parchment-paper', name:'Parchment Paper (roll)', subCategory:'foil_wrap', unit:'each', par:6 }
+  togo: [
+    // RENTON - To-go Containers
+    { id:'togo-bags-reusable-renton', name:'TO GO BAGS - Reusable', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'RENTON' },
+    { id:'16oz-black-curry-renton', name:'16oz Black Curry Containers', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'US Foods', costCenter:'RENTON' },
+    { id:'alum-half-pans-renton', name:'Aluminum Half Size Pans', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'RENTON' },
+    { id:'alum-half-shallow-renton', name:'Aluminum HALF Size SHALLOW', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'RENTON' },
+    { id:'alum-half-lids-renton', name:'Aluminum Half Size LIDS', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'RENTON' },
+    { id:'alum-full-pans-renton', name:'Aluminum FULL size PANS', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'RENTON' },
+    { id:'alum-full-shallow-renton', name:'Aluminum FULL Size SHALLOW', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'RENTON' },
+    { id:'alum-full-lids-renton', name:'Aluminum FULL Size LIDS', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'RENTON' },
+    { id:'nnc-naan-paper-renton', name:'NNC NAAN PAPER', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'', costCenter:'RENTON' },
+    // ISSAQUAH - To-go Containers
+    { id:'togo-bags-reusable-issaquah', name:'TO GO BAGS - Reusable', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'ISSAQUAH' },
+    { id:'alum-half-pans-issaquah', name:'Aluminum Half Size Pans', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'ISSAQUAH' },
+    { id:'alum-half-lids-issaquah', name:'Aluminum Half Size LIDS', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'ISSAQUAH' },
+    { id:'alum-full-pans-issaquah', name:'Aluminum FULL size PANS', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'ISSAQUAH' },
+    { id:'alum-full-lids-issaquah', name:'Aluminum FULL Size LIDS', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'Zade International', costCenter:'ISSAQUAH' },
+    { id:'16oz-black-curry-issaquah', name:'16oz Black Curry Containers', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'US Foods', costCenter:'ISSAQUAH' },
+    // BELLEVUE - To-go Containers
+    { id:'babas-naan-paper-bellevue', name:"BABA'S NAAN PAPER", subCategory:'bellevue', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'', costCenter:'BELLEVUE' }
   ],
-  general: [
-    { id:'degreaser', name:'Kitchen Degreaser (gallon)', subCategory:'cleaning', unit:'gallon', par:4 },
-    { id:'sanitizer', name:'Sanitizer Solution (gallon)', subCategory:'cleaning', unit:'gallon', par:4 },
-    { id:'dish-soap', name:'Dish Soap (gallon)', subCategory:'cleaning', unit:'gallon', par:3 },
-    { id:'floor-cleaner', name:'Floor Cleaner (gallon)', subCategory:'cleaning', unit:'gallon', par:2 },
-    { id:'glass-cleaner', name:'Glass Cleaner (bottle)', subCategory:'cleaning', unit:'bottle', par:3 },
-    { id:'paper-towels-case', name:'Paper Towels (case)', subCategory:'paper', unit:'case', par:6 },
-    { id:'napkins-case', name:'Napkins (case)', subCategory:'paper', unit:'case', par:8 },
-    { id:'toilet-paper-case', name:'Toilet Paper (case)', subCategory:'paper', unit:'case', par:3 },
-    { id:'trash-bags-lg', name:'Trash Bags Large (case)', subCategory:'trash', unit:'case', par:4 },
-    { id:'trash-bags-sm', name:'Trash Bags Small (case)', subCategory:'trash', unit:'case', par:3 },
-    { id:'gloves-lg', name:'Gloves Large (box)', subCategory:'safety', unit:'box', par:6 },
-    { id:'gloves-md', name:'Gloves Medium (box)', subCategory:'safety', unit:'box', par:6 },
-    { id:'first-aid-kit', name:'First Aid Kit Refill', subCategory:'safety', unit:'each', par:2 },
-    { id:'aprons', name:'Disposable Aprons (box)', subCategory:'safety', unit:'box', par:3 }
+  supplies: [
+    // RENTON - Supplies
+    { id:'gloves-china-renton', name:'GLOVES ( CHINA )', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'', costCenter:'RENTON' },
+    { id:'gloves-s-blue-renton', name:'GLOVES - S/BLUE', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'', costCenter:'RENTON' },
+    { id:'bulk-pax-gloves-l-renton', name:'BULK PAX GLOVES – L', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'RENTON' },
+    { id:'bulk-pax-gloves-s-blk-renton', name:'BULK PAX GLOVES – S/BLK', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'RENTON' },
+    { id:'plastic-wrap-renton', name:'18 X 2000 PLASTIC WRAP', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'RENTON' },
+    { id:'foil-renton', name:'10 X 500 FOIL', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'RENTON' },
+    // ISSAQUAH - Supplies
+    { id:'bulk-pax-gloves-l-issaquah', name:'BULK PAX GLOVES – L', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'ISSAQUAH' },
+    // BELLEVUE - Supplies
+    { id:'bulk-pax-gloves-l-bellevue', name:'BULK PAX GLOVES - L', subCategory:'bellevue', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'BELLEVUE' }
   ],
-  restaurant: [
-    { id:'turmeric-bulk', name:'Turmeric Powder (bulk)', subCategory:'spices', unit:'bag', par:6 },
-    { id:'cumin-bulk', name:'Cumin Ground (bulk)', subCategory:'spices', unit:'bag', par:6 },
-    { id:'garam-masala-bulk', name:'Garam Masala (bulk)', subCategory:'spices', unit:'bag', par:8 },
-    { id:'red-chili-bulk', name:'Red Chili Powder (bulk)', subCategory:'spices', unit:'bag', par:6 },
-    { id:'coriander-bulk', name:'Coriander Powder (bulk)', subCategory:'spices', unit:'bag', par:6 },
-    { id:'salt-25lb', name:'Salt (25 lb)', subCategory:'spices', unit:'bag', par:4 },
-    { id:'basmati-50lb', name:'Basmati Rice (50 lb)', subCategory:'grains', unit:'bag', par:15 },
-    { id:'atta-flour-20lb', name:'Atta Flour (20 lb)', subCategory:'grains', unit:'bag', par:12 },
-    { id:'chana-dal-bulk', name:'Chana Dal (bulk)', subCategory:'grains', unit:'bag', par:8 },
-    { id:'yellow-lentils-bulk', name:'Yellow Lentils (bulk)', subCategory:'grains', unit:'bag', par:8 },
-    { id:'tomato-paste-case', name:'Tomato Paste (case)', subCategory:'canned', unit:'case', par:10 },
-    { id:'coconut-milk-case', name:'Coconut Milk (case)', subCategory:'canned', unit:'case', par:8 },
-    { id:'chickpeas-case', name:'Chickpeas Canned (case)', subCategory:'canned', unit:'case', par:6 },
-    { id:'ghee-bulk', name:'Ghee (bulk jar)', subCategory:'canned', unit:'jar', par:10 },
-    { id:'canola-oil-gal', name:'Canola Oil (gallon)', subCategory:'oils', unit:'gallon', par:12 },
-    { id:'mustard-oil-btl', name:'Mustard Oil (bottle)', subCategory:'oils', unit:'bottle', par:8 },
-    { id:'soda-coke-case', name:'Coca-Cola (case)', subCategory:'drinks', unit:'case', par:10 },
-    { id:'soda-sprite-case', name:'Sprite (case)', subCategory:'drinks', unit:'case', par:6 },
-    { id:'water-bottles-case', name:'Water Bottles (case)', subCategory:'drinks', unit:'case', par:15 },
-    { id:'chai-tea-bulk', name:'Chai Tea Bags (bulk)', subCategory:'drinks', unit:'box', par:10 }
+  ingredients: [
+    // RENTON - Ingredients
+    { id:'canola-frying-oil-renton', name:'Canola FRYING OIL', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'RENTON' },
+    { id:'cooking-oil-renton', name:'COOKING OIL', subCategory:'renton', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'RENTON' },
+    // ISSAQUAH - Ingredients
+    { id:'canola-salad-oil-issaquah', name:'Canola Salad Oil', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'BulkPax', costCenter:'ISSAQUAH' }
+  ],
+  catering: [
+    // ISSAQUAH - Onsite Catering Supplies
+    { id:'metal-chafing-dishes-issaquah', name:'Metal Chafing Dishes', subCategory:'issaquah', unit:'each', par:0, itemNumber:'', batchNumber:'', vendor:'', costCenter:'ISSAQUAH' }
   ]
 };
 
 // ==================== DATE HELPERS ====================
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0,0,0,0);
-  return d;
-}
-function weekKey(date) {
-  const d = date || currentWeekStart;
+function dateKey(date) {
+  const d = date || currentDate;
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 function formatDate(date) {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${m[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
-function changeWeek(delta) {
-  currentWeekStart = new Date(currentWeekStart);
-  currentWeekStart.setDate(currentWeekStart.getDate() + (delta * 7));
+function changeDay(delta) {
+  currentDate = new Date(currentDate);
+  currentDate.setDate(currentDate.getDate() + delta);
+  currentDate.setHours(0,0,0,0);
   render();
 }
-function goToThisWeek() {
-  currentWeekStart = getWeekStart(new Date());
+function goToToday() {
+  currentDate = new Date();
+  currentDate.setHours(0,0,0,0);
   render();
 }
 
@@ -395,8 +565,18 @@ function fsDocId() { return `warehouse_${restaurantKey}`; }
 
 function loadData() {
   const raw = localStorage.getItem(fsDocId());
-  if (raw) { try { return JSON.parse(raw); } catch(e) {} }
-  return { items: JSON.parse(JSON.stringify(DEFAULT_ITEMS)), weeks: {}, emailjs: {}, emails: '' };
+  let d;
+  if (raw) { try { d = JSON.parse(raw); } catch(e) {} }
+  if (!d) d = { items: JSON.parse(JSON.stringify(DEFAULT_ITEMS)), weeks: {}, emailjs: {}, emails: '' };
+  // Merge preloaded shipment weeks (only if not already saved)
+  if (!d.weeks) d.weeks = {};
+  Object.keys(PRELOADED_WEEKS).forEach(key => {
+    if (!d.weeks[key]) d.weeks[key] = {};
+    Object.keys(PRELOADED_WEEKS[key]).forEach(itemId => {
+      if (!d.weeks[key][itemId]) d.weeks[key][itemId] = PRELOADED_WEEKS[key][itemId];
+    });
+  });
+  return d;
 }
 function saveData(d) {
   localStorage.setItem(fsDocId(), JSON.stringify(d));
@@ -421,7 +601,26 @@ async function saveWeekData(wk, section, data) {
 function getWeekData(wk, section) {
   const d = loadData();
   const key = `${wk}_${section}`;
-  return (d.weeks && d.weeks[key]) || {};
+  const exact = (d.weeks && d.weeks[key]) || null;
+  if (exact && Object.keys(exact).length > 0) return exact;
+  // Running total: merge ALL prior dates for this section, newest values win per item
+  if (d.weeks) {
+    const suffix = '_' + section;
+    const allKeys = Object.keys(d.weeks).filter(k => k.endsWith(suffix) && k <= key);
+    allKeys.sort(); // oldest first
+    if (allKeys.length > 0) {
+      const merged = {};
+      allKeys.forEach(k => {
+        const dateData = d.weeks[k] || {};
+        Object.keys(dateData).forEach(itemId => {
+          if (!merged[itemId]) merged[itemId] = {};
+          Object.assign(merged[itemId], dateData[itemId]);
+        });
+      });
+      return merged;
+    }
+  }
+  return {};
 }
 function setField(wk, section, itemId, field, val) {
   const d = loadData();
@@ -469,10 +668,12 @@ auth.onAuthStateChanged(async user => {
     // Auto-select section from sheet param
     const urlSheet = getParam('sheet');
     if (urlSheet === 'wh-frozen') activeSection = 'frozen';
-    else if (urlSheet === 'wh-packaging') activeSection = 'packaging';
-    else if (urlSheet === 'wh-general') activeSection = 'general';
-    else if (urlSheet === 'wh-restaurant') activeSection = 'restaurant';
+    else if (urlSheet === 'wh-togo') activeSection = 'togo';
+    else if (urlSheet === 'wh-supplies') activeSection = 'supplies';
+    else if (urlSheet === 'wh-ingredients') activeSection = 'ingredients';
+    else if (urlSheet === 'wh-catering') activeSection = 'catering';
     setupFirestoreListener();
+    setupTransfersListener();
     render();
   } else {
     overlay.classList.remove('hidden');
@@ -482,38 +683,48 @@ auth.onAuthStateChanged(async user => {
 // ==================== RENDER ====================
 function render() {
   updateDateNav();
-  renderStats();
   renderTabs();
-  renderSubTabs();
-  renderTable();
-  loadInventoryPerson();
+  const isNonFrozenSub = ['allnonfrozen','togo','supplies','ingredients','catering'].includes(activeSection);
+  if (activeSection === 'transfers' || activeSection === 'containers' || activeSection === 'ondemand' || isNonFrozenSub) {
+    document.getElementById('statsBar').innerHTML = '';
+    document.getElementById('subTabBar').innerHTML = '';
+    document.getElementById('searchInput').parentElement.style.display = 'none';
+    document.querySelector('.inventory-person-bar').style.display = 'none';
+    if (activeSection === 'transfers') renderTransfersTab();
+    else if (activeSection === 'containers') renderContainersTab();
+    else if (activeSection === 'ondemand') renderOnDemandTab();
+    else renderAllNonFrozenTab();
+  } else {
+    document.getElementById('searchInput').parentElement.style.display = '';
+    document.querySelector('.inventory-person-bar').style.display = '';
+    document.getElementById('subTabBar').innerHTML = '';
+    renderStats();
+    renderTable();
+    loadInventoryPerson();
+  }
   if (settingsVisible) renderSettings();
 }
 
 function updateDateNav() {
-  const end = new Date(currentWeekStart);
-  end.setDate(end.getDate()+6);
-  document.getElementById('weekLabel').textContent = `Week of ${formatDate(currentWeekStart)}`;
-  document.getElementById('weekDayRange').textContent = `${formatDate(currentWeekStart)} – ${formatDate(end)}`;
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  document.getElementById('dateLabel').textContent = formatDate(currentDate);
+  document.getElementById('dateDayName').textContent = days[currentDate.getDay()];
 }
 
 function renderStats() {
   const d = loadData();
   const sectionItems = (d.items && d.items[activeSection]) || [];
-  const wk = weekKey();
+  const wk = dateKey();
   const weekData = getWeekData(wk, activeSection);
-  let counted = 0, needsOrder = 0, total = sectionItems.length;
+  let counted = 0, total = sectionItems.length;
   sectionItems.forEach(item => {
     const data = weekData[item.id] || {};
     if (data.count !== undefined && data.count !== '') counted++;
-    const count = Number(data.count||0);
-    if (Math.max(0,(item.par||0)-count) > 0) needsOrder++;
   });
   document.getElementById('statsBar').innerHTML = `
     <div class="stat-card"><div class="label">Section</div><div class="value" style="font-size:1.1rem">${SECTIONS[activeSection].icon} ${SECTIONS[activeSection].name}</div></div>
     <div class="stat-card"><div class="label">Total Items</div><div class="value">${total}</div></div>
     <div class="stat-card"><div class="label">Counted</div><div class="value">${counted} / ${total}</div></div>
-    <div class="stat-card"><div class="label">Needs Order</div><div class="value ${needsOrder>0?'warn':''}">${needsOrder}</div></div>
     <div class="stat-card"><div class="label">Progress</div><div class="value">${total>0?Math.round(counted/total*100):0}%</div></div>
   `;
 }
@@ -521,11 +732,13 @@ function renderStats() {
 function renderTabs() {
   const container = document.getElementById('tabBar');
   let html = '';
-  Object.keys(SECTIONS).forEach(key => {
-    const sec = SECTIONS[key];
-    const active = key === activeSection ? 'active' : '';
-    html += `<div class="tab ${sec.tabClass} ${active}" onclick="setSection('${key}')">${sec.icon} ${sec.name}</div>`;
-  });
+  // 4 main tabs only
+  const isNonFrozen = activeSection === 'allnonfrozen' || activeSection === 'togo' || activeSection === 'supplies' || activeSection === 'ingredients' || activeSection === 'catering';
+  html += `<div class="tab ${isNonFrozen?'active':''}" onclick="setSection('allnonfrozen')">📋 All Non Frozen</div>`;
+  html += `<div class="tab frozen ${activeSection==='frozen'?'active':''}" onclick="setSection('frozen')">🧊 Frozen Inventory</div>`;
+  html += `<div class="tab ${activeSection==='containers'?'active':''}" onclick="setSection('containers')">📦 Containers Received</div>`;
+  html += `<div class="tab ${activeSection==='ondemand'?'active':''}" style="${activeSection==='ondemand'?'background:#9333ea;border-color:#9333ea':''}" onclick="setSection('ondemand')">⚡ On Demand Renton</div>`;
+  html += `<div class="tab ${activeSection==='transfers'?'active':''}" onclick="setSection('transfers')">📤 Transfers</div>`;
   container.innerHTML = html;
 }
 
@@ -553,17 +766,29 @@ function renderSubTabs() {
 function setSubCat(cat) {
   activeSubCat = cat;
   renderTable();
-  renderSubTabs();
 }
 
 function renderTable() {
   const container = document.getElementById('tableWrap');
   const d = loadData();
   const sectionItems = (d.items && d.items[activeSection]) || [];
-  const wk = weekKey();
+  const wk = dateKey();
   const weekData = getWeekData(wk, activeSection);
   const search = (document.getElementById('searchInput')?.value||'').toLowerCase();
   const sec = SECTIONS[activeSection];
+
+  // Section title + sub-category filter buttons
+  let headerHtml = `<div style="margin-bottom:12px">`;
+  headerHtml += `<h3 style="font-size:1.1rem;font-weight:700;color:${sec.color};margin-bottom:10px">${sec.icon} ${sec.name}</h3>`;
+  headerHtml += `<div style="display:flex;gap:6px;flex-wrap:wrap">`;
+  headerHtml += `<div class="tab ${activeSubCat==='all'?'active':''}" style="padding:6px 14px;font-size:.8rem;cursor:pointer" onclick="setSubCat('all')">All</div>`;
+  Object.keys(sec.subCategories).forEach(key => {
+    const cat = sec.subCategories[key];
+    const count = sectionItems.filter(i => i.subCategory === key).length;
+    if (count === 0) return;
+    headerHtml += `<div class="tab ${activeSubCat===key?'active':''}" style="padding:6px 14px;font-size:.8rem;cursor:pointer" onclick="setSubCat('${key}')">${cat.icon} ${cat.name} (${count})</div>`;
+  });
+  headerHtml += `</div></div>`;
 
   let filtered = sectionItems;
   if (activeSubCat !== 'all') filtered = filtered.filter(i => i.subCategory === activeSubCat);
@@ -578,70 +803,130 @@ function renderTable() {
   });
 
   let html = `<table><thead><tr>
-    <th>Item</th><th>Unit</th><th>Par Level</th><th>Count</th><th>Status</th>
-    <th>Order Qty</th><th>Override</th><th>Destination</th><th>Notes</th>
+    <th>Item</th><th>Item #</th><th>Batch #</th><th>Unit</th><th>Count</th><th>Notes</th><th>Transfer</th>
   </tr></thead><tbody>`;
 
   Object.keys(sec.subCategories).forEach(catKey => {
     if (!grouped[catKey]) return;
     const cat = sec.subCategories[catKey];
-    html += `<tr class="section-header"><td colspan="9" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
+    const vendorInfo = cat.receivedDate ? ` <span style="font-size:.72rem;color:var(--gray-500);font-weight:500;text-transform:none;letter-spacing:0">(Received ${cat.receivedDate})</span>` : '';
+    html += `<tr class="section-header"><td colspan="7" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}${vendorInfo}</td></tr>`;
 
     grouped[catKey].forEach(item => {
       const data = weekData[item.id] || {};
       const count = data.count !== undefined && data.count !== '' ? Number(data.count) : '';
-      const par = item.par || 0;
-      const autoOrder = count !== '' ? Math.max(0, par - count) : '';
-      const isManual = data.manualOrder === true;
-      const orderQty = isManual && data.orderQty !== undefined ? Number(data.orderQty) : autoOrder;
-      const dest = data.destination || '';
-
-      let status = '', statusClass = '';
-      if (count === '') { status = '—'; }
-      else if (count >= par) { status = '✓ Good'; statusClass = 'status-ok'; }
-      else if (count >= par * 0.5) { status = '⚠ Low'; statusClass = 'status-low'; }
-      else { status = '⛔ Critical'; statusClass = 'status-critical'; }
+      const escapedName = item.name.replace(/'/g,"\\'");
 
       html += `<tr>
         <td>${item.name}</td>
+        <td><input type="text" class="note-input" value="${item.itemNumber||''}" placeholder="—" style="width:80px"
+          onchange="updateItemField('${item.id}','itemNumber',this.value)"></td>
+        <td><input type="text" class="note-input" value="${item.batchNumber||''}" placeholder="—" style="width:80px"
+          onchange="updateItemField('${item.id}','batchNumber',this.value)"></td>
         <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
-        <td style="text-align:center;font-weight:600">${par}</td>
         <td><input type="number" value="${count}" min="0" step="0.5"
           onchange="onCountChange('${item.id}',this.value)"
           style="background:${count===''?'#fffbeb':'#fff'}"></td>
-        <td class="${statusClass}">${status}</td>
-        <td style="text-align:center;${orderQty!==''&&orderQty>0?'font-weight:700;color:var(--amber)':''}">${orderQty!==''?orderQty:'—'}</td>
-        <td>
-          <input type="number" value="${isManual?orderQty:''}" min="0" step="0.5" placeholder="auto"
-            style="width:55px;${isManual?'border-color:var(--amber);background:#fffbeb':''}"
-            onchange="onOrderOverride('${item.id}',this.value)">
-          ${isManual?`<button class="btn btn-sm" style="padding:2px 6px;font-size:.68rem;margin-left:2px" onclick="resetOrder('${item.id}')" title="Reset">↺</button>`:''}
-        </td>
-        <td>
-          <select style="padding:3px 6px;border:1px solid var(--gray-300);border-radius:6px;font-size:.78rem;width:90px"
-            onchange="setField(weekKey(),activeSection,'${item.id}','destination',this.value)">
-            <option value=""${!dest?' selected':''}>—</option>
-            <option value="nnc-iss"${dest==='nnc-iss'?' selected':''}>NNC Issaquah</option>
-            <option value="babas-bel"${dest==='babas-bel'?' selected':''}>Baba's Bellevue</option>
-            <option value="both"${dest==='both'?' selected':''}>Both</option>
-          </select>
-        </td>
         <td><input type="text" class="note-input" value="${data.notes||''}" placeholder="Notes..."
-          onchange="setField(weekKey(),activeSection,'${item.id}','notes',this.value)"></td>
+          onchange="setField(dateKey(),activeSection,'${item.id}','notes',this.value)"></td>
+        <td><button class="btn-transfer" onclick="openTransferModal('${item.id}','${escapedName}',${count||0},'warehouse','${activeSection}')">→ Transfer</button></td>
       </tr>`;
     });
   });
 
   if (filtered.length === 0) {
-    html += `<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
+    html += `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
   }
   html += `</tbody></table>`;
-  container.innerHTML = html;
+
+  // Per-location breakdown for frozen tab
+  if (activeSection === 'frozen') {
+    html += renderLocationBreakdown();
+  }
+
+  container.innerHTML = headerHtml + html;
+}
+
+// ==================== LOCATION BREAKDOWN (FROZEN TAB) ====================
+function toggleLocation(loc) {
+  expandedLocations[loc] = !expandedLocations[loc];
+  render();
+}
+
+function renderLocationBreakdown() {
+  const destNames = { issaquah: 'Issaquah - NNC', renton: 'Renton - NNC', 'ondemand-renton': 'On Demand Renton', babas: "Baba's Bellevue" };
+  const destIcons = { issaquah: '🍛', renton: '🍛', 'ondemand-renton': '⚡', babas: '🥘' };
+  const destColors = { issaquah: '#1e3a5f', renton: '#0f766e', 'ondemand-renton': '#9333ea', babas: '#7c2d12' };
+  const locations = ['issaquah', 'renton', 'ondemand-renton', 'babas'];
+
+  // Aggregate transfers by destination
+  const locStock = {};
+  locations.forEach(loc => { locStock[loc] = {}; });
+
+  cachedTransfers.forEach(t => {
+    // Only count frozen section transfers (from warehouse)
+    if (t.from === 'warehouse' && locations.includes(t.to)) {
+      if (!locStock[t.to][t.itemName]) locStock[t.to][t.itemName] = 0;
+      locStock[t.to][t.itemName] += (t.quantity || 0);
+    }
+    // Deduct transfers out from on-demand
+    if (t.from === 'ondemand-renton' && locations.includes(t.to)) {
+      if (!locStock['ondemand-renton'][t.itemName]) locStock['ondemand-renton'][t.itemName] = 0;
+      locStock['ondemand-renton'][t.itemName] -= (t.quantity || 0);
+      if (!locStock[t.to][t.itemName]) locStock[t.to][t.itemName] = 0;
+      locStock[t.to][t.itemName] += (t.quantity || 0);
+    }
+  });
+
+  let html = `<div style="margin-top:24px;border-top:2px solid var(--gray-200);padding-top:20px">
+    <h3 style="font-size:1.05rem;font-weight:700;color:var(--gray-900);margin-bottom:12px">📊 Transferred Stock by Location</h3>
+    <p style="font-size:.82rem;color:var(--gray-500);margin-bottom:16px">Based on transfer history — shows total quantities sent to each cost center from the warehouse.</p>`;
+
+  locations.forEach(loc => {
+    const items = Object.entries(locStock[loc] || {}).filter(([,qty]) => qty > 0).sort((a,b) => a[0].localeCompare(b[0]));
+    const totalQty = items.reduce((sum,[,qty]) => sum + qty, 0);
+    const isExpanded = expandedLocations[loc];
+    const color = destColors[loc];
+    const icon = destIcons[loc];
+    const name = destNames[loc];
+
+    html += `<div style="margin-bottom:8px;border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden">
+      <div onclick="toggleLocation('${loc}')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${isExpanded ? color : 'var(--gray-50)'};color:${isExpanded ? '#fff' : 'var(--gray-900)'};cursor:pointer;transition:all .15s;user-select:none">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.1rem">${icon}</span>
+          <span style="font-weight:700;font-size:.92rem">${name}</span>
+          <span style="font-size:.78rem;opacity:.75;font-weight:500">${items.length} item${items.length!==1?'s':''} · ${totalQty} total units</span>
+        </div>
+        <span style="font-size:.85rem;transition:transform .2s;display:inline-block;transform:rotate(${isExpanded?'180':'0'}deg)">▼</span>
+      </div>`;
+
+    if (isExpanded) {
+      if (items.length === 0) {
+        html += `<div style="padding:16px;text-align:center;color:var(--gray-400);font-size:.85rem">No items transferred to this location yet</div>`;
+      } else {
+        html += `<table style="margin:0;border-radius:0;box-shadow:none"><thead><tr>
+          <th>Item</th><th style="text-align:center">Qty Transferred</th>
+        </tr></thead><tbody>`;
+        items.forEach(([itemName, qty]) => {
+          html += `<tr>
+            <td style="font-weight:600">${itemName}</td>
+            <td style="text-align:center;font-weight:700;color:${color}">${qty}</td>
+          </tr>`;
+        });
+        html += `</tbody></table>`;
+      }
+    }
+
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  return html;
 }
 
 // ==================== FIELD HANDLERS ====================
 function onCountChange(itemId, val) {
-  const wk = weekKey();
+  const wk = dateKey();
   if (val === '') {
     const d = loadData();
     const key = `${wk}_${activeSection}`;
@@ -655,7 +940,7 @@ function onCountChange(itemId, val) {
   render();
 }
 function onOrderOverride(itemId, val) {
-  const wk = weekKey();
+  const wk = dateKey();
   const key = `${wk}_${activeSection}`;
   if (val === '') {
     const d = loadData();
@@ -671,7 +956,7 @@ function onOrderOverride(itemId, val) {
   render();
 }
 function resetOrder(itemId) {
-  const wk = weekKey();
+  const wk = dateKey();
   const key = `${wk}_${activeSection}`;
   const d = loadData();
   if (d.weeks && d.weeks[key] && d.weeks[key][itemId]) {
@@ -683,10 +968,10 @@ function resetOrder(itemId) {
   showToast('Order reset to auto-calculate');
 }
 function saveInventoryPerson(name) {
-  setField(weekKey(), activeSection, '__meta', 'inventoryPerson', name);
+  setField(dateKey(), activeSection, '__meta', 'inventoryPerson', name);
 }
 function loadInventoryPerson() {
-  const weekData = getWeekData(weekKey(), activeSection);
+  const weekData = getWeekData(dateKey(), activeSection);
   document.getElementById('inventoryPerson').value = weekData.__meta?.inventoryPerson || '';
 }
 
@@ -716,10 +1001,12 @@ function renderSettings() {
       `<option value="${u}"${item.unit===u?' selected':''}>${u}</option>`
     ).join('');
     html += `<div class="item-edit-row">
-      <input type="text" value="${item.name}" placeholder="Item name" style="width:200px" onchange="updateItem(${idx},'name',this.value)">
+      <input type="text" value="${item.name}" placeholder="Item name" style="width:180px" onchange="updateItem(${idx},'name',this.value)">
       <select onchange="updateItem(${idx},'subCategory',this.value)">${catOptions}</select>
       <select onchange="updateItem(${idx},'unit',this.value)">${unitOptions}</select>
       <label style="font-size:.78rem">Par: <input type="number" value="${item.par||0}" min="0" style="width:50px" onchange="updateItem(${idx},'par',Number(this.value))"></label>
+      <label style="font-size:.78rem">Item#: <input type="text" value="${item.itemNumber||''}" placeholder="—" style="width:80px" onchange="updateItem(${idx},'itemNumber',this.value)"></label>
+      <label style="font-size:.78rem">Batch#: <input type="text" value="${item.batchNumber||''}" placeholder="—" style="width:80px" onchange="updateItem(${idx},'batchNumber',this.value)"></label>
       <button class="btn btn-danger btn-sm" onclick="removeItem(${idx})" style="padding:3px 8px;font-size:.7rem">✕</button>
     </div>`;
   });
@@ -776,35 +1063,28 @@ function exportExcel() {
   Object.keys(SECTIONS).forEach(secKey => {
     const sec = SECTIONS[secKey];
     const sectionItems = (d.items && d.items[secKey]) || [];
-    const wk = weekKey();
+    const wk = dateKey();
     const weekData = getWeekData(wk, secKey);
     const rows = [];
     sectionItems.forEach(item => {
       const data = weekData[item.id] || {};
       const count = data.count !== undefined ? Number(data.count) : '';
-      const par = item.par || 0;
-      const autoOrder = count !== '' ? Math.max(0, par - count) : '';
-      const isManual = data.manualOrder === true;
-      const orderQty = isManual ? Number(data.orderQty) : autoOrder;
-      const destMap = { 'nnc-iss': 'NNC Issaquah', 'babas-bel': "Baba's Bellevue", 'both': 'Both' };
       rows.push({
         'Item': item.name,
-        'Sub-Category': sec.subCategories[item.subCategory]?.name || item.subCategory,
+        'Item #': item.itemNumber || '',
+        'Batch #': item.batchNumber || '',
+        'Vendor': sec.subCategories[item.subCategory]?.name || item.subCategory,
         'Unit': item.unit,
-        'Par': par,
         'Count': count,
-        'Status': count===''?'Not Counted': count>=par?'Good': count>=par*0.5?'Low':'Critical',
-        'Order Qty': orderQty,
-        'Destination': destMap[data.destination] || '',
         'Notes': data.notes || ''
       });
     });
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{wch:30},{wch:22},{wch:8},{wch:6},{wch:6},{wch:12},{wch:10},{wch:16},{wch:20}];
+    ws['!cols'] = [{wch:28},{wch:12},{wch:12},{wch:24},{wch:8},{wch:8},{wch:20}];
     XLSX.utils.book_append_sheet(wb, ws, sec.name.substring(0,31));
   });
 
-  XLSX.writeFile(wb, `Warehouse_${weekKey()}.xlsx`);
+  XLSX.writeFile(wb, `Warehouse_${dateKey()}.xlsx`);
   showToast('Excel exported');
 }
 
@@ -818,7 +1098,7 @@ function exportPDF() {
   Object.keys(SECTIONS).forEach(secKey => {
     const sec = SECTIONS[secKey];
     const sectionItems = (d.items && d.items[secKey]) || [];
-    const wk = weekKey();
+    const wk = dateKey();
     const weekData = getWeekData(wk, secKey);
     if (!firstPage) doc.addPage();
     firstPage = false;
@@ -826,34 +1106,28 @@ function exportPDF() {
     doc.setFontSize(16);
     doc.text(`Renton Warehouse — ${sec.name}`, 14, 15);
     doc.setFontSize(10);
-    doc.text(`Week of ${formatDate(currentWeekStart)}`, 14, 22);
+    doc.text(`${formatDate(currentDate)}`, 14, 22);
     const person = weekData.__meta?.inventoryPerson || '';
     if (person) doc.text(`Counted by: ${person}`, 14, 28);
 
     const rows = [];
-    const destMap = { 'nnc-iss': 'NNC Iss.', 'babas-bel': "Baba's", 'both': 'Both' };
     sectionItems.forEach(item => {
       const data = weekData[item.id] || {};
       const count = data.count !== undefined ? Number(data.count) : '';
-      const par = item.par || 0;
-      const autoOrder = count !== '' ? Math.max(0, par - count) : '';
-      const isManual = data.manualOrder === true;
-      const orderQty = isManual ? Number(data.orderQty) : autoOrder;
-      const status = count===''?'—': count>=par?'✓ Good': count>=par*0.5?'⚠ Low':'⛔ Critical';
-      rows.push([item.name, item.unit, par, count===''?'—':count, status, orderQty===''?'—':orderQty, destMap[data.destination]||'', data.notes||'']);
+      rows.push([item.name, item.itemNumber||'', item.batchNumber||'', item.unit, count===''?'—':count, data.notes||'']);
     });
 
     doc.autoTable({
-      head: [['Item','Unit','Par','Count','Status','Order','Dest.','Notes']],
+      head: [['Item','Item #','Batch #','Unit','Count','Notes']],
       body: rows,
       startY: person ? 33 : 27,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [67,56,202] },
-      columnStyles: { 0:{cellWidth:45}, 5:{fontStyle:'bold'} }
+      columnStyles: { 0:{cellWidth:50}, 4:{fontStyle:'bold'} }
     });
   });
 
-  doc.save(`Warehouse_${weekKey()}.pdf`);
+  doc.save(`Warehouse_${dateKey()}.pdf`);
   showToast('PDF exported');
 }
 
@@ -867,12 +1141,12 @@ async function sendEmailReport() {
   if (!d.emails) { showToast('Add email recipients in settings'); toggleSettings(); return; }
 
   let bodyHtml = `<h2 style="color:#4338ca">🏭 Renton Warehouse — Inventory Report</h2>
-    <p><strong>Week:</strong> ${formatDate(currentWeekStart)}</p>`;
+    <p><strong>Date:</strong> ${formatDate(currentDate)}</p>`;
 
   Object.keys(SECTIONS).forEach(secKey => {
     const sec = SECTIONS[secKey];
     const sectionItems = (d.items && d.items[secKey]) || [];
-    const wk = weekKey();
+    const wk = dateKey();
     const weekData = getWeekData(wk, secKey);
     const person = weekData.__meta?.inventoryPerson || '';
 
@@ -882,45 +1156,29 @@ async function sendEmailReport() {
     bodyHtml += `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;margin-bottom:20px">
       <thead><tr>
         <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:left;border:1px solid #ddd">Item</th>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Item #</th>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Batch #</th>
         <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Unit</th>
-        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Par</th>
-        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Count</th>
-        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Status</th>
-        <th style="padding:6px 8px;background:#d97706;color:#fff;text-align:center;border:1px solid #ddd;font-weight:bold">ORDER</th>
-        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Dest.</th>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd;font-weight:bold">Count</th>
         <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:left;border:1px solid #ddd">Notes</th>
       </tr></thead><tbody>`;
 
-    const destMap = {'nnc-iss':'NNC Iss.','babas-bel':"Baba's",'both':'Both'};
     sectionItems.forEach(item => {
       const data = weekData[item.id] || {};
       const count = data.count !== undefined ? Number(data.count) : '';
-      const par = item.par || 0;
-      const autoOrder = count !== '' ? Math.max(0, par - count) : '';
-      const isManual = data.manualOrder === true;
-      const orderQty = isManual ? Number(data.orderQty) : autoOrder;
-      let statusColor = '#6b7280', statusText = '—';
-      if (count !== '') {
-        if (count >= par) { statusColor='#16a34a'; statusText='✓ Good'; }
-        else if (count >= par*0.5) { statusColor='#d97706'; statusText='⚠ Low'; }
-        else { statusColor='#dc2626'; statusText='⛔ Critical'; }
-      }
-      const orderBg = orderQty > 0 ? 'background:#fffbeb;font-weight:bold;color:#b45309' : '';
       bodyHtml += `<tr>
         <td style="padding:5px 8px;border:1px solid #eee;font-weight:600">${item.name}</td>
+        <td style="padding:5px 8px;border:1px solid #eee;text-align:center;font-size:11px">${item.itemNumber||'—'}</td>
+        <td style="padding:5px 8px;border:1px solid #eee;text-align:center;font-size:11px">${item.batchNumber||'—'}</td>
         <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${item.unit}</td>
-        <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${par}</td>
-        <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${count===''?'—':count}</td>
-        <td style="padding:5px 8px;border:1px solid #eee;text-align:center;color:${statusColor};font-weight:600">${statusText}</td>
-        <td style="padding:5px 8px;border:1px solid #eee;text-align:center;${orderBg}">${orderQty===''?'—':orderQty}</td>
-        <td style="padding:5px 8px;border:1px solid #eee;text-align:center;font-size:11px">${destMap[data.destination]||'—'}</td>
+        <td style="padding:5px 8px;border:1px solid #eee;text-align:center;font-weight:bold">${count===''?'—':count}</td>
         <td style="padding:5px 8px;border:1px solid #eee;font-size:11px">${data.notes||''}</td>
       </tr>`;
     });
     bodyHtml += `</tbody></table>`;
   });
 
-  const subject = `Renton Warehouse Inventory — Week of ${formatDate(currentWeekStart)}`;
+  const subject = `Renton Warehouse Inventory — ${formatDate(currentDate)}`;
   try {
     emailjs.init(d.emailjs.publicKey);
     await emailjs.send(d.emailjs.serviceId, d.emailjs.templateId, {
@@ -931,6 +1189,745 @@ async function sendEmailReport() {
     console.error('Email error:', e);
     showToast('Email failed: ' + (e.text||e.message||'Unknown'));
   }
+}
+
+// ==================== ITEM FIELD UPDATE (Item #, Batch #) ====================
+function updateItemField(itemId, field, val) {
+  const d = loadData();
+  if (!d.items) return;
+  Object.keys(d.items).forEach(secKey => {
+    d.items[secKey].forEach(item => {
+      if (item.id === itemId) item[field] = val;
+    });
+  });
+  saveData(d);
+}
+
+// ==================== TRANSFER MODAL ====================
+// ==================== UNIFIED TRANSFER SYSTEM ====================
+const DEST_NAMES = { issaquah: 'Issaquah - NNC', renton: 'Renton - NNC', 'ondemand-renton': 'On Demand Renton', babas: "Baba's Bellevue", warehouse: 'Warehouse' };
+const FROM_NAMES = { warehouse: 'Warehouse', 'ondemand-renton': 'On Demand Renton' };
+
+function openTransferModal(itemId, itemName, currentCount, fromSource, section) {
+  // fromSource: 'warehouse' | 'ondemand-renton'
+  // section: which inventory section (frozen, togo, supplies, etc.) — null for on-demand
+  transferModalItem = { itemId, itemName, currentCount, fromSource: fromSource || 'warehouse', section: section || activeSection };
+  document.getElementById('transferModalTitle').textContent = (fromSource === 'ondemand-renton' ? '⚡' : '📤') + ' Transfer';
+  document.getElementById('transferItemName').textContent = itemName;
+  document.getElementById('transferCurrentCount').textContent = currentCount;
+  document.getElementById('transferCountLabel').textContent = fromSource === 'ondemand-renton' ? 'On Hand:' : 'Current Count:';
+  document.getElementById('transferFromName').textContent = FROM_NAMES[fromSource || 'warehouse'] || 'Warehouse';
+  document.getElementById('transferQty').value = '';
+  document.getElementById('transferAuthorizedBy').value = '';
+  document.getElementById('transferDest').value = 'issaquah';
+
+  // Show/hide On Demand option based on source
+  const destSelect = document.getElementById('transferDest');
+  const odOption = destSelect.querySelector('option[value="ondemand-renton"]');
+  if (fromSource === 'ondemand-renton') {
+    odOption.style.display = 'none';
+  } else {
+    odOption.style.display = '';
+  }
+
+  document.getElementById('transferModal').classList.add('visible');
+}
+
+function closeTransferModal() {
+  document.getElementById('transferModal').classList.remove('visible');
+  transferModalItem = null;
+}
+
+async function confirmUnifiedTransfer() {
+  if (!transferModalItem) return;
+  const qty = Number(document.getElementById('transferQty').value || 0);
+  if (qty <= 0) { showToast('Enter a quantity to transfer'); return; }
+  if (qty > transferModalItem.currentCount) { showToast('Cannot transfer more than available'); return; }
+
+  const authorizedBy = document.getElementById('transferAuthorizedBy').value.trim();
+  if (!authorizedBy) { showToast('Authorized By is required'); return; }
+
+  const dest = document.getElementById('transferDest').value;
+  const fromSource = transferModalItem.fromSource;
+
+  // Deduct from source count (only for warehouse sections with tracked counts)
+  if (fromSource === 'warehouse' && transferModalItem.itemId && transferModalItem.section) {
+    const wk = dateKey();
+    const newCount = transferModalItem.currentCount - qty;
+    setField(wk, transferModalItem.section, transferModalItem.itemId, 'count', newCount);
+  }
+
+  // Log to Firestore with pending status
+  if (auth.currentUser) {
+    try {
+      await db.collection('warehouse_transfers').add({
+        itemId: transferModalItem.itemId || null,
+        itemName: transferModalItem.itemName,
+        quantity: qty,
+        from: fromSource,
+        fromName: FROM_NAMES[fromSource] || fromSource,
+        to: dest,
+        toName: DEST_NAMES[dest] || dest,
+        section: transferModalItem.section || 'frozen',
+        status: 'pending',
+        authorizedBy: authorizedBy,
+        date: new Date().toLocaleDateString(),
+        timestamp: new Date(),
+        transferredBy: auth.currentUser.email
+      });
+
+      // Send email notification
+      sendTransferNotification({
+        itemName: transferModalItem.itemName,
+        quantity: qty,
+        from: FROM_NAMES[fromSource] || fromSource,
+        to: DEST_NAMES[dest] || dest,
+        authorizedBy: authorizedBy,
+        transferredBy: auth.currentUser.email,
+        date: new Date().toLocaleDateString()
+      });
+
+    } catch(e) { console.error('Transfer save error:', e); }
+  }
+
+  showToast(`Transfer pending: ${qty} × ${transferModalItem.itemName} → ${DEST_NAMES[dest]}`);
+  closeTransferModal();
+  render();
+}
+
+// ==================== CONTAINERS RECEIVED TAB ====================
+function setContainerFilter(type, val) {
+  if (type === 'vendor') containerFilterVendor = val;
+  if (type === 'date') containerFilterDate = val;
+  renderContainersTab();
+}
+function setContainerSort(val) {
+  containerSort = val;
+  renderContainersTab();
+}
+function toggleShipment(idx) {
+  expandedShipments[idx] = !expandedShipments[idx];
+  renderContainersTab();
+}
+function expandAllShipments() {
+  for (var i = 0; i < SHIPMENTS.length; i++) expandedShipments[i] = true;
+  renderContainersTab();
+}
+function collapseAllShipments() {
+  expandedShipments = {};
+  renderContainersTab();
+}
+
+// ==================== ADD CONTAINER MODAL ====================
+var newContainerItemCount = 0;
+
+function openAddContainerModal() {
+  newContainerItemCount = 0;
+  document.getElementById('newContainerDate').value = '';
+  document.getElementById('newContainerVendor').value = '';
+  document.getElementById('newContainerItems').innerHTML = '';
+  // Populate vendor suggestions from existing shipments
+  var existingVendors = [];
+  for (var i = 0; i < SHIPMENTS.length; i++) {
+    if (existingVendors.indexOf(SHIPMENTS[i].vendor) === -1) existingVendors.push(SHIPMENTS[i].vendor);
+  }
+  var dlHtml = '';
+  for (var v = 0; v < existingVendors.length; v++) {
+    dlHtml += '<option value="' + existingVendors[v] + '">';
+  }
+  document.getElementById('vendorSuggestions').innerHTML = dlHtml;
+  // Start with 3 empty item rows
+  addContainerItemRow();
+  addContainerItemRow();
+  addContainerItemRow();
+  document.getElementById('addContainerModal').classList.add('visible');
+}
+
+function closeAddContainerModal() {
+  document.getElementById('addContainerModal').classList.remove('visible');
+}
+
+function addContainerItemRow() {
+  var idx = newContainerItemCount++;
+  var row = document.createElement('div');
+  row.id = 'containerItemRow_' + idx;
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap';
+  row.innerHTML = '<input type="text" placeholder="Item name" style="flex:2;min-width:140px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:.88rem" data-field="name">' +
+    '<input type="number" placeholder="Cases" min="0" style="width:80px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:.88rem;text-align:center" data-field="qty">' +
+    '<input type="number" placeholder="Cost/unit" min="0" step="0.01" style="width:90px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:.88rem;text-align:center" data-field="costPerUnit">' +
+    '<button onclick="this.parentElement.remove()" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:.78rem;color:#dc2626">✕</button>';
+  document.getElementById('newContainerItems').appendChild(row);
+}
+
+function saveNewContainer() {
+  var dateVal = document.getElementById('newContainerDate').value;
+  var vendorVal = document.getElementById('newContainerVendor').value.trim();
+
+  if (!dateVal) { showToast('Please enter a date received'); return; }
+  if (!vendorVal) { showToast('Please enter a vendor name'); return; }
+
+  var rows = document.getElementById('newContainerItems').children;
+  var items = [];
+  for (var r = 0; r < rows.length; r++) {
+    var nameInput = rows[r].querySelector('[data-field="name"]');
+    var qtyInput = rows[r].querySelector('[data-field="qty"]');
+    var cpuInput = rows[r].querySelector('[data-field="costPerUnit"]');
+    var name = nameInput ? nameInput.value.trim() : '';
+    var qty = qtyInput ? Number(qtyInput.value) : 0;
+    var cpu = cpuInput ? cpuInput.value.trim() : '';
+    if (name && qty > 0) {
+      items.push({ name: name, qty: qty, costPerUnit: cpu || '' });
+    }
+  }
+
+  if (items.length === 0) { showToast('Add at least one item with a name and quantity'); return; }
+
+  // Add to SHIPMENTS array
+  SHIPMENTS.push({ date: dateVal, vendor: vendorVal, items: items });
+
+  // Also add items to frozen DEFAULT_ITEMS if they don't exist
+  var d = loadData();
+  if (!d.items) d.items = {};
+  if (!d.items.frozen) d.items.frozen = [];
+  var existingIds = d.items.frozen.map(function(fi) { return fi.id; });
+
+  // Determine subCategory key for this vendor
+  var subCatKey = vendorVal.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').substring(0, 20);
+  // Add vendor subCategory if it doesn't exist
+  if (!SECTIONS.frozen.subCategories[subCatKey]) {
+    SECTIONS.frozen.subCategories[subCatKey] = { name: vendorVal, icon: '📦', color: '#6b7280', receivedDate: new Date(dateVal).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) };
+  }
+
+  for (var ni = 0; ni < items.length; ni++) {
+    var itemId = items[ni].name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+    if (existingIds.indexOf(itemId) === -1) {
+      d.items.frozen.push({
+        id: itemId, name: items[ni].name, subCategory: subCatKey,
+        unit: 'case', par: 0, itemNumber: '', batchNumber: '',
+        vendor: vendorVal, receivedDate: dateVal
+      });
+      existingIds.push(itemId);
+    }
+  }
+
+  // Preload the week data with received quantities
+  var containerDateObj = new Date(dateVal);
+  var wk = containerDateObj.getFullYear() + '-' + String(containerDateObj.getMonth()+1).padStart(2,'0') + '-' + String(containerDateObj.getDate()).padStart(2,'0');
+  var dateDataKey = wk + '_frozen';
+  if (!d.weeks) d.weeks = {};
+  if (!d.weeks[dateDataKey]) d.weeks[dateDataKey] = {};
+  for (var pi = 0; pi < items.length; pi++) {
+    var pId = items[pi].name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+    if (!d.weeks[dateDataKey][pId]) d.weeks[dateDataKey][pId] = { count: items[pi].qty };
+  }
+
+  saveData(d);
+
+  // Auto-expand the new shipment
+  expandedShipments[SHIPMENTS.length - 1] = true;
+
+  showToast('Container added: ' + items.length + ' items from ' + vendorVal);
+  closeAddContainerModal();
+  renderContainersTab();
+}
+
+// ==================== ALL NON FROZEN TAB ====================
+function renderAllNonFrozenTab() {
+  const container = document.getElementById('tableWrap');
+  const d = loadData();
+  const dk = dateKey();
+  const nonFrozenSections = ['togo','supplies','ingredients','catering'];
+
+  // Determine which sections to show based on activeSection
+  const showSections = (activeSection === 'allnonfrozen') ? nonFrozenSections : [activeSection];
+
+  let html = '<div style="padding:8px 0">';
+
+  // Title row
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
+  html += '<h3 style="font-size:1.1rem;font-weight:700;color:var(--gray-900)">📋 All Non-Frozen Inventory</h3>';
+  html += '<span style="font-size:.82rem;color:var(--gray-500)">' + formatDate(currentDate) + '</span>';
+  html += '</div>';
+
+  // Category filter buttons
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">';
+  html += '<div class="tab ' + (activeSection === 'allnonfrozen' ? 'active' : '') + '" style="padding:6px 14px;font-size:.8rem;cursor:pointer" onclick="setSection(\'allnonfrozen\')">All</div>';
+  nonFrozenSections.forEach(function(secKey) {
+    var sec = SECTIONS[secKey];
+    var isActive = activeSection === secKey;
+    html += '<div class="tab ' + (isActive ? 'active' : '') + '" style="padding:6px 14px;font-size:.8rem;cursor:pointer" onclick="setSection(\'' + secKey + '\')">' + sec.icon + ' ' + sec.name + '</div>';
+  });
+  html += '</div>';
+
+  // Render each visible section
+  showSections.forEach(function(secKey) {
+    const sec = SECTIONS[secKey];
+    const sectionItems = (d.items && d.items[secKey]) || [];
+    if (sectionItems.length === 0) return;
+    const weekData = getWeekData(dk, secKey);
+
+    html += '<div style="margin-bottom:24px">';
+    if (showSections.length > 1) {
+      html += '<h4 style="font-size:.95rem;font-weight:700;color:' + sec.color + ';margin-bottom:8px;padding:8px 12px;background:var(--gray-50);border-radius:6px;border-left:4px solid ' + sec.color + '">' + sec.icon + ' ' + sec.name + '</h4>';
+    }
+
+    html += '<table><thead><tr>';
+    html += '<th>Item</th><th>Cost Center</th><th>Unit</th><th>Count</th><th>Notes</th><th>Transfer</th>';
+    html += '</tr></thead><tbody>';
+
+    // Group by subCategory
+    var grouped = {};
+    sectionItems.forEach(function(item) {
+      var cat = item.subCategory || 'other';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(item);
+    });
+
+    Object.keys(sec.subCategories).forEach(function(catKey) {
+      if (!grouped[catKey]) return;
+      var cat = sec.subCategories[catKey];
+      html += '<tr class="section-header"><td colspan="6" style="border-left:4px solid ' + cat.color + '">' + cat.icon + ' ' + cat.name + '</td></tr>';
+
+      grouped[catKey].forEach(function(item) {
+        var data = weekData[item.id] || {};
+        var count = data.count !== undefined && data.count !== '' ? Number(data.count) : '';
+        var escapedName = item.name.replace(/'/g, "\\'");
+
+        html += '<tr>';
+        html += '<td>' + item.name + '</td>';
+        html += '<td style="font-size:.78rem;color:var(--gray-500)">' + (item.costCenter || '') + '</td>';
+        html += '<td style="font-size:.78rem;color:var(--gray-500)">' + item.unit + '</td>';
+        html += '<td style="text-align:center;font-weight:600">' + (count === '' ? '—' : count) + '</td>';
+        html += '<td style="font-size:.82rem;color:var(--gray-500)">' + (data.notes || '') + '</td>';
+        html += '<td><button class="btn-transfer" onclick="openTransferModal(\'' + item.id + '\',\'' + escapedName + '\',' + (count||0) + ',\'warehouse\',\'' + secKey + '\')">→ Transfer</button></td>';
+        html += '</tr>';
+      });
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderContainersTab() {
+  var container = document.getElementById('tableWrap');
+  var savedData = loadData();
+  var frozenItems = (savedData.items && savedData.items.frozen) || [];
+
+  // Build unique vendor/date lists
+  var vendors = [], dates = [];
+  for (var vi = 0; vi < SHIPMENTS.length; vi++) {
+    if (vendors.indexOf(SHIPMENTS[vi].vendor) === -1) vendors.push(SHIPMENTS[vi].vendor);
+    if (dates.indexOf(SHIPMENTS[vi].date) === -1) dates.push(SHIPMENTS[vi].date);
+  }
+  dates.sort().reverse();
+
+  // Filter
+  var filtered = [];
+  for (var fi2 = 0; fi2 < SHIPMENTS.length; fi2++) {
+    var sh = SHIPMENTS[fi2];
+    if (containerFilterVendor !== 'all' && sh.vendor !== containerFilterVendor) continue;
+    if (containerFilterDate !== 'all' && sh.date !== containerFilterDate) continue;
+    filtered.push({ shipment: sh, origIndex: fi2 });
+  }
+
+  // Sort
+  filtered.sort(function(a, b) {
+    var sa = a.shipment, sb = b.shipment;
+    switch (containerSort) {
+      case 'date-desc': return new Date(sb.date) - new Date(sa.date);
+      case 'date-asc': return new Date(sa.date) - new Date(sb.date);
+      case 'vendor-az': return sa.vendor.localeCompare(sb.vendor);
+      case 'vendor-za': return sb.vendor.localeCompare(sa.vendor);
+      case 'qty-desc': return sb.items.reduce(function(s,i){return s+i.qty},0) - sa.items.reduce(function(s,i){return s+i.qty},0);
+      case 'qty-asc': return sa.items.reduce(function(s,i){return s+i.qty},0) - sb.items.reduce(function(s,i){return s+i.qty},0);
+      default: return 0;
+    }
+  });
+
+  var totalCases = filtered.reduce(function(sum, f) { return sum + f.shipment.items.reduce(function(s2, i) { return s2 + i.qty; }, 0); }, 0);
+
+  var html = '<div style="padding:8px 0">';
+
+  // Header
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">';
+  html += '<div style="display:flex;align-items:center;gap:12px">';
+  html += '<h3 style="font-size:1.1rem;font-weight:700;color:var(--gray-900)">📦 Containers Received from Pakistan</h3>';
+  html += '<button onclick="openAddContainerModal()" style="padding:7px 16px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px">+ Add Container</button>';
+  html += '</div>';
+  html += '<span style="font-size:.82rem;color:var(--gray-500)">' + filtered.length + ' shipment' + (filtered.length !== 1 ? 's' : '') + ' · ' + totalCases.toLocaleString() + ' total cases</span>';
+  html += '</div>';
+
+  // Filter / Sort / Expand bar
+  html += '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px 16px;background:#fff;border-radius:8px;border:1px solid var(--gray-200)">';
+
+  // Vendor filter
+  html += '<div style="display:flex;align-items:center;gap:6px">';
+  html += '<label style="font-size:.78rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px">Vendor:</label>';
+  html += '<select onchange="setContainerFilter(\'vendor\',this.value)" style="padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;font-weight:500">';
+  html += '<option value="all"' + (containerFilterVendor === 'all' ? ' selected' : '') + '>All Vendors</option>';
+  for (var vv = 0; vv < vendors.length; vv++) {
+    html += '<option value="' + vendors[vv] + '"' + (containerFilterVendor === vendors[vv] ? ' selected' : '') + '>' + vendors[vv] + '</option>';
+  }
+  html += '</select></div>';
+
+  // Date filter
+  html += '<div style="display:flex;align-items:center;gap:6px">';
+  html += '<label style="font-size:.78rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px">Date:</label>';
+  html += '<select onchange="setContainerFilter(\'date\',this.value)" style="padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;font-weight:500">';
+  html += '<option value="all"' + (containerFilterDate === 'all' ? ' selected' : '') + '>All Dates</option>';
+  for (var dd = 0; dd < dates.length; dd++) {
+    var dLabel = new Date(dates[dd]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    html += '<option value="' + dates[dd] + '"' + (containerFilterDate === dates[dd] ? ' selected' : '') + '>' + dLabel + '</option>';
+  }
+  html += '</select></div>';
+
+  // Sort
+  html += '<div style="display:flex;align-items:center;gap:6px">';
+  html += '<label style="font-size:.78rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px">Sort:</label>';
+  html += '<select onchange="setContainerSort(this.value)" style="padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;font-weight:500">';
+  var sortOpts = [['date-desc','Date (Newest)'],['date-asc','Date (Oldest)'],['vendor-az','Vendor (A-Z)'],['vendor-za','Vendor (Z-A)'],['qty-desc','Cases (Most)'],['qty-asc','Cases (Least)']];
+  for (var so = 0; so < sortOpts.length; so++) {
+    html += '<option value="' + sortOpts[so][0] + '"' + (containerSort === sortOpts[so][0] ? ' selected' : '') + '>' + sortOpts[so][1] + '</option>';
+  }
+  html += '</select></div>';
+
+  // Expand / Collapse all
+  html += '<div style="margin-left:auto;display:flex;gap:6px">';
+  html += '<button onclick="expandAllShipments()" style="padding:5px 12px;border:1px solid var(--gray-300);border-radius:6px;background:var(--gray-50);font-size:.78rem;font-weight:600;cursor:pointer;color:var(--gray-600)">Expand All</button>';
+  html += '<button onclick="collapseAllShipments()" style="padding:5px 12px;border:1px solid var(--gray-300);border-radius:6px;background:var(--gray-50);font-size:.78rem;font-weight:600;cursor:pointer;color:var(--gray-600)">Collapse All</button>';
+  html += '</div>';
+  html += '</div>';
+
+  // No results
+  if (filtered.length === 0) {
+    html += '<div style="text-align:center;padding:48px 24px;color:var(--gray-400)">';
+    html += '<div style="font-size:2rem;margin-bottom:8px">📦</div>';
+    html += '<div style="font-size:.95rem;font-weight:600">No shipments match the current filters</div>';
+    html += '</div>';
+  }
+
+  // Shipment cards (expandable)
+  for (var si = 0; si < filtered.length; si++) {
+    var ship = filtered[si].shipment;
+    var origIdx = filtered[si].origIndex;
+    var isExpanded = !!expandedShipments[origIdx];
+    var shipDate = new Date(ship.date);
+    var shipDateFull = shipDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    var shipCases = ship.items.reduce(function(sum, i) { return sum + i.qty; }, 0);
+    var shipValue = ship.items.reduce(function(sum, i) { return sum + (i.costPerUnit ? i.qty * Number(i.costPerUnit) : 0); }, 0);
+    var hasAnyCost = ship.items.some(function(i) { return !!i.costPerUnit; });
+    var chevron = isExpanded ? '▼' : '▶';
+
+    html += '<div style="margin-bottom:12px;border:1px solid var(--gray-200);border-radius:10px;overflow:hidden;background:#fff">';
+
+    // Clickable header row
+    html += '<div onclick="toggleShipment(' + origIdx + ')" style="cursor:pointer;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:background .15s;';
+    if (isExpanded) html += 'border-bottom:2px solid var(--primary);background:var(--primary-bg)';
+    html += '">';
+
+    // Chevron
+    html += '<span style="font-size:.9rem;color:var(--primary);width:20px;text-align:center;flex-shrink:0">' + chevron + '</span>';
+
+    // Date - big and prominent
+    html += '<div style="min-width:220px">';
+    html += '<div style="font-size:1.15rem;font-weight:800;color:var(--gray-900)">' + shipDateFull + '</div>';
+    html += '</div>';
+
+    // Vendor
+    html += '<div style="flex:1;min-width:150px">';
+    html += '<div style="font-size:.68rem;color:var(--gray-400);text-transform:uppercase;font-weight:600;letter-spacing:.5px">Vendor</div>';
+    html += '<div style="font-size:.95rem;font-weight:700;color:var(--gray-800)">' + ship.vendor + '</div>';
+    html += '</div>';
+
+    // Total cases
+    html += '<div style="text-align:center;min-width:80px">';
+    html += '<div style="font-size:.68rem;color:var(--gray-400);text-transform:uppercase;font-weight:600;letter-spacing:.5px">Total Cases</div>';
+    html += '<div style="font-size:1.3rem;font-weight:800;color:var(--primary)">' + shipCases.toLocaleString() + '</div>';
+    html += '</div>';
+
+    // Items count
+    html += '<div style="text-align:center;min-width:60px">';
+    html += '<div style="font-size:.68rem;color:var(--gray-400);text-transform:uppercase;font-weight:600;letter-spacing:.5px">Items</div>';
+    html += '<div style="font-size:1.05rem;font-weight:700;color:var(--gray-600)">' + ship.items.length + '</div>';
+    html += '</div>';
+
+    // Total value
+    html += '<div style="text-align:center;min-width:90px">';
+    html += '<div style="font-size:.68rem;color:var(--gray-400);text-transform:uppercase;font-weight:600;letter-spacing:.5px">Total Value</div>';
+    if (hasAnyCost) {
+      html += '<div style="font-size:1.1rem;font-weight:800;color:var(--success)">$' + shipValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</div>';
+    } else {
+      html += '<div style="font-size:.95rem;font-weight:600;color:var(--gray-400)">—</div>';
+    }
+    html += '</div>';
+
+    html += '</div>'; // end header
+
+    // Expandable detail table
+    if (isExpanded) {
+      html += '<div style="padding:16px 20px">';
+      html += '<table><thead><tr><th>Item</th><th>Cases Received</th><th>Cost Per Unit</th><th>Item #</th><th>Batch #</th></tr></thead><tbody>';
+
+      for (var ii = 0; ii < ship.items.length; ii++) {
+        var itm = ship.items[ii];
+        var match = null;
+        for (var mi = 0; mi < frozenItems.length; mi++) {
+          if (frozenItems[mi].name.toLowerCase() === itm.name.toLowerCase()) { match = frozenItems[mi]; break; }
+        }
+        var cpuDisplay = itm.costPerUnit ? '$' + Number(itm.costPerUnit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+        html += '<tr>';
+        html += '<td style="font-weight:600">' + itm.name + '</td>';
+        html += '<td style="text-align:center;font-weight:700;font-size:1rem">' + itm.qty.toLocaleString() + '</td>';
+        html += '<td style="text-align:center;font-size:.88rem;color:var(--gray-700)">' + cpuDisplay + '</td>';
+        html += '<td style="text-align:center;font-size:.82rem;color:var(--gray-500)">' + (match && match.itemNumber ? match.itemNumber : '—') + '</td>';
+        html += '<td style="text-align:center;font-size:.82rem;color:var(--gray-500)">' + (match && match.batchNumber ? match.batchNumber : '—') + '</td>';
+        html += '</tr>';
+      }
+
+      html += '</tbody></table></div>';
+    }
+
+    html += '</div>'; // end card
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ==================== TRANSFERS TAB ====================
+// ==================== ON DEMAND RENTON TAB ====================
+function renderOnDemandTab() {
+  const container = document.getElementById('tableWrap');
+  const destNames = { issaquah: 'Issaquah - NNC', renton: 'Renton - NNC', 'ondemand-renton': 'On Demand Renton', babas: "Baba's Bellevue" };
+
+  // Build net stock: transfers IN (to ondemand-renton) minus transfers OUT (from ondemand-renton)
+  const stock = {}; // itemName => { qty, lastDate, transfers: [] }
+  cachedTransfers.forEach(t => {
+    if (t.to === 'ondemand-renton') {
+      if (!stock[t.itemName]) stock[t.itemName] = { qty: 0, lastDate: null, transfers: [] };
+      stock[t.itemName].qty += (t.quantity || 0);
+      stock[t.itemName].transfers.push(t);
+      if (!stock[t.itemName].lastDate || (t.timestamp && t.timestamp.toDate && t.timestamp.toDate() > stock[t.itemName].lastDate)) {
+        stock[t.itemName].lastDate = t.timestamp && t.timestamp.toDate ? t.timestamp.toDate() : null;
+      }
+    }
+    if (t.from === 'ondemand-renton') {
+      if (!stock[t.itemName]) stock[t.itemName] = { qty: 0, lastDate: null, transfers: [] };
+      stock[t.itemName].qty -= (t.quantity || 0);
+      stock[t.itemName].transfers.push(t);
+    }
+  });
+
+  const items = Object.entries(stock).filter(([,v]) => v.qty > 0).sort((a,b) => a[0].localeCompare(b[0]));
+  const totalItems = items.length;
+  const totalQty = items.reduce((sum,[,v]) => sum + v.qty, 0);
+
+  let html = `<div style="padding:8px 0">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      <div>
+        <h3 style="font-size:1.1rem;font-weight:700;color:#9333ea">⚡ On Demand Renton — Current Stock</h3>
+        <p style="font-size:.82rem;color:var(--gray-500);margin-top:4px">Rapid-access buffer stock held at Renton for immediate restaurant needs. Quantities are calculated from transfer history.</p>
+      </div>
+    </div>`;
+
+  // Stats
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
+    <div class="stat-card"><div class="label">Unique Items</div><div class="value">${totalItems}</div></div>
+    <div class="stat-card"><div class="label">Total Units</div><div class="value">${totalQty}</div></div>
+  </div>`;
+
+  if (items.length === 0) {
+    html += `<div style="text-align:center;padding:48px 24px;color:var(--gray-400)">
+      <div style="font-size:2rem;margin-bottom:8px">⚡</div>
+      <div style="font-size:.95rem;font-weight:600;margin-bottom:4px">No on-demand stock</div>
+      <div style="font-size:.85rem">Transfer items from Frozen Inventory using "→ Transfer" and select "On Demand Renton" as the destination</div>
+    </div>`;
+  } else {
+    html += `<table><thead><tr>
+      <th>Item</th><th style="text-align:center">Qty on Hand</th><th>Last Received</th><th>Transfer History</th><th>Transfer Out</th>
+    </tr></thead><tbody>`;
+
+    items.forEach(([name, data]) => {
+      const escapedName = name.replace(/'/g, "\\'");
+      const lastDate = data.lastDate ? data.lastDate.toLocaleDateString() : '—';
+      const inCount = data.transfers.filter(t => t.to === 'ondemand-renton').length;
+      const outCount = data.transfers.filter(t => t.from === 'ondemand-renton').length;
+      html += `<tr>
+        <td style="font-weight:600">${name}</td>
+        <td style="text-align:center;font-weight:700;color:#9333ea;font-size:1.05rem">${data.qty}</td>
+        <td style="font-size:.82rem;white-space:nowrap">${lastDate}</td>
+        <td style="font-size:.78rem;color:var(--gray-500)">${inCount} in${outCount > 0 ? ', ' + outCount + ' out' : ''}</td>
+        <td><button class="btn-transfer" onclick="openTransferModal(null,'${escapedName}',${data.qty},'ondemand-renton',null)">→ Send</button></td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// ==================== TRANSFER EMAIL NOTIFICATION ====================
+async function sendTransferNotification(details) {
+  const d = loadData();
+  if (!d.emailjs?.publicKey || !d.emailjs?.serviceId || !d.emailjs?.templateId || !d.emails) {
+    console.log('Email not configured — skipping transfer notification');
+    return;
+  }
+
+  const bodyHtml = `
+    <h2 style="color:#4338ca;margin-bottom:16px">📤 Inventory Transfer Notification</h2>
+    <table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;width:100%;max-width:500px">
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;border:1px solid #e5e7eb">Item</td>
+          <td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:700">${details.itemName}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;border:1px solid #e5e7eb">Quantity</td>
+          <td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:700;color:#dc2626">${details.quantity}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;border:1px solid #e5e7eb">From</td>
+          <td style="padding:8px 12px;border:1px solid #e5e7eb">${details.from}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;border:1px solid #e5e7eb">To</td>
+          <td style="padding:8px 12px;border:1px solid #e5e7eb">${details.to}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;border:1px solid #e5e7eb">Authorized By</td>
+          <td style="padding:8px 12px;border:1px solid #e5e7eb">${details.authorizedBy}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;border:1px solid #e5e7eb">Transferred By</td>
+          <td style="padding:8px 12px;border:1px solid #e5e7eb">${details.transferredBy}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;border:1px solid #e5e7eb">Date</td>
+          <td style="padding:8px 12px;border:1px solid #e5e7eb">${details.date}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;border:1px solid #e5e7eb">Status</td>
+          <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#d97706;font-weight:700">⏳ PENDING ACCEPTANCE</td></tr>
+    </table>
+    <p style="margin-top:16px;font-size:13px;color:#6b7280">This transfer requires acceptance at the receiving location. Please log in to the inventory system to accept this transfer.</p>
+  `;
+
+  try {
+    emailjs.init(d.emailjs.publicKey);
+    await emailjs.send(d.emailjs.serviceId, d.emailjs.templateId, {
+      to_email: d.emails,
+      subject: `Transfer Alert: ${details.quantity} × ${details.itemName} → ${details.to}`,
+      message_html: bodyHtml,
+      message: `Transfer: ${details.quantity} x ${details.itemName} from ${details.from} to ${details.to}. Authorized by: ${details.authorizedBy}. Status: PENDING ACCEPTANCE.`
+    });
+    console.log('Transfer notification sent');
+  } catch(e) {
+    console.error('Transfer notification failed:', e);
+  }
+}
+
+// ==================== TRANSFER ACCEPTANCE ====================
+async function acceptTransfer(transferId) {
+  try {
+    await db.collection('warehouse_transfers').doc(transferId).update({
+      status: 'accepted',
+      acceptedAt: new Date(),
+      acceptedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
+    });
+    showToast('Transfer accepted — inventory updated');
+    render();
+  } catch(e) {
+    console.error('Accept transfer error:', e);
+    showToast('Error accepting transfer');
+  }
+}
+
+async function rejectTransfer(transferId) {
+  try {
+    await db.collection('warehouse_transfers').doc(transferId).update({
+      status: 'rejected',
+      rejectedAt: new Date(),
+      rejectedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
+    });
+    showToast('Transfer rejected');
+    render();
+  } catch(e) {
+    console.error('Reject transfer error:', e);
+    showToast('Error rejecting transfer');
+  }
+}
+
+function setupTransfersListener() {
+  db.collection('warehouse_transfers').orderBy('timestamp', 'desc').limit(200).onSnapshot(snap => {
+    cachedTransfers = [];
+    snap.forEach(doc => { cachedTransfers.push({ ...doc.data(), _id: doc.id }); });
+    if (activeSection === 'transfers') renderTransfersTab();
+    if (activeSection === 'ondemand') renderOnDemandTab();
+    if (activeSection === 'frozen') render();
+  });
+}
+
+function renderTransfersTab() {
+  const container = document.getElementById('tableWrap');
+  const transfers = cachedTransfers;
+
+  const pending = transfers.filter(t => t.status === 'pending');
+  const completed = transfers.filter(t => t.status !== 'pending');
+
+  let html = `<div style="padding:8px 0">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 style="font-size:1.1rem;font-weight:700;color:var(--gray-900)">📤 Transfer History</h3>
+      <span style="font-size:.82rem;color:var(--gray-500)">${transfers.length} total · ${pending.length} pending</span>
+    </div>`;
+
+  if (transfers.length === 0) {
+    html += `<div style="text-align:center;padding:48px 24px;color:var(--gray-400)">
+      <div style="font-size:2rem;margin-bottom:8px">📤</div>
+      <div style="font-size:.95rem;font-weight:600;margin-bottom:4px">No transfers yet</div>
+      <div style="font-size:.85rem">Use the "→ Transfer" button on any item to log when items move to a restaurant</div>
+    </div>`;
+  } else {
+    // Pending transfers section
+    if (pending.length > 0) {
+      html += `<div style="margin-bottom:20px;padding:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:var(--radius)">
+        <h4 style="font-size:.92rem;font-weight:700;color:#92400e;margin-bottom:10px">⏳ Pending Transfers (${pending.length})</h4>
+        <table><thead><tr>
+          <th>Date</th><th>Item</th><th>Qty</th><th>From</th><th>To</th><th>Authorized By</th><th>Actions</th>
+        </tr></thead><tbody>`;
+      pending.forEach(t => {
+        html += `<tr style="background:#fffbeb">
+          <td style="white-space:nowrap">${t.date || '—'}</td>
+          <td style="font-weight:600">${t.itemName || '—'}</td>
+          <td style="text-align:center;font-weight:700;color:var(--danger)">${t.quantity || 0}</td>
+          <td style="font-size:.82rem">${t.fromName || (t.from === 'ondemand-renton' ? 'On Demand Renton' : 'Warehouse')}</td>
+          <td style="font-size:.82rem">${t.toName || DEST_NAMES[t.to] || t.to || '—'}</td>
+          <td style="font-size:.82rem;font-weight:600">${t.authorizedBy || '—'}</td>
+          <td>
+            <button class="btn btn-success btn-sm" onclick="acceptTransfer('${t._id}')" style="margin-right:4px">Accept</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectTransfer('${t._id}')">Reject</button>
+          </td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>`;
+    }
+
+    // Completed/rejected transfers
+    html += `<table><thead><tr>
+      <th>Date</th><th>Item</th><th>Qty</th><th>From</th><th>To</th><th>Authorized By</th><th>Status</th><th>Logged By</th>
+    </tr></thead><tbody>`;
+
+    completed.forEach(t => {
+      const statusLabel = t.status === 'accepted'
+        ? '<span style="color:var(--success);font-weight:700">✓ Accepted</span>'
+        : t.status === 'rejected'
+          ? '<span style="color:var(--danger);font-weight:700">✗ Rejected</span>'
+          : '<span style="color:var(--gray-400)">—</span>';
+      html += `<tr>
+        <td style="white-space:nowrap">${t.date || '—'}</td>
+        <td style="font-weight:600">${t.itemName || '—'}</td>
+        <td style="text-align:center;font-weight:700;color:var(--danger)">${t.quantity || 0}</td>
+        <td style="font-size:.82rem">${t.fromName || (t.from === 'ondemand-renton' ? 'On Demand Renton' : 'Warehouse')}</td>
+        <td style="font-size:.82rem">${t.toName || DEST_NAMES[t.to] || t.to || '—'}</td>
+        <td style="font-size:.82rem;font-weight:600">${t.authorizedBy || '—'}</td>
+        <td style="font-size:.82rem">${statusLabel}</td>
+        <td style="font-size:.82rem;color:var(--gray-500)">${t.transferredBy || '—'}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
 }
 
 // ==================== TOAST ====================

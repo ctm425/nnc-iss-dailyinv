@@ -455,6 +455,11 @@ let restaurantKey = 'nnc-iss';
 let sheetKey = 'nnc-drygoods'; // determined from URL
 let currentMode = SHEET_MODES['nnc-drygoods']; // active mode config
 
+// Transfer system
+const RESTAURANT_TO_TRANSFER_DEST = { 'nnc-iss': 'issaquah', 'nnc-renton': 'renton', 'babas-bel': 'babas' };
+let cachedIncomingTransfers = [];
+let unsubTransfers = null;
+
 // ==================== DATE HELPERS ====================
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -662,6 +667,7 @@ auth.onAuthStateChanged(async (user) => {
     document.getElementById('pageTitle').textContent = `${currentMode.icon} ${rest?.shortName || 'NNC'} — ${currentMode.title}`;
     document.getElementById('pageSubtitle').textContent = `${currentMode.title} — Inventory Count (2x Weekly)`;
     setupFirestoreListener();
+    setupTransferListener();
     render();
   } else {
     loginOverlay.classList.remove('hidden');
@@ -851,8 +857,9 @@ function renderTable() {
         status = '⛔ Critical'; statusClass = 'status-critical';
       }
 
+      const transferBadge = data.transferBadge ? `<span style="display:inline-block;margin-left:6px;padding:2px 6px;background:#dcfce7;color:#166534;border-radius:4px;font-size:.7rem;font-weight:600">${data.transferBadge}</span>` : '';
       html += `<tr>
-        <td>${item.name}</td>
+        <td>${item.name}${transferBadge}</td>
         <td style="font-size:.78rem;color:var(--gray-500)">${item.vendor || ''}</td>
         <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
         <td style="text-align:center;font-weight:600">${par}</td>
@@ -1256,6 +1263,134 @@ async function sendEmailReport() {
 }
 
 // ==================== TOAST ====================
+// ==================== INCOMING TRANSFERS ====================
+function setupTransferListener() {
+  const destKey = RESTAURANT_TO_TRANSFER_DEST[restaurantKey];
+  if (!destKey) return;
+  if (unsubTransfers) { unsubTransfers(); unsubTransfers = null; }
+  unsubTransfers = db.collection('warehouse_transfers')
+    .where('to', '==', destKey)
+    .orderBy('timestamp', 'desc')
+    .limit(100)
+    .onSnapshot(snap => {
+      cachedIncomingTransfers = [];
+      snap.forEach(doc => { cachedIncomingTransfers.push({ ...doc.data(), _id: doc.id }); });
+      renderIncomingTransfers();
+    });
+}
+
+function renderIncomingTransfers() {
+  let el = document.getElementById('incomingTransfersSection');
+  if (!el) {
+    // Create the section above the table
+    el = document.createElement('div');
+    el.id = 'incomingTransfersSection';
+    const tableWrap = document.getElementById('tableWrap');
+    tableWrap.parentNode.insertBefore(el, tableWrap);
+  }
+
+  const pending = cachedIncomingTransfers.filter(t => t.status === 'pending');
+  const recentAccepted = cachedIncomingTransfers.filter(t => t.status === 'accepted').slice(0, 10);
+
+  if (pending.length === 0 && recentAccepted.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  let html = '<div style="padding:12px 24px">';
+
+  // Pending transfers — need acceptance
+  if (pending.length > 0) {
+    html += `<div style="margin-bottom:16px;padding:16px;background:#fffbeb;border:2px solid #f59e0b;border-radius:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:1rem;font-weight:700;color:#92400e">⏳ Pending Incoming Transfers (${pending.length})</h3>
+        <span style="font-size:.78rem;color:#92400e">Requires acceptance to update inventory</span>
+      </div>
+      <table style="min-width:auto"><thead><tr>
+        <th>Date</th><th>Item</th><th>Qty</th><th>From</th><th>Authorized By</th><th>Actions</th>
+      </tr></thead><tbody>`;
+
+    pending.forEach(t => {
+      html += `<tr style="background:#fffbeb">
+        <td style="white-space:nowrap;font-size:.82rem">${t.date || '—'}</td>
+        <td style="font-weight:700">${t.itemName || '—'}</td>
+        <td style="text-align:center;font-weight:700;color:#dc2626;font-size:1.05rem">+${t.quantity || 0}</td>
+        <td style="font-size:.82rem">${t.fromName || 'Warehouse'}</td>
+        <td style="font-size:.82rem;font-weight:600">${t.authorizedBy || '—'}</td>
+        <td style="white-space:nowrap">
+          <button onclick="acceptIncomingTransfer('${t._id}','${(t.itemName||'').replace(/'/g,"\\'")}',${t.quantity||0})" style="padding:4px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;margin-right:4px">✓ Accept</button>
+          <button onclick="rejectIncomingTransfer('${t._id}')" style="padding:4px 10px;background:#dc2626;color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer">✗ Reject</button>
+        </td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Recently accepted — with badge
+  if (recentAccepted.length > 0) {
+    html += `<div style="margin-bottom:8px;padding:12px;background:#ecfdf5;border:1px solid #86efac;border-radius:8px">
+      <h4 style="font-size:.88rem;font-weight:700;color:#166534;margin-bottom:8px">✓ Recently Accepted Transfers</h4>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">`;
+    recentAccepted.forEach(t => {
+      html += `<div style="padding:6px 12px;background:#fff;border:1px solid #bbf7d0;border-radius:6px;font-size:.8rem">
+        <strong>+${t.quantity}</strong> ${t.itemName} <span style="color:#6b7280">from ${t.fromName||'Warehouse'}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function acceptIncomingTransfer(transferId, itemName, quantity) {
+  try {
+    // Update transfer status
+    await db.collection('warehouse_transfers').doc(transferId).update({
+      status: 'accepted',
+      acceptedAt: new Date(),
+      acceptedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
+    });
+
+    // Try to increment inventory count for matching item
+    const d = loadData();
+    const items = d.items || [];
+    const wk = weekKey();
+    const weekData = getWeekData(wk);
+
+    // Find matching item by name (case-insensitive)
+    const matchedItem = items.find(item => item.name.toLowerCase() === itemName.toLowerCase());
+    if (matchedItem) {
+      const currentCount = weekData[matchedItem.id]?.count;
+      const newCount = (currentCount !== undefined && currentCount !== '' ? Number(currentCount) : 0) + quantity;
+      setField(wk, matchedItem.id, 'count', newCount);
+      setField(wk, matchedItem.id, 'transferBadge', `+${quantity} from transfer`);
+      showToast(`Accepted: +${quantity} ${itemName} added to inventory`);
+    } else {
+      showToast(`Transfer accepted (item "${itemName}" not found in this sheet — count not auto-updated)`);
+    }
+
+    render();
+  } catch(e) {
+    console.error('Accept transfer error:', e);
+    showToast('Error accepting transfer');
+  }
+}
+
+async function rejectIncomingTransfer(transferId) {
+  try {
+    await db.collection('warehouse_transfers').doc(transferId).update({
+      status: 'rejected',
+      rejectedAt: new Date(),
+      rejectedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
+    });
+    showToast('Transfer rejected');
+  } catch(e) {
+    console.error('Reject transfer error:', e);
+    showToast('Error rejecting transfer');
+  }
+}
+
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
