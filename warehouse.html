@@ -232,6 +232,13 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
       </select>
     </div>
     <div class="modal-field">
+      <label>Transfer Date:</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="date" id="transferDate" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem;flex:1">
+        <button type="button" onclick="document.getElementById('transferDate').value=new Date().toISOString().split('T')[0]" style="padding:6px 10px;background:var(--gray-100);border:1px solid var(--gray-300);border-radius:6px;font-size:.78rem;cursor:pointer;white-space:nowrap">Today</button>
+      </div>
+    </div>
+    <div class="modal-field">
       <label>Authorized By: <span style="color:var(--danger)">*</span></label>
       <input type="text" id="transferAuthorizedBy" placeholder="Name of person authorizing this transfer" style="width:100%;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem">
     </div>
@@ -1218,6 +1225,7 @@ function openTransferModal(itemId, itemName, currentCount, fromSource, section) 
   document.getElementById('transferCountLabel').textContent = fromSource === 'ondemand-renton' ? 'On Hand:' : 'Current Count:';
   document.getElementById('transferFromName').textContent = FROM_NAMES[fromSource || 'warehouse'] || 'Warehouse';
   document.getElementById('transferQty').value = '';
+  document.getElementById('transferDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('transferAuthorizedBy').value = '';
   document.getElementById('transferDest').value = 'issaquah';
 
@@ -1247,6 +1255,13 @@ async function confirmUnifiedTransfer() {
   const authorizedBy = document.getElementById('transferAuthorizedBy').value.trim();
   if (!authorizedBy) { showToast('Authorized By is required'); return; }
 
+  const transferDateVal = document.getElementById('transferDate').value;
+  if (!transferDateVal) { showToast('Please select a transfer date'); return; }
+
+  // Parse the selected date for display and timestamp
+  const transferDateObj = new Date(transferDateVal + 'T12:00:00');
+  const transferDateDisplay = transferDateObj.toLocaleDateString();
+
   const dest = document.getElementById('transferDest').value;
   const fromSource = transferModalItem.fromSource;
 
@@ -1271,8 +1286,10 @@ async function confirmUnifiedTransfer() {
         section: transferModalItem.section || 'frozen',
         status: 'pending',
         authorizedBy: authorizedBy,
-        date: new Date().toLocaleDateString(),
-        timestamp: new Date(),
+        date: transferDateDisplay,
+        transferDate: transferDateVal,
+        timestamp: transferDateObj,
+        createdAt: new Date(),
         transferredBy: auth.currentUser.email
       });
 
@@ -1284,7 +1301,7 @@ async function confirmUnifiedTransfer() {
         to: DEST_NAMES[dest] || dest,
         authorizedBy: authorizedBy,
         transferredBy: auth.currentUser.email,
-        date: new Date().toLocaleDateString()
+        date: transferDateDisplay
       });
 
     } catch(e) { console.error('Transfer save error:', e); }
