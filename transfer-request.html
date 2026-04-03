@@ -471,7 +471,7 @@ async function submitTransferRequest() {
 
 // ==================== OUTSTANDING BALANCES ====================
 function renderBalances() {
-  const accepted = allTransfers.filter(t => t.status === 'accepted');
+  const accepted = allTransfers.filter(t => t.status === 'accepted' && t.from !== 'renton-wh' && t.to !== 'renton-wh');
   const balanceMap = {};
 
   accepted.forEach(t => {

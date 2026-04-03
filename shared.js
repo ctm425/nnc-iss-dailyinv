@@ -209,7 +209,7 @@ const SHEET_TYPES = {
     description: 'Meat cutting & prep tracking — weight, fat, water content, wastage.\nRegistro de corte y preparación de carne — peso, grasa, contenido de agua, desperdicio.',
     allowedRoles: ['owner', 'manager', 'kitchen'],
     page: null,
-    restaurants: ['renton-wh'],
+    restaurants: ['nnc-renton'],
     comingSoon: true
   },
 

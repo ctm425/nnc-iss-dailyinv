@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>On Demand Renton Inventory</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="shared.js"></script>
+<style>
+:root {
+  --primary: #9333ea;
+  --primary-light: #a855f7;
+  --primary-bg: #f3e8ff;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --amber: #d97706;
+  --amber-bg: #fffbeb;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-900: #111827;
+  --radius: 10px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-900);
+  min-height: 100vh;
+}
+
+/* Login */
+.login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #9333ea, #7e22ce);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.login-overlay.hidden {
+  display: none;
+}
+
+.login-box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 40px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.login-box h2 {
+  color: var(--primary);
+  margin-bottom: 6px;
+  font-size: 1.4rem;
+}
+
+.login-box .subtitle {
+  color: var(--gray-500);
+  margin-bottom: 24px;
+  font-size: 0.9rem;
+}
+
+.login-box input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+}
+
+.login-box input:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+}
+
+.login-box button {
+  width: 100%;
+  padding: 12px;
+  background: var(--primary-light);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-box button:hover {
+  background: var(--primary);
+}
+
+.login-error {
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+  display: none;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #9333ea, #7e22ce);
+  color: #fff;
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.header h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.header-sub {
+  opacity: 0.85;
+  font-size: 0.85rem;
+}
+
+.header-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.header-right span {
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.btn-primary {
+  background: var(--primary-light);
+  color: #fff;
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-white {
+  background: #fff;
+  color: var(--gray-700);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-success {
+  background: var(--success);
+  color: #fff;
+}
+
+/* Main container */
+.dashboard {
+  padding: 32px;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+/* Quick stats */
+.quick-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.quick-stat {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 20px;
+  border: 1px solid var(--gray-200);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.quick-stat .label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.quick-stat .value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-top: 6px;
+  color: var(--primary);
+}
+
+.quick-stat .sub {
+  font-size: 0.78rem;
+  color: var(--gray-400);
+  margin-top: 2px;
+}
+
+/* Filter bar */
+.filter-bar {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  border: 1px solid var(--gray-200);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-bar .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-bar label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.filter-bar input,
+.filter-bar select {
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: #fff;
+  color: var(--gray-900);
+}
+
+.filter-bar input:focus,
+.filter-bar select:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px var(--primary-bg);
+}
+
+.filter-bar input[type="text"] {
+  width: 280px;
+  min-width: 200px;
+}
+
+.filter-bar select {
+  width: 180px;
+  cursor: pointer;
+}
+
+/* Table styles */
+.table-wrap {
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead {
+  background: var(--gray-100);
+  border-bottom: 2px solid var(--gray-200);
+}
+
+th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+th:hover {
+  background: var(--gray-200);
+}
+
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 0.9rem;
+}
+
+tbody tr:hover {
+  background: var(--primary-bg);
+}
+
+.item-name {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.category-badge.frozen {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.category-badge.togo {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.category-badge.supplies {
+  background: #dbeafe;
+  color: #0284c7;
+}
+
+.category-badge.ingredients {
+  background: #f5e6ff;
+  color: #7c3aed;
+}
+
+.category-badge.catering {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.quantity-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  min-width: 50px;
+  text-align: center;
+}
+
+.quantity-badge.normal {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.quantity-badge.low {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.quantity-badge.critical {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.action-cell {
+  text-align: center;
+}
+
+.btn-transfer {
+  padding: 6px 12px;
+  background: var(--primary-light);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn-transfer:hover {
+  background: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--gray-500);
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  font-size: 1.1rem;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.modal-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 500px;
+  padding: 0;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--gray-400);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: var(--gray-700);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-body .form-group {
+  margin-bottom: 20px;
+}
+
+.modal-body label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+}
+
+.modal-body input,
+.modal-body select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+  color: var(--gray-900);
+}
+
+.modal-body input:focus,
+.modal-body select:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px var(--primary-bg);
+}
+
+.modal-body input[type="number"] {
+  font-family: monospace;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.modal-footer button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modal-footer .btn-cancel {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.modal-footer .btn-cancel:hover {
+  background: var(--gray-200);
+}
+
+.modal-footer .btn-submit {
+  background: var(--primary-light);
+  color: #fff;
+}
+
+.modal-footer .btn-submit:hover {
+  background: var(--primary);
+}
+
+.modal-footer .btn-submit:disabled {
+  background: var(--gray-300);
+  color: var(--gray-500);
+  cursor: not-allowed;
+}
+
+/* Toast notifications */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+#toast.success {
+  background: var(--success);
+}
+
+#toast.error {
+  background: var(--danger);
+}
+
+/* Loading state */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--gray-500);
+}
+
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--primary-bg);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 16px;
+  }
+
+  .header {
+    padding: 16px;
+  }
+
+  .quick-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-bar input[type="text"],
+  .filter-bar select {
+    width: 100%;
+  }
+
+  th {
+    font-size: 0.65rem;
+    padding: 8px 10px;
+  }
+
+  td {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+  }
+
+  .btn-transfer {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+
+  .modal {
+    width: 95%;
+    max-width: 100%;
+  }
+
+  .modal-header {
+    padding: 16px;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+
+  .modal-footer {
+    padding: 12px 16px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Login Overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>On Demand Renton</h2>
+    <p class="subtitle">Inventory Management</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email" />
+    <input type="password" id="loginPassword" placeholder="Password" />
+    <button id="loginBtn">Sign In</button>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="appContainer" style="display: none;">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>⚡ On Demand Renton</h1>
+      <div class="header-sub">Buffer Stock Inventory</div>
+    </div>
+    <div class="header-right">
+      <span id="userEmail"></span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+      <button class="btn btn-ghost btn-sm" id="backBtn">← Dashboard</button>
+    </div>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div class="dashboard">
+    <!-- Quick Stats -->
+    <div class="quick-stats">
+      <div class="quick-stat">
+        <div class="label">Total Items</div>
+        <div class="value" id="totalItems">0</div>
+        <div class="sub">Unique items in stock</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Total Quantity</div>
+        <div class="value" id="totalQuantity">0</div>
+        <div class="sub">Units on hand</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Low Stock</div>
+        <div class="value" id="lowStockCount">0</div>
+        <div class="sub">Items qty ≤ 1</div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <label for="searchInput">Search Item</label>
+        <input type="text" id="searchInput" placeholder="Filter by item name..." />
+      </div>
+      <div class="filter-group">
+        <label for="categoryFilter">Category</label>
+        <select id="categoryFilter">
+          <option value="">All Categories</option>
+          <option value="frozen">Frozen</option>
+          <option value="togo">To-Go</option>
+          <option value="supplies">Supplies</option>
+          <option value="ingredients">Ingredients</option>
+          <option value="catering">Catering</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="sortSelect">Sort By</label>
+        <select id="sortSelect">
+          <option value="name-asc">Name (A-Z)</option>
+          <option value="name-desc">Name (Z-A)</option>
+          <option value="qty-desc">Quantity (High to Low)</option>
+          <option value="qty-asc">Quantity (Low to High)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table id="inventoryTable">
+        <thead>
+          <tr>
+            <th>Item Name</th>
+            <th>Category</th>
+            <th>On Hand</th>
+            <th>Unit</th>
+            <th>Last Received</th>
+            <th>Transfers</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr>
+            <td colspan="7" class="empty-state">
+              <div class="empty-state-icon">📦</div>
+              <h3>Loading inventory...</h3>
+              <p>Fetching items from warehouse...</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Transfer Modal -->
+<div class="modal-overlay" id="transferModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Transfer Item</h2>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="transferItem">Item</label>
+        <select id="transferItem">
+          <option value="">Select an item...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>On Hand</label>
+        <div id="transferOnHand" style="font-size:1.1rem;font-weight:700;color:var(--primary);padding:4px 0">—</div>
+      </div>
+      <div class="form-group">
+        <label for="transferQuantity">Quantity to Transfer</label>
+        <input type="number" id="transferQuantity" placeholder="0" min="0.1" step="any" />
+      </div>
+      <div class="form-group">
+        <label for="transferDestination">Transfer To</label>
+        <select id="transferDestination">
+          <option value="">Select destination...</option>
+          <option value="nnc-iss">Issaquah - NNC</option>
+          <option value="nnc-renton">Renton - NNC</option>
+          <option value="babas-bel">Baba's Bellevue</option>
+          <option value="renton-wh">Warehouse (Return)</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-footer btn-cancel" id="modalCancel">Cancel</button>
+      <button class="modal-footer btn-submit" id="modalSubmit">Transfer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== STATE ====================
+// Mirror the exact approach from warehouse.html's renderOnDemandTab()
+// cachedTransfers holds ALL warehouse_transfers docs from onSnapshot
+let cachedTransfers = [];
+let warehouseItems = []; // Config items from warehouse_renton-wh
+let currentTransferItem = null;
+
+// ==================== INITIALIZATION ====================
+firebase.auth().onAuthStateChanged(async (user) => {
+  if (user) {
+    await loadUserProfile();
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('appContainer').style.display = 'block';
+    document.getElementById('userEmail').textContent = user.email;
+
+    await loadWarehouseConfig();
+    populateTransferItemDropdown();
+    setupTransfersListener();
+  } else {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    document.getElementById('appContainer').style.display = 'none';
+  }
+});
+
+async function loadWarehouseConfig() {
+  try {
+    const doc = await db.collection('warehouse_config').doc('warehouse_renton-wh').get();
+    if (doc.exists) {
+      const data = doc.data();
+      warehouseItems = [];
+      ['frozen', 'togo', 'supplies', 'ingredients', 'catering'].forEach(category => {
+        if (data.items && data.items[category]) {
+          data.items[category].forEach(item => {
+            warehouseItems.push({
+              id: item.id,
+              name: item.name,
+              category: category,
+              unit: item.unit || '',
+              subCategory: item.subCategory || ''
+            });
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Error loading warehouse config:', err);
+  }
+}
+
+function setupTransfersListener() {
+  // Real-time listener — same pattern as warehouse.html's setupTransfersListener
+  db.collection('warehouse_transfers')
+    .orderBy('timestamp', 'desc')
+    .onSnapshot(snap => {
+      cachedTransfers = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        d._id = doc.id;
+        cachedTransfers.push(d);
+      });
+      recalcAndRender();
+    }, err => console.error('Transfer listener error:', err));
+}
+
+// ==================== CORE LOGIC (mirrors warehouse.html renderOnDemandTab) ====================
+function buildStock() {
+  // Exact same logic as warehouse.html's renderOnDemandTab():
+  // Build net stock: transfers IN (to ondemand-renton) minus transfers OUT (from ondemand-renton)
+  const stock = {}; // itemName => { qty, lastDate, transfers: [], inCount, outCount }
+
+  cachedTransfers.forEach(t => {
+    if (t.status === 'rejected') return;
+    const name = t.itemName;
+    if (!name) return;
+
+    if (t.to === 'ondemand-renton') {
+      if (!stock[name]) stock[name] = { qty: 0, lastDate: null, transfers: [], inCount: 0, outCount: 0 };
+      stock[name].qty += (t.quantity || 0);
+      stock[name].inCount++;
+      stock[name].transfers.push(t);
+      // Track last received date
+      const tDate = t.timestamp && t.timestamp.toDate ? t.timestamp.toDate() : null;
+      if (tDate && (!stock[name].lastDate || tDate > stock[name].lastDate)) {
+        stock[name].lastDate = tDate;
+      }
+    }
+
+    if (t.from === 'ondemand-renton') {
+      if (!stock[name]) stock[name] = { qty: 0, lastDate: null, transfers: [], inCount: 0, outCount: 0 };
+      stock[name].qty -= (t.quantity || 0);
+      stock[name].outCount++;
+      stock[name].transfers.push(t);
+    }
+  });
+
+  return stock;
+}
+
+function recalcAndRender() {
+  const stock = buildStock();
+
+  // Get items with positive stock, sorted by name
+  const items = Object.entries(stock)
+    .filter(([, v]) => v.qty > 0)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+
+  const totalItems = items.length;
+  const totalQty = items.reduce((sum, [, v]) => sum + v.qty, 0);
+  const lowStock = items.filter(([, v]) => v.qty <= 1).length;
+
+  // Update stats
+  document.getElementById('totalItems').textContent = totalItems;
+  document.getElementById('totalQuantity').textContent = Math.round(totalQty * 100) / 100;
+  document.getElementById('lowStockCount').textContent = lowStock;
+
+  // Apply filters and render
+  applyFiltersAndSort(items);
+}
+
+function applyFiltersAndSort(items) {
+  if (!items) {
+    const stock = buildStock();
+    items = Object.entries(stock)
+      .filter(([, v]) => v.qty > 0)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }
+
+  let filtered = [...items];
+
+  // Search filter
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  if (search) {
+    filtered = filtered.filter(([name]) => name.toLowerCase().includes(search));
+  }
+
+  // Category filter
+  const catFilter = document.getElementById('categoryFilter').value;
+  if (catFilter) {
+    filtered = filtered.filter(([name]) => {
+      const config = warehouseItems.find(i => i.name === name);
+      return config && config.category === catFilter;
+    });
+  }
+
+  // Sort
+  const sort = document.getElementById('sortSelect').value;
+  if (sort === 'name-asc') filtered.sort((a, b) => a[0].localeCompare(b[0]));
+  else if (sort === 'name-desc') filtered.sort((a, b) => b[0].localeCompare(a[0]));
+  else if (sort === 'qty-desc') filtered.sort((a, b) => b[1].qty - a[1].qty);
+  else if (sort === 'qty-asc') filtered.sort((a, b) => a[1].qty - b[1].qty);
+
+  renderTable(filtered);
+}
+
+function renderTable(items) {
+  const tbody = document.getElementById('tableBody');
+
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
+      <div class="empty-state-icon">⚡</div>
+      <h3>No on-demand stock found</h3>
+      <p>Transfer items from the Warehouse Frozen Inventory to On Demand Renton to see them here.</p>
+    </td></tr>`;
+    return;
+  }
+
+  const destNames = { issaquah: 'Issaquah', renton: 'Renton', 'nnc-iss': 'Issaquah', 'nnc-renton': 'Renton', babas: "Baba's", 'babas-bel': "Baba's" };
+
+  tbody.innerHTML = items.map(([name, data]) => {
+    const config = warehouseItems.find(i => i.name === name);
+    const category = config ? config.category : '—';
+    const unit = config ? config.unit : '';
+    const escapedName = name.replace(/'/g, "\\'");
+    const lastDate = data.lastDate ? data.lastDate.toLocaleDateString() : '—';
+
+    let qtyClass = 'normal';
+    if (data.qty <= 0) qtyClass = 'critical';
+    else if (data.qty <= 1) qtyClass = 'low';
+
+    return `<tr>
+      <td class="item-name">${escapeHtml(name)}</td>
+      <td><span class="category-badge ${category}">${category}</span></td>
+      <td><span class="quantity-badge ${qtyClass}">${Math.round(data.qty * 100) / 100}</span></td>
+      <td style="font-size:.82rem;color:var(--gray-500)">${unit}</td>
+      <td style="font-size:.82rem;white-space:nowrap">${lastDate}</td>
+      <td style="font-size:.78rem;color:var(--gray-500)">${data.inCount} in${data.outCount > 0 ? ', ' + data.outCount + ' out' : ''}</td>
+      <td class="action-cell">
+        <button class="btn-transfer" onclick="openTransferModal('${escapedName}',${data.qty})">→ Send</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function populateTransferItemDropdown() {
+  const select = document.getElementById('transferItem');
+  select.innerHTML = '<option value="">Select an item...</option>';
+
+  // Group by category like the warehouse page does
+  const categories = ['frozen', 'togo', 'supplies', 'ingredients', 'catering'];
+  const catLabels = { frozen: 'Frozen', togo: 'To-Go / Packaging', supplies: 'Supplies', ingredients: 'Ingredients', catering: 'Catering' };
+
+  categories.forEach(cat => {
+    const catItems = warehouseItems.filter(i => i.category === cat);
+    if (catItems.length === 0) return;
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = catLabels[cat] || cat;
+    catItems.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.name;
+      opt.textContent = item.name;
+      optgroup.appendChild(opt);
+    });
+    select.appendChild(optgroup);
+  });
+}
+
+function openTransferModal(itemName, currentQty) {
+  currentTransferItem = { name: itemName, qty: currentQty || 0 };
+  document.getElementById('transferItem').value = itemName;
+  document.getElementById('transferQuantity').value = '';
+  document.getElementById('transferDestination').value = '';
+  document.getElementById('transferOnHand').textContent = currentQty || 0;
+  document.getElementById('transferModal').classList.add('visible');
+}
+
+function closeTransferModal() {
+  document.getElementById('transferModal').classList.remove('visible');
+  currentTransferItem = null;
+}
+
+async function submitTransfer() {
+  const itemName = document.getElementById('transferItem').value;
+  const quantity = parseFloat(document.getElementById('transferQuantity').value) || 0;
+  const destination = document.getElementById('transferDestination').value;
+
+  if (!itemName || quantity <= 0 || !destination) {
+    showToast('Please fill in all fields', 'error');
+    return;
+  }
+
+  if (currentTransferItem && quantity > currentTransferItem.qty) {
+    showToast('Not enough quantity on hand (' + currentTransferItem.qty + ' available)', 'error');
+    return;
+  }
+
+  try {
+    document.getElementById('modalSubmit').disabled = true;
+
+    // Create transfer in warehouse_transfers — same collection as warehouse.html
+    await db.collection('warehouse_transfers').add({
+      itemName: itemName,
+      quantity: quantity,
+      from: 'ondemand-renton',
+      to: destination,
+      status: 'pending',
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      dateDisplay: new Date().toLocaleDateString(),
+      transferDate: new Date().toISOString().split('T')[0],
+      createdBy: firebase.auth().currentUser.email
+    });
+
+    const destLabel = { 'nnc-iss': 'Issaquah', 'nnc-renton': 'Renton', 'babas-bel': "Baba's", 'renton-wh': 'Warehouse' };
+    showToast('Transferred ' + quantity + ' × ' + itemName + ' → ' + (destLabel[destination] || destination), 'success');
+    closeTransferModal();
+  } catch (err) {
+    console.error('Error creating transfer:', err);
+    showToast('Error creating transfer', 'error');
+  } finally {
+    document.getElementById('modalSubmit').disabled = false;
+  }
+}
+
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = type || '';
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text || '';
+  return div.innerHTML;
+}
+
+// ==================== EVENT LISTENERS ====================
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const errorDiv = document.getElementById('loginError');
+  if (!email || !password) {
+    errorDiv.textContent = 'Please enter email and password';
+    errorDiv.style.display = 'block';
+    return;
+  }
+  try {
+    await firebase.auth().signInWithEmailAndPassword(email, password);
+  } catch (err) {
+    errorDiv.textContent = err.message;
+    errorDiv.style.display = 'block';
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => firebase.auth().signOut());
+document.getElementById('backBtn').addEventListener('click', () => { window.location.href = 'index.html'; });
+
+document.getElementById('searchInput').addEventListener('input', () => applyFiltersAndSort());
+document.getElementById('categoryFilter').addEventListener('change', () => applyFiltersAndSort());
+document.getElementById('sortSelect').addEventListener('change', () => applyFiltersAndSort());
+
+document.getElementById('modalClose').addEventListener('click', closeTransferModal);
+document.getElementById('modalCancel').addEventListener('click', closeTransferModal);
+document.getElementById('modalSubmit').addEventListener('click', submitTransfer);
+document.getElementById('transferModal').addEventListener('click', (e) => {
+  if (e.target.id === 'transferModal') closeTransferModal();
+});
+document.getElementById('transferQuantity').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') submitTransfer();
+});
+</script>
+
+</body>
+</html>

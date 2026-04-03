@@ -685,10 +685,11 @@ auth.onAuthStateChanged(async user => {
     // Auto-select section from sheet param
     const urlSheet = getParam('sheet');
     if (urlSheet === 'wh-frozen') activeSection = 'frozen';
-    else if (urlSheet === 'wh-togo') activeSection = 'togo';
-    else if (urlSheet === 'wh-supplies') activeSection = 'supplies';
-    else if (urlSheet === 'wh-ingredients') activeSection = 'ingredients';
+    else if (urlSheet === 'wh-togo' || urlSheet === 'wh-packaging') activeSection = 'togo';
+    else if (urlSheet === 'wh-supplies' || urlSheet === 'wh-general') activeSection = 'supplies';
+    else if (urlSheet === 'wh-ingredients' || urlSheet === 'wh-restaurant') activeSection = 'ingredients';
     else if (urlSheet === 'wh-catering') activeSection = 'catering';
+    else if (urlSheet === 'wh-allnonfrozen') activeSection = 'allnonfrozen';
     setupFirestoreListener();
     setupTransfersListener();
     render();
@@ -1667,6 +1668,32 @@ function renderAllNonFrozenTab() {
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
   html += '<h3 style="font-size:1.1rem;font-weight:700;color:var(--gray-900)">📋 All Non-Frozen Inventory</h3>';
   html += '<span style="font-size:.82rem;color:var(--gray-500)">' + formatDate(currentDate) + '</span>';
+  html += '</div>';
+
+  // Summary tiles
+  let totalItems = 0, totalCounted = 0, totalUncounted = 0;
+  showSections.forEach(function(secKey) {
+    const sItems = (d.items && d.items[secKey]) || [];
+    const wData = getWeekData(dk, secKey);
+    sItems.forEach(function(item) {
+      totalItems++;
+      const c = wData[item.id];
+      if (c && c.count !== undefined && c.count !== '') totalCounted++;
+      else totalUncounted++;
+    });
+  });
+  const pct = totalItems > 0 ? Math.round((totalCounted / totalItems) * 100) : 0;
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px">';
+  html += '<div class="stat-card"><div class="label">Total Items</div><div class="value">' + totalItems + '</div></div>';
+  html += '<div class="stat-card"><div class="label">Counted</div><div class="value" style="color:var(--success)">' + totalCounted + '</div></div>';
+  html += '<div class="stat-card"><div class="label">Uncounted</div><div class="value" style="color:' + (totalUncounted > 0 ? 'var(--danger)' : 'var(--gray-400)') + '">' + totalUncounted + '</div></div>';
+  html += '<div class="stat-card"><div class="label">Progress</div><div class="value">' + pct + '%</div></div>';
+  showSections.forEach(function(secKey) {
+    var sec = SECTIONS[secKey];
+    var sItems = (d.items && d.items[secKey]) || [];
+    html += '<div class="stat-card"><div class="label">' + sec.icon + ' ' + sec.name + '</div><div class="value">' + sItems.length + '</div></div>';
+  });
   html += '</div>';
 
   // Category filter buttons
