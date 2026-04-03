@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Historical Transfers</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;color:#111827;padding:24px;max-width:900px;margin:0 auto}
+h1{font-size:1.4rem;margin-bottom:8px}
+.subtitle{color:#6b7280;font-size:.9rem;margin-bottom:24px}
+.login-section{background:#fff;padding:24px;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:24px}
+.login-section input{padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem;margin-right:8px;width:220px}
+.login-section button{padding:8px 16px;background:#4338ca;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer}
+.login-section button:hover{background:#3730a3}
+.status{padding:8px 12px;border-radius:6px;font-size:.85rem;margin-top:8px;display:none}
+.status.show{display:block}
+.status.ok{background:#ecfdf5;color:#166534;border:1px solid #86efac}
+.status.err{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5}
+.status.warn{background:#fffbeb;color:#92400e;border:1px solid #fcd34d}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:24px}
+th{background:#f3f4f6;padding:8px 12px;text-align:left;font-size:.75rem;text-transform:uppercase;color:#6b7280;font-weight:700}
+td{padding:6px 12px;border-top:1px solid #f3f4f6;font-size:.85rem}
+tr:hover td{background:#eff6ff}
+.qty{font-weight:700;color:#dc2626;text-align:center}
+.btn-import{padding:12px 24px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;width:100%}
+.btn-import:hover{background:#15803d}
+.btn-import:disabled{background:#9ca3af;cursor:not-allowed}
+.progress{margin-top:12px;font-size:.85rem;color:#6b7280}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600}
+.badge-pending{background:#fffbeb;color:#92400e}
+.badge-done{background:#ecfdf5;color:#166534}
+</style>
+</head>
+<body>
+<h1>📥 Import Historical Transfers</h1>
+<p class="subtitle">Warehouse → On Demand Renton — 22 transfer records from Excel</p>
+
+<div class="login-section">
+  <div style="font-weight:600;margin-bottom:8px">Sign in to import</div>
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="login()">Sign In</button>
+  <div class="status" id="authStatus"></div>
+</div>
+
+<table>
+<thead><tr><th>Date</th><th>Item</th><th>Vendor</th><th>Qty</th><th>Status</th></tr></thead>
+<tbody id="recordsBody"></tbody>
+</table>
+
+<button class="btn-import" id="importBtn" onclick="runImport()" disabled>Import All 22 Records to Firestore</button>
+<div class="progress" id="progress"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAvOFC9jqt-nSk26uN6CVXoDr6O-JnXz3k",
+  authDomain: "nnc-inventory.firebaseapp.com",
+  projectId: "nnc-inventory",
+  storageBucket: "nnc-inventory.firebasestorage.app",
+  messagingSenderId: "315174538558",
+  appId: "1:315174538558:web:2c34c11ea6e99bfbb3706f"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const RECORDS = [
+  { itemName: "ALOO PARATHA", vendor: "MAZEDAAR - MULTI FOOD", quantity: 20, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "PUNJABI SAMOSA", vendor: "MAZEDAAR - MULTI FOOD", quantity: 10, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "PUNJABI SAMOSA", vendor: "MAZEDAAR - MULTI FOOD", quantity: 20, transferDate: "2025-06-27", dateDisplay: "6/27/2025" },
+  { itemName: "PUNJABI SAMOSA", vendor: "MAZEDAAR - MULTI FOOD", quantity: 4, transferDate: "2025-11-24", dateDisplay: "11/24/2025" },
+  { itemName: "PUNJABI SAMOSA", vendor: "MAZEDAAR - MULTI FOOD", quantity: 10, transferDate: "2026-01-08", dateDisplay: "1/8/2026" },
+  { itemName: "PUNJABI SAMOSA", vendor: "MAZEDAAR - MULTI FOOD", quantity: 6, transferDate: "2026-02-17", dateDisplay: "2/17/2026" },
+  { itemName: "PUNJABI SAMOSA", vendor: "MAZEDAAR - MULTI FOOD", quantity: 10, transferDate: "2026-03-10", dateDisplay: "3/10/2026" },
+  { itemName: "Roll Paratha", vendor: "MAZEDAAR - MULTI FOOD", quantity: 5, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "Roll Paratha", vendor: "MAZEDAAR - MULTI FOOD", quantity: 3, transferDate: "2025-10-02", dateDisplay: "10/2/2025" },
+  { itemName: "Roll Paratha", vendor: "MAZEDAAR - MULTI FOOD", quantity: 5, transferDate: "2026-02-17", dateDisplay: "2/17/2026" },
+  { itemName: "RUMALI ROTI", vendor: "MAZEDAAR - MULTI FOOD", quantity: 20, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "VEG. CUTLET", vendor: "MAZEDAAR - MULTI FOOD", quantity: 10, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "KULFI", vendor: "REHMAT-E-SHEREEN", quantity: 20, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "LACHHA PARATHA", vendor: "REHMAT-E-SHEREEN", quantity: 54, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "LAHORI KULCHA", vendor: "REHMAT-E-SHEREEN", quantity: 8, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "LAHORI KULCHA", vendor: "REHMAT-E-SHEREEN", quantity: 5, transferDate: "2026-01-08", dateDisplay: "1/8/2026" },
+  { itemName: "PURI PARATHA", vendor: "REHMAT-E-SHEREEN", quantity: 10, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "PURI PARATHA", vendor: "REHMAT-E-SHEREEN", quantity: 2, transferDate: "2026-02-17", dateDisplay: "2/17/2026" },
+  { itemName: "SUJI HALWA", vendor: "REHMAT-E-SHEREEN", quantity: 24, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "WHOLE WHEAT PARATHA", vendor: "REHMAT-E-SHEREEN", quantity: 10, transferDate: "2025-05-07", dateDisplay: "5/7/2025" },
+  { itemName: "Ghulab Jamun", vendor: "United King", quantity: 10, transferDate: "2025-06-27", dateDisplay: "6/27/2025" },
+  { itemName: "Ras Malai", vendor: "United King", quantity: 20, transferDate: "2025-06-05", dateDisplay: "6/5/2025" }
+];
+
+// Render table
+const tbody = document.getElementById('recordsBody');
+RECORDS.forEach((r, i) => {
+  tbody.innerHTML += `<tr id="row-${i}">
+    <td style="white-space:nowrap">${r.dateDisplay}</td>
+    <td style="font-weight:600">${r.itemName}</td>
+    <td style="font-size:.78rem;color:#6b7280">${r.vendor}</td>
+    <td class="qty">${r.quantity}</td>
+    <td id="status-${i}"><span class="badge badge-pending">Pending</span></td>
+  </tr>`;
+});
+
+function showStatus(id, cls, msg) {
+  const el = document.getElementById(id);
+  el.className = 'status show ' + cls;
+  el.textContent = msg;
+}
+
+async function login() {
+  const email = document.getElementById('email').value;
+  const pw = document.getElementById('password').value;
+  try {
+    await auth.signInWithEmailAndPassword(email, pw);
+    showStatus('authStatus', 'ok', 'Signed in as ' + email);
+    document.getElementById('importBtn').disabled = false;
+  } catch(e) {
+    showStatus('authStatus', 'err', 'Login failed: ' + e.message);
+  }
+}
+
+async function runImport() {
+  const btn = document.getElementById('importBtn');
+  const prog = document.getElementById('progress');
+  btn.disabled = true;
+  btn.textContent = 'Importing...';
+
+  let success = 0, fail = 0;
+  for (let i = 0; i < RECORDS.length; i++) {
+    const r = RECORDS[i];
+    prog.textContent = `Processing ${i + 1} of ${RECORDS.length}...`;
+    try {
+      const transferDateObj = new Date(r.transferDate + 'T12:00:00');
+      await db.collection('warehouse_transfers').add({
+        itemId: null,
+        itemName: r.itemName,
+        quantity: r.quantity,
+        from: 'warehouse',
+        fromName: 'Warehouse',
+        to: 'ondemand-renton',
+        toName: 'On Demand Renton',
+        section: 'frozen',
+        status: 'accepted',
+        authorizedBy: 'Historical Import',
+        date: r.dateDisplay,
+        transferDate: r.transferDate,
+        timestamp: transferDateObj,
+        createdAt: new Date(),
+        transferredBy: auth.currentUser.email,
+        importedFrom: 'excel-historical',
+        vendor: r.vendor
+      });
+      document.getElementById('status-' + i).innerHTML = '<span class="badge badge-done">✓ Imported</span>';
+      success++;
+    } catch(e) {
+      document.getElementById('status-' + i).innerHTML = '<span class="badge" style="background:#fef2f2;color:#991b1b">✗ Error</span>';
+      fail++;
+      console.error('Record ' + i + ' failed:', e);
+    }
+  }
+
+  prog.textContent = `Done! ${success} imported, ${fail} failed.`;
+  btn.textContent = `Import Complete (${success}/${RECORDS.length})`;
+  btn.style.background = success === RECORDS.length ? '#16a34a' : '#d97706';
+}
+</script>
+</body>
+</html>
