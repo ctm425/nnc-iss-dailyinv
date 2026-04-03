@@ -304,6 +304,13 @@ function onViewAsRole(role) {
 function renderMain() {
   renderQuickStats();
   renderToolTiles();
+  // Check for ?open= param (used by back buttons on sub-pages)
+  const openParam = new URLSearchParams(window.location.search).get('open');
+  if (openParam && RESTAURANTS[openParam]) {
+    selectedRestaurant = openParam;
+    // Clean URL without reloading
+    window.history.replaceState({}, '', window.location.pathname);
+  }
   if (selectedRestaurant) {
     showLocationDetail(selectedRestaurant);
   } else {
@@ -493,6 +500,11 @@ function showLocationDetail(key) {
     return;
   }
 
+  // Special layout for Issaquah
+  if (key === 'nnc-iss') {
+    return showIssaquahDetail(container, loc, color);
+  }
+
   // Filter sheets for this location
   const groups = {};
   Object.keys(SHEET_TYPES).forEach(sk => {
@@ -629,6 +641,108 @@ function showWarehouseDetail(container, loc, color) {
         <div class="desc">Onsite catering supplies and equipment for event services</div>
         <div class="meta">
           <span class="tag freq">weekly</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+    </div>
+  `;
+  container.classList.add('visible');
+}
+
+function showIssaquahDetail(container, loc, color) {
+  container.innerHTML = `
+    <div class="detail-header">
+      <h2><span style="font-size:1.5rem">${loc.icon}</span> ${loc.shortName}</h2>
+      <button class="back-btn" onclick="showLocationsView()">← Back to All Locations</button>
+    </div>
+
+    <div class="section-title">Inventory Overview <span class="badge">Main Sections</span></div>
+    <div class="sheet-grid">
+      <div class="sheet-card" onclick="openSheet('nnc-frozen')">
+        <div class="accent-bar" style="background:#0891b2"></div>
+        <div class="icon">🧊</div>
+        <div class="name">Frozen Inventory</div>
+        <div class="desc">Frozen prepared items from NNC kitchen — counted twice per week</div>
+        <div class="meta">
+          <span class="tag freq">2x weekly</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-supplies')">
+        <div class="accent-bar" style="background:#059669"></div>
+        <div class="icon">📋</div>
+        <div class="name">All Non-Frozen Inventory</div>
+        <div class="desc">Combined view of supplies, spices, and dry goods</div>
+        <div class="meta">
+          <span class="tag freq">2x weekly</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:20px">Categories <span class="badge">By Type</span></div>
+    <div class="sheet-grid">
+      <div class="sheet-card" onclick="openSheet('nnc-supplies')">
+        <div class="accent-bar" style="background:#059669"></div>
+        <div class="icon">🧴</div>
+        <div class="name">Supplies</div>
+        <div class="desc">To-go containers, cleaning, kitchen, office & general supplies</div>
+        <div class="meta">
+          <span class="tag freq">2x weekly</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-drygoods')">
+        <div class="accent-bar" style="background:#dc2626"></div>
+        <div class="icon">🌶️</div>
+        <div class="name">Dry Goods & Spices</div>
+        <div class="desc">Spices, ingredients, beverages — counted twice per week</div>
+        <div class="meta">
+          <span class="tag freq">2x weekly</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-storage')">
+        <div class="accent-bar" style="background:#4338ca"></div>
+        <div class="icon">📦</div>
+        <div class="name">Storage Unit</div>
+        <div class="desc">Off-site storage unit — backup supplies, bulk items, overflow stock</div>
+        <div class="meta">
+          <span class="tag freq">weekly</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:20px">Daily Operations <span class="badge">AM/PM Tracking</span></div>
+    <div class="sheet-grid">
+      <div class="sheet-card" onclick="openSheet('nnc-daily-kitchen')">
+        <div class="accent-bar" style="background:${color}"></div>
+        <div class="icon">🍛</div>
+        <div class="name">Daily Cooked Foods</div>
+        <div class="desc">All cooked food coming from Renton Main Kitchen</div>
+        <div class="meta">
+          <span class="tag freq">daily</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-daily-produce')">
+        <div class="accent-bar" style="background:${color}"></div>
+        <div class="icon">🥬</div>
+        <div class="name">Produce</div>
+        <div class="desc">Daily produce count and orders</div>
+        <div class="meta">
+          <span class="tag freq">daily</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-vendors')">
+        <div class="accent-bar" style="background:${color}"></div>
+        <div class="icon">🧾</div>
+        <div class="name">Vendor Info / Invoices</div>
+        <div class="desc">Vendor invoices, receipts & images — pulled live from Google Sheets</div>
+        <div class="meta">
+          <span class="tag freq">ongoing</span>
           <span class="tag status-ok">Active</span>
         </div>
       </div>

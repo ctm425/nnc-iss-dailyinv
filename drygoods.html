@@ -156,7 +156,7 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
     <div class="header-sub" id="pageSubtitle">Weekly Inventory Count</div>
   </div>
   <div class="header-right">
-    <button class="btn btn-ghost btn-sm" onclick="goToDashboard()">← Dashboard</button>
+    <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html?open=nnc-iss'">← Issaquah</button>
     <button class="btn btn-ghost btn-sm" id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
     <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📊 Excel</button>
     <button class="btn btn-ghost btn-sm" onclick="exportPDF()">📄 PDF</button>
@@ -320,9 +320,11 @@ const SHEET_MODES = {
     storageKey: 'frozen',
     subCategories: {
       prepared: { name: 'Prepared Items (NNC Kitchen)', icon: '🍱', color: '#7c2d12' },
+      container: { name: 'Container Frozen Inventory (Pakistan)', icon: '📦', color: '#4338ca' },
       other: { name: 'Other Frozen', icon: '📋', color: '#6b7280' }
     },
     defaultItems: [
+      // === PREPARED ITEMS (NNC Kitchen) ===
       { id: 'haleem-lamb', name: 'Haleem (Lamb)', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
       { id: 'nehari-sauce', name: 'Nehari Sauce', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
       { id: 'lamb-chops', name: 'Lamb Chops', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
@@ -333,7 +335,25 @@ const SHEET_MODES = {
       { id: 'keema', name: 'Keema', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
       { id: 'samosa', name: 'Samosa', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
       { id: 'haleem-chicken', name: 'Haleem (Chicken)', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
-      { id: 'beef-seekh', name: 'Beef Seekh Kabab', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' }
+      { id: 'beef-seekh', name: 'Beef Seekh Kabab', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      // === CONTAINER FROZEN (Pakistan Imports) ===
+      // MAZEDAAR - MULTI FOOD
+      { id: 'iss-aloo-paratha', name: 'Aloo Paratha', subCategory: 'container', unit: 'cases', par: 0, vendor: 'MAZEDAAR - MULTI FOOD' },
+      { id: 'iss-punjabi-samosa', name: 'Punjabi Samosa', subCategory: 'container', unit: 'cases', par: 0, vendor: 'MAZEDAAR - MULTI FOOD' },
+      { id: 'iss-roll-paratha', name: 'Roll Paratha', subCategory: 'container', unit: 'cases', par: 0, vendor: 'MAZEDAAR - MULTI FOOD' },
+      { id: 'iss-rumali-roti', name: 'Rumali Roti', subCategory: 'container', unit: 'cases', par: 0, vendor: 'MAZEDAAR - MULTI FOOD' },
+      { id: 'iss-veg-cutlet', name: 'Veg. Cutlet', subCategory: 'container', unit: 'cases', par: 0, vendor: 'MAZEDAAR - MULTI FOOD' },
+      // REHMAT-E-SHEREEN
+      { id: 'iss-kulfi', name: 'Kulfi', subCategory: 'container', unit: 'cases', par: 0, vendor: 'REHMAT-E-SHEREEN' },
+      { id: 'iss-lachha-paratha', name: 'Lachha Paratha', subCategory: 'container', unit: 'cases', par: 0, vendor: 'REHMAT-E-SHEREEN' },
+      { id: 'iss-lahori-kulcha', name: 'Lahori Kulcha', subCategory: 'container', unit: 'cases', par: 0, vendor: 'REHMAT-E-SHEREEN' },
+      { id: 'iss-puri-paratha', name: 'Puri Paratha', subCategory: 'container', unit: 'cases', par: 0, vendor: 'REHMAT-E-SHEREEN' },
+      { id: 'iss-suji-halwa', name: 'Suji Halwa', subCategory: 'container', unit: 'cases', par: 0, vendor: 'REHMAT-E-SHEREEN' },
+      { id: 'iss-whole-wheat-paratha', name: 'Whole Wheat Paratha', subCategory: 'container', unit: 'cases', par: 0, vendor: 'REHMAT-E-SHEREEN' },
+      // United King
+      { id: 'iss-ghulab-jamun', name: 'Ghulab Jamun', subCategory: 'container', unit: 'cases', par: 0, vendor: 'United King' },
+      { id: 'iss-mango-kulfi', name: 'Mango Kulfi', subCategory: 'container', unit: 'cases', par: 0, vendor: 'United King' },
+      { id: 'iss-ras-malai', name: 'Ras Malai', subCategory: 'container', unit: 'cases', par: 0, vendor: 'United King' }
     ]
   },
   'nnc-supplies': {

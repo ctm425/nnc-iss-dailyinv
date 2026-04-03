@@ -42,6 +42,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .date-nav button:hover{background:var(--gray-200)}
 .date-nav .current-date{font-size:1.15rem;font-weight:700;color:var(--primary);min-width:220px;text-align:center}
 .date-nav .day-name{font-size:.85rem;color:var(--gray-500);font-weight:500;text-align:center}
+.date-picker-input{font-size:1rem;font-weight:700;color:var(--primary);border:2px solid var(--primary-light);border-radius:var(--radius);padding:8px 14px;cursor:pointer;background:#fff;text-align:center}
+.date-picker-input:focus{outline:none;box-shadow:0 0 0 3px rgba(37,99,235,.2)}
 
 .inventory-person-bar{background:#fff;padding:10px 24px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .inventory-person-bar label{font-size:.85rem;font-weight:600;color:var(--gray-700)}
@@ -243,7 +245,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <div class="header-sub">Inventory Management System</div>
   </div>
   <div class="header-right">
-    <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html'" title="Back to Dashboard">← Dashboard</button>
+    <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html?open=nnc-iss'" title="Back to Issaquah">← Issaquah</button>
     <span id="userEmail" style="color:#fff;font-size:.85rem;margin-right:12px"></span>
     <button class="btn btn-ghost" onclick="sendReport()" title="Generate PDF and email report">Send Report</button>
     <button class="btn btn-ghost" onclick="promptSettings()">Settings</button>
@@ -255,7 +257,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   <div class="date-nav">
     <button onclick="changeDate(-1)">&larr; Prev</button>
     <div>
-      <div class="current-date" id="currentDate"></div>
+      <input type="date" id="datePicker" class="date-picker-input" onchange="onDatePick(this.value)">
       <div class="day-name" id="dayName"></div>
     </div>
     <button onclick="changeDate(1)">Next &rarr;</button>
@@ -888,7 +890,7 @@ function toggleSundayOrders(){
 // ==================== RENDERING ====================
 function render(){
   const d=currentDate;
-  document.getElementById('currentDate').textContent=MONTH_NAMES[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();
+  document.getElementById('datePicker').value=dk(d);
   document.getElementById('dayName').textContent=DAY_NAMES[d.getDay()];
   // Show/hide no-delivery banner
   document.getElementById('noDeliveryBanner').style.display=isSunday(d)?'flex':'none';
@@ -1681,6 +1683,13 @@ function exportCurrentViewPDF(){
 // ==================== NAV ====================
 function changeDate(delta){currentDate.setDate(currentDate.getDate()+delta);sundayOrdersEnabled=false;render()}
 function goToToday(){currentDate=new Date();sundayOrdersEnabled=false;render()}
+function onDatePick(val){
+  if(!val)return;
+  const parts=val.split('-');
+  currentDate=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
+  sundayOrdersEnabled=false;
+  render();
+}
 function setTab(el,tab){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=tab;renderTable()}
 function toggleFilter(el,f){el.classList.toggle('active');activeFilters.has(f)?activeFilters.delete(f):activeFilters.add(f);renderTable()}
 
