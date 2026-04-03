@@ -384,6 +384,16 @@ let restaurantKey = 'renton-wh';
 let transferModalItem = null;
 let cachedTransfers = [];
 
+// Transfer History filters/sort
+let transferFilterItem = 'all';
+let transferFilterFrom = 'all';
+let transferFilterTo = 'all';
+let transferFilterStatus = 'all';
+let transferFilterDateFrom = '';
+let transferFilterDateTo = '';
+let transferSearchText = '';
+let transferSort = 'date-desc'; // date-desc, date-asc, item-az, item-za, qty-desc, qty-asc
+
 // Containers Received state
 let containerFilterVendor = 'all';
 let containerFilterDate = 'all';
@@ -728,12 +738,32 @@ function renderStats() {
     const data = weekData[item.id] || {};
     if (data.count !== undefined && data.count !== '') counted++;
   });
-  document.getElementById('statsBar').innerHTML = `
+
+  let statsHtml = `
     <div class="stat-card"><div class="label">Section</div><div class="value" style="font-size:1.1rem">${SECTIONS[activeSection].icon} ${SECTIONS[activeSection].name}</div></div>
     <div class="stat-card"><div class="label">Total Items</div><div class="value">${total}</div></div>
     <div class="stat-card"><div class="label">Counted</div><div class="value">${counted} / ${total}</div></div>
-    <div class="stat-card"><div class="label">Progress</div><div class="value">${total>0?Math.round(counted/total*100):0}%</div></div>
-  `;
+    <div class="stat-card"><div class="label">Progress</div><div class="value">${total>0?Math.round(counted/total*100):0}%</div></div>`;
+
+  // For frozen: add transfer summary stats
+  if (activeSection === 'frozen') {
+    const summary = computeFrozenTransferSummary();
+    let totalReceived = 0, totalOut = 0, totalRemaining = 0;
+    sectionItems.forEach(item => {
+      const data = weekData[item.id] || {};
+      const count = data.count !== undefined && data.count !== '' ? Number(data.count) : 0;
+      const transferred = summary[item.name] ? summary[item.name].whToOD : 0;
+      totalReceived += count;
+      totalOut += transferred;
+      totalRemaining += (count - transferred);
+    });
+    statsHtml += `
+      <div class="stat-card"><div class="label">Total Received</div><div class="value">${totalReceived}</div></div>
+      <div class="stat-card"><div class="label">Total Transferred</div><div class="value warn">${totalOut}</div></div>
+      <div class="stat-card"><div class="label">WH Remaining</div><div class="value" style="color:var(--success)">${totalRemaining}</div></div>`;
+  }
+
+  document.getElementById('statsBar').innerHTML = statsHtml;
 }
 
 function renderTabs() {
@@ -809,20 +839,33 @@ function renderTable() {
     grouped[cat].push(item);
   });
 
+  // Compute transfer summary for frozen section
+  const frozenTransfers = activeSection === 'frozen' ? computeFrozenTransferSummary() : {};
+
+  const isFrozen = activeSection === 'frozen';
   let html = `<table><thead><tr>
-    <th>Item</th><th>Item #</th><th>Batch #</th><th>Unit</th><th>Count</th><th>Notes</th><th>Transfer</th>
+    <th>Item</th><th>Item #</th><th>Batch #</th><th>Unit</th><th>${isFrozen ? 'Received' : 'Count'}</th>${isFrozen ? '<th style="text-align:center;color:var(--danger)">Transferred Out</th><th style="text-align:center;color:var(--success)">WH Remaining</th>' : ''}<th>Notes</th><th>Transfer</th>
   </tr></thead><tbody>`;
 
   Object.keys(sec.subCategories).forEach(catKey => {
     if (!grouped[catKey]) return;
     const cat = sec.subCategories[catKey];
+    const colSpan = isFrozen ? 9 : 7;
     const vendorInfo = cat.receivedDate ? ` <span style="font-size:.72rem;color:var(--gray-500);font-weight:500;text-transform:none;letter-spacing:0">(Received ${cat.receivedDate})</span>` : '';
-    html += `<tr class="section-header"><td colspan="7" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}${vendorInfo}</td></tr>`;
+    html += `<tr class="section-header"><td colspan="${colSpan}" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}${vendorInfo}</td></tr>`;
 
     grouped[catKey].forEach(item => {
       const data = weekData[item.id] || {};
       const count = data.count !== undefined && data.count !== '' ? Number(data.count) : '';
       const escapedName = item.name.replace(/'/g,"\\'");
+
+      // For frozen: compute warehouse remaining = received count - total sent to on-demand
+      let transferredOut = 0;
+      let whRemaining = count;
+      if (isFrozen && frozenTransfers[item.name]) {
+        transferredOut = frozenTransfers[item.name].whToOD;
+        whRemaining = (count !== '' ? count : 0) - transferredOut;
+      }
 
       html += `<tr>
         <td>${item.name}</td>
@@ -833,16 +876,25 @@ function renderTable() {
         <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
         <td><input type="number" value="${count}" min="0" step="0.5"
           onchange="onCountChange('${item.id}',this.value)"
-          style="background:${count===''?'#fffbeb':'#fff'}"></td>
-        <td><input type="text" class="note-input" value="${data.notes||''}" placeholder="Notes..."
+          style="background:${count===''?'#fffbeb':'#fff'}"></td>`;
+
+      if (isFrozen) {
+        const outColor = transferredOut > 0 ? 'var(--danger)' : 'var(--gray-400)';
+        const remainColor = whRemaining < 0 ? 'var(--danger)' : whRemaining === 0 ? 'var(--gray-400)' : 'var(--success)';
+        html += `<td style="text-align:center;font-weight:700;color:${outColor}">${transferredOut > 0 ? '-' + transferredOut : '—'}</td>`;
+        html += `<td style="text-align:center;font-weight:700;color:${remainColor}">${count !== '' ? whRemaining : '—'}</td>`;
+      }
+
+      html += `<td><input type="text" class="note-input" value="${data.notes||''}" placeholder="Notes..."
           onchange="setField(dateKey(),activeSection,'${item.id}','notes',this.value)"></td>
-        <td><button class="btn-transfer" onclick="openTransferModal('${item.id}','${escapedName}',${count||0},'warehouse','${activeSection}')">→ Transfer</button></td>
+        <td><button class="btn-transfer" onclick="openTransferModal('${item.id}','${escapedName}',${isFrozen ? (whRemaining || 0) : (count||0)},'warehouse','${activeSection}')">→ Transfer</button></td>
       </tr>`;
     });
   });
 
   if (filtered.length === 0) {
-    html += `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
+    const emptyColSpan = isFrozen ? 9 : 7;
+    html += `<tr><td colspan="${emptyColSpan}" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
   }
   html += `</tbody></table>`;
 
@@ -854,6 +906,43 @@ function renderTable() {
   container.innerHTML = headerHtml + html;
 }
 
+// ==================== FROZEN TRANSFER SUMMARY ====================
+function computeFrozenTransferSummary() {
+  // Build per-item summary of all transfer flows
+  const summary = {}; // itemName => { whToOD, odToRenton, odToIssaquah, odToBabas }
+
+  cachedTransfers.forEach(t => {
+    if (t.status === 'rejected') return; // skip rejected
+    const name = t.itemName;
+    if (!name) return;
+    if (!summary[name]) summary[name] = { whToOD: 0, odToRenton: 0, odToIssaquah: 0, odToBabas: 0 };
+
+    if (t.from === 'warehouse' && t.to === 'ondemand-renton') {
+      summary[name].whToOD += (t.quantity || 0);
+    }
+    if (t.from === 'ondemand-renton' && t.to === 'renton') {
+      summary[name].odToRenton += (t.quantity || 0);
+    }
+    if (t.from === 'ondemand-renton' && t.to === 'issaquah') {
+      summary[name].odToIssaquah += (t.quantity || 0);
+    }
+    if (t.from === 'ondemand-renton' && t.to === 'babas') {
+      summary[name].odToBabas += (t.quantity || 0);
+    }
+  });
+
+  // Derive computed fields
+  Object.keys(summary).forEach(name => {
+    const s = summary[name];
+    s.odHolding = s.whToOD - s.odToRenton - s.odToIssaquah - s.odToBabas;
+    s.totalDistributed = s.odToRenton + s.odToIssaquah + s.odToBabas;
+    // Validation: odHolding + distributed should equal whToOD
+    s.checkPasses = Math.abs(s.odHolding + s.totalDistributed - s.whToOD) < 0.01;
+  });
+
+  return summary;
+}
+
 // ==================== LOCATION BREAKDOWN (FROZEN TAB) ====================
 function toggleLocation(loc) {
   expandedLocations[loc] = !expandedLocations[loc];
@@ -861,33 +950,81 @@ function toggleLocation(loc) {
 }
 
 function renderLocationBreakdown() {
+  const summary = computeFrozenTransferSummary();
   const destNames = { issaquah: 'Issaquah - NNC', renton: 'Renton - NNC', 'ondemand-renton': 'On Demand Renton', babas: "Baba's Bellevue" };
   const destIcons = { issaquah: '🍛', renton: '🍛', 'ondemand-renton': '⚡', babas: '🥘' };
   const destColors = { issaquah: '#1e3a5f', renton: '#0f766e', 'ondemand-renton': '#9333ea', babas: '#7c2d12' };
-  const locations = ['issaquah', 'renton', 'ondemand-renton', 'babas'];
+  const locations = ['ondemand-renton', 'renton', 'issaquah', 'babas'];
 
-  // Aggregate transfers by destination
-  const locStock = {};
-  locations.forEach(loc => { locStock[loc] = {}; });
-
-  cachedTransfers.forEach(t => {
-    // Only count frozen section transfers (from warehouse)
-    if (t.from === 'warehouse' && locations.includes(t.to)) {
-      if (!locStock[t.to][t.itemName]) locStock[t.to][t.itemName] = 0;
-      locStock[t.to][t.itemName] += (t.quantity || 0);
-    }
-    // Deduct transfers out from on-demand
-    if (t.from === 'ondemand-renton' && locations.includes(t.to)) {
-      if (!locStock['ondemand-renton'][t.itemName]) locStock['ondemand-renton'][t.itemName] = 0;
-      locStock['ondemand-renton'][t.itemName] -= (t.quantity || 0);
-      if (!locStock[t.to][t.itemName]) locStock[t.to][t.itemName] = 0;
-      locStock[t.to][t.itemName] += (t.quantity || 0);
-    }
+  // Build per-location item lists from summary
+  const locStock = { 'ondemand-renton': {}, renton: {}, issaquah: {}, babas: {} };
+  Object.keys(summary).forEach(name => {
+    const s = summary[name];
+    if (s.odHolding > 0) locStock['ondemand-renton'][name] = s.odHolding;
+    if (s.odToRenton > 0) locStock.renton[name] = s.odToRenton;
+    if (s.odToIssaquah > 0) locStock.issaquah[name] = s.odToIssaquah;
+    if (s.odToBabas > 0) locStock.babas[name] = s.odToBabas;
   });
 
-  let html = `<div style="margin-top:24px;border-top:2px solid var(--gray-200);padding-top:20px">
-    <h3 style="font-size:1.05rem;font-weight:700;color:var(--gray-900);margin-bottom:12px">📊 Transferred Stock by Location</h3>
-    <p style="font-size:.82rem;color:var(--gray-500);margin-bottom:16px">Based on transfer history — shows total quantities sent to each cost center from the warehouse.</p>`;
+  let html = `<div style="margin-top:24px;border-top:2px solid var(--gray-200);padding-top:20px">`;
+
+  // ===== RUNNING TOTALS SUMMARY TABLE =====
+  const itemNames = Object.keys(summary).sort();
+  if (itemNames.length > 0) {
+    html += `<h3 style="font-size:1.05rem;font-weight:700;color:var(--gray-900);margin-bottom:4px">📊 Frozen Inventory Distribution Summary</h3>
+    <p style="font-size:.82rem;color:var(--gray-500);margin-bottom:12px">Running totals based on all logged transfers. Validation: On Demand + Renton + Issaquah = Warehouse → On Demand.</p>
+    <div style="overflow-x:auto;margin-bottom:24px">
+    <table style="min-width:800px"><thead><tr>
+      <th>Item</th>
+      <th style="text-align:center;background:#ecfeff;color:var(--frozen)">WH → OD</th>
+      <th style="text-align:center;background:#f3e8ff;color:#9333ea">⚡ On Demand</th>
+      <th style="text-align:center;background:#ecfdf5;color:#0f766e">🍛 Renton</th>
+      <th style="text-align:center;background:#eff6ff;color:#1e3a5f">🍛 Issaquah</th>
+      <th style="text-align:center;background:#fff7ed;color:#7c2d12">🥘 Baba's</th>
+      <th style="text-align:center">✓ Check</th>
+    </tr></thead><tbody>`;
+
+    let totWhToOD = 0, totOD = 0, totRenton = 0, totIssaquah = 0, totBabas = 0;
+
+    itemNames.forEach(name => {
+      const s = summary[name];
+      totWhToOD += s.whToOD;
+      totOD += s.odHolding;
+      totRenton += s.odToRenton;
+      totIssaquah += s.odToIssaquah;
+      totBabas += s.odToBabas;
+
+      const checkIcon = s.checkPasses ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--danger)">✗</span>';
+
+      html += `<tr>
+        <td style="font-weight:600">${name}</td>
+        <td style="text-align:center;font-weight:700;color:var(--frozen)">${s.whToOD}</td>
+        <td style="text-align:center;font-weight:700;color:#9333ea">${s.odHolding}</td>
+        <td style="text-align:center;font-weight:700;color:#0f766e">${s.odToRenton}</td>
+        <td style="text-align:center;font-weight:700;color:#1e3a5f">${s.odToIssaquah}</td>
+        <td style="text-align:center;font-weight:700;color:#7c2d12">${s.odToBabas || 0}</td>
+        <td style="text-align:center;font-weight:700">${checkIcon}</td>
+      </tr>`;
+    });
+
+    const allPass = Math.abs(totOD + totRenton + totIssaquah + totBabas - totWhToOD) < 0.01;
+    const totalCheckIcon = allPass ? '<span style="color:var(--success);font-weight:700">✓ Balanced</span>' : '<span style="color:var(--danger);font-weight:700">✗ Mismatch</span>';
+
+    html += `<tr style="background:var(--gray-100);font-weight:700;border-top:2px solid var(--gray-300)">
+      <td>TOTALS</td>
+      <td style="text-align:center;color:var(--frozen)">${totWhToOD}</td>
+      <td style="text-align:center;color:#9333ea">${totOD}</td>
+      <td style="text-align:center;color:#0f766e">${totRenton}</td>
+      <td style="text-align:center;color:#1e3a5f">${totIssaquah}</td>
+      <td style="text-align:center;color:#7c2d12">${totBabas}</td>
+      <td style="text-align:center">${totalCheckIcon}</td>
+    </tr>`;
+
+    html += `</tbody></table></div>`;
+  }
+
+  // ===== COLLAPSIBLE PER-LOCATION BREAKDOWN =====
+  html += `<h3 style="font-size:1.05rem;font-weight:700;color:var(--gray-900);margin-bottom:12px">📦 Stock by Location</h3>`;
 
   locations.forEach(loc => {
     const items = Object.entries(locStock[loc] || {}).filter(([,qty]) => qty > 0).sort((a,b) => a[0].localeCompare(b[0]));
@@ -909,10 +1046,10 @@ function renderLocationBreakdown() {
 
     if (isExpanded) {
       if (items.length === 0) {
-        html += `<div style="padding:16px;text-align:center;color:var(--gray-400);font-size:.85rem">No items transferred to this location yet</div>`;
+        html += `<div style="padding:16px;text-align:center;color:var(--gray-400);font-size:.85rem">No items at this location yet</div>`;
       } else {
         html += `<table style="margin:0;border-radius:0;box-shadow:none"><thead><tr>
-          <th>Item</th><th style="text-align:center">Qty Transferred</th>
+          <th>Item</th><th style="text-align:center">Current Qty</th>
         </tr></thead><tbody>`;
         items.forEach(([itemName, qty]) => {
           html += `<tr>
@@ -1265,8 +1402,9 @@ async function confirmUnifiedTransfer() {
   const dest = document.getElementById('transferDest').value;
   const fromSource = transferModalItem.fromSource;
 
-  // Deduct from source count (only for warehouse sections with tracked counts)
-  if (fromSource === 'warehouse' && transferModalItem.itemId && transferModalItem.section) {
+  // Deduct from source count (only for non-frozen warehouse sections)
+  // Frozen section: counts are deducted automatically via transfer log (Received - Transferred Out)
+  if (fromSource === 'warehouse' && transferModalItem.itemId && transferModalItem.section && transferModalItem.section !== 'frozen') {
     const wk = dateKey();
     const newCount = transferModalItem.currentCount - qty;
     setField(wk, transferModalItem.section, transferModalItem.itemId, 'count', newCount);
@@ -1875,6 +2013,90 @@ function setupTransfersListener() {
   });
 }
 
+function setTransferFilter(field, value) {
+  if (field === 'item') transferFilterItem = value;
+  else if (field === 'from') transferFilterFrom = value;
+  else if (field === 'to') transferFilterTo = value;
+  else if (field === 'status') transferFilterStatus = value;
+  else if (field === 'dateFrom') transferFilterDateFrom = value;
+  else if (field === 'dateTo') transferFilterDateTo = value;
+  else if (field === 'search') transferSearchText = value;
+  renderTransfersTab();
+}
+function setTransferSort(value) {
+  transferSort = value;
+  renderTransfersTab();
+}
+function clearTransferFilters() {
+  transferFilterItem = 'all';
+  transferFilterFrom = 'all';
+  transferFilterTo = 'all';
+  transferFilterStatus = 'all';
+  transferFilterDateFrom = '';
+  transferFilterDateTo = '';
+  transferSearchText = '';
+  transferSort = 'date-desc';
+  renderTransfersTab();
+}
+
+function getTransferSortDate(t) {
+  if (t.timestamp && t.timestamp.toDate) return t.timestamp.toDate().getTime();
+  if (t.transferDate) return new Date(t.transferDate + 'T12:00:00').getTime();
+  return 0;
+}
+
+function applyTransferFilters(list) {
+  let filtered = list;
+
+  if (transferSearchText) {
+    const s = transferSearchText.toLowerCase();
+    filtered = filtered.filter(t =>
+      (t.itemName || '').toLowerCase().includes(s) ||
+      (t.authorizedBy || '').toLowerCase().includes(s) ||
+      (t.date || '').toLowerCase().includes(s)
+    );
+  }
+  if (transferFilterItem !== 'all') {
+    filtered = filtered.filter(t => t.itemName === transferFilterItem);
+  }
+  if (transferFilterFrom !== 'all') {
+    filtered = filtered.filter(t => t.from === transferFilterFrom);
+  }
+  if (transferFilterTo !== 'all') {
+    filtered = filtered.filter(t => t.to === transferFilterTo);
+  }
+  if (transferFilterStatus !== 'all') {
+    filtered = filtered.filter(t => t.status === transferFilterStatus);
+  }
+  if (transferFilterDateFrom) {
+    filtered = filtered.filter(t => {
+      const d = t.transferDate || t.date || '';
+      return d >= transferFilterDateFrom;
+    });
+  }
+  if (transferFilterDateTo) {
+    filtered = filtered.filter(t => {
+      const d = t.transferDate || t.date || '';
+      return d <= transferFilterDateTo;
+    });
+  }
+
+  // Sort
+  filtered.sort((a, b) => {
+    switch (transferSort) {
+      case 'date-asc': return getTransferSortDate(a) - getTransferSortDate(b);
+      case 'date-desc': return getTransferSortDate(b) - getTransferSortDate(a);
+      case 'item-az': return (a.itemName || '').localeCompare(b.itemName || '');
+      case 'item-za': return (b.itemName || '').localeCompare(a.itemName || '');
+      case 'qty-desc': return (b.quantity || 0) - (a.quantity || 0);
+      case 'qty-asc': return (a.quantity || 0) - (b.quantity || 0);
+      default: return getTransferSortDate(b) - getTransferSortDate(a);
+    }
+  });
+
+  return filtered;
+}
+
 function renderTransfersTab() {
   const container = document.getElementById('tableWrap');
   const transfers = cachedTransfers;
@@ -1882,8 +2104,18 @@ function renderTransfersTab() {
   const pending = transfers.filter(t => t.status === 'pending');
   const completed = transfers.filter(t => t.status !== 'pending');
 
+  // Build unique values for filter dropdowns
+  const uniqueItems = [...new Set(transfers.map(t => t.itemName).filter(Boolean))].sort();
+  const uniqueFrom = [...new Set(transfers.map(t => t.from).filter(Boolean))];
+  const uniqueTo = [...new Set(transfers.map(t => t.to).filter(Boolean))];
+
+  const fromLabels = { warehouse: 'Warehouse', 'ondemand-renton': 'On Demand Renton' };
+  const toLabels = { issaquah: 'Issaquah - NNC', renton: 'Renton - NNC', 'ondemand-renton': 'On Demand Renton', babas: "Baba's Bellevue" };
+
+  const hasActiveFilter = transferFilterItem !== 'all' || transferFilterFrom !== 'all' || transferFilterTo !== 'all' || transferFilterStatus !== 'all' || transferFilterDateFrom || transferFilterDateTo || transferSearchText;
+
   let html = `<div style="padding:8px 0">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <h3 style="font-size:1.1rem;font-weight:700;color:var(--gray-900)">📤 Transfer History</h3>
       <span style="font-size:.82rem;color:var(--gray-500)">${transfers.length} total · ${pending.length} pending</span>
     </div>`;
@@ -1895,7 +2127,7 @@ function renderTransfersTab() {
       <div style="font-size:.85rem">Use the "→ Transfer" button on any item to log when items move to a restaurant</div>
     </div>`;
   } else {
-    // Pending transfers section
+    // Pending transfers section (always shown unfiltered)
     if (pending.length > 0) {
       html += `<div style="margin-bottom:20px;padding:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:var(--radius)">
         <h4 style="font-size:.92rem;font-weight:700;color:#92400e;margin-bottom:10px">⏳ Pending Transfers (${pending.length})</h4>
@@ -1919,28 +2151,104 @@ function renderTransfersTab() {
       html += `</tbody></table></div>`;
     }
 
-    // Completed/rejected transfers
+    // ===== FILTER BAR =====
+    const selStyle = 'padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem;background:#fff;cursor:pointer';
+    const inputStyle = 'padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem;width:130px';
+
+    html += `<div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:.85rem;font-weight:700;color:var(--gray-700)">🔍 Filter & Sort</span>
+        ${hasActiveFilter ? '<button onclick="clearTransferFilters()" style="padding:4px 12px;background:var(--danger);color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer">Clear All</button>' : ''}
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+        <div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase">Search</div>
+          <input type="text" placeholder="Item, name, date..." value="${transferSearchText}" oninput="setTransferFilter('search',this.value)" style="${inputStyle};width:160px">
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase">Item</div>
+          <select onchange="setTransferFilter('item',this.value)" style="${selStyle}">
+            <option value="all">All Items</option>
+            ${uniqueItems.map(i => `<option value="${i}" ${transferFilterItem===i?'selected':''}>${i}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase">From</div>
+          <select onchange="setTransferFilter('from',this.value)" style="${selStyle}">
+            <option value="all">All Sources</option>
+            ${uniqueFrom.map(f => `<option value="${f}" ${transferFilterFrom===f?'selected':''}>${fromLabels[f]||f}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase">To</div>
+          <select onchange="setTransferFilter('to',this.value)" style="${selStyle}">
+            <option value="all">All Destinations</option>
+            ${uniqueTo.map(t => `<option value="${t}" ${transferFilterTo===t?'selected':''}>${toLabels[t]||t}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase">Status</div>
+          <select onchange="setTransferFilter('status',this.value)" style="${selStyle}">
+            <option value="all">All</option>
+            <option value="accepted" ${transferFilterStatus==='accepted'?'selected':''}>Accepted</option>
+            <option value="rejected" ${transferFilterStatus==='rejected'?'selected':''}>Rejected</option>
+            <option value="pending" ${transferFilterStatus==='pending'?'selected':''}>Pending</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase">From Date</div>
+          <input type="date" value="${transferFilterDateFrom}" onchange="setTransferFilter('dateFrom',this.value)" style="${inputStyle}">
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase">To Date</div>
+          <input type="date" value="${transferFilterDateTo}" onchange="setTransferFilter('dateTo',this.value)" style="${inputStyle}">
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--gray-500);margin-bottom:3px;text-transform:uppercase">Sort By</div>
+          <select onchange="setTransferSort(this.value)" style="${selStyle}">
+            <option value="date-desc" ${transferSort==='date-desc'?'selected':''}>Date (Newest)</option>
+            <option value="date-asc" ${transferSort==='date-asc'?'selected':''}>Date (Oldest)</option>
+            <option value="item-az" ${transferSort==='item-az'?'selected':''}>Item (A → Z)</option>
+            <option value="item-za" ${transferSort==='item-za'?'selected':''}>Item (Z → A)</option>
+            <option value="qty-desc" ${transferSort==='qty-desc'?'selected':''}>Qty (High → Low)</option>
+            <option value="qty-asc" ${transferSort==='qty-asc'?'selected':''}>Qty (Low → High)</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+
+    // Apply filters to completed transfers
+    const filteredCompleted = applyTransferFilters(completed);
+
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:.82rem;color:var(--gray-500)">Showing ${filteredCompleted.length} of ${completed.length} completed transfers</span>
+    </div>`;
+
     html += `<table><thead><tr>
       <th>Date</th><th>Item</th><th>Qty</th><th>From</th><th>To</th><th>Authorized By</th><th>Status</th><th>Logged By</th>
     </tr></thead><tbody>`;
 
-    completed.forEach(t => {
-      const statusLabel = t.status === 'accepted'
-        ? '<span style="color:var(--success);font-weight:700">✓ Accepted</span>'
-        : t.status === 'rejected'
-          ? '<span style="color:var(--danger);font-weight:700">✗ Rejected</span>'
-          : '<span style="color:var(--gray-400)">—</span>';
-      html += `<tr>
-        <td style="white-space:nowrap">${t.date || '—'}</td>
-        <td style="font-weight:600">${t.itemName || '—'}</td>
-        <td style="text-align:center;font-weight:700;color:var(--danger)">${t.quantity || 0}</td>
-        <td style="font-size:.82rem">${t.fromName || (t.from === 'ondemand-renton' ? 'On Demand Renton' : 'Warehouse')}</td>
-        <td style="font-size:.82rem">${t.toName || DEST_NAMES[t.to] || t.to || '—'}</td>
-        <td style="font-size:.82rem;font-weight:600">${t.authorizedBy || '—'}</td>
-        <td style="font-size:.82rem">${statusLabel}</td>
-        <td style="font-size:.82rem;color:var(--gray-500)">${t.transferredBy || '—'}</td>
-      </tr>`;
-    });
+    if (filteredCompleted.length === 0) {
+      html += `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--gray-400)">No transfers match your filters</td></tr>`;
+    } else {
+      filteredCompleted.forEach(t => {
+        const statusLabel = t.status === 'accepted'
+          ? '<span style="color:var(--success);font-weight:700">✓ Accepted</span>'
+          : t.status === 'rejected'
+            ? '<span style="color:var(--danger);font-weight:700">✗ Rejected</span>'
+            : '<span style="color:var(--gray-400)">—</span>';
+        html += `<tr>
+          <td style="white-space:nowrap">${t.date || '—'}</td>
+          <td style="font-weight:600">${t.itemName || '—'}</td>
+          <td style="text-align:center;font-weight:700;color:var(--danger)">${t.quantity || 0}</td>
+          <td style="font-size:.82rem">${t.fromName || (t.from === 'ondemand-renton' ? 'On Demand Renton' : 'Warehouse')}</td>
+          <td style="font-size:.82rem">${t.toName || DEST_NAMES[t.to] || t.to || '—'}</td>
+          <td style="font-size:.82rem;font-weight:600">${t.authorizedBy || '—'}</td>
+          <td style="font-size:.82rem">${statusLabel}</td>
+          <td style="font-size:.82rem;color:var(--gray-500)">${t.transferredBy || '—'}</td>
+        </tr>`;
+      });
+    }
     html += `</tbody></table>`;
   }
   html += `</div>`;
