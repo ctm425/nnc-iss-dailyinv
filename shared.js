@@ -133,11 +133,10 @@ const SHEET_TYPES = {
     category: 'inventory',
     frequency: 'weekly',
     icon: '📦',
-    description: 'Off-site storage unit — backup supplies, bulk items, overflow stock',
+    description: 'Off-site storage unit — backup supplies, bulk items, overflow stock.\nUnidad de almacenamiento externa — suministros de respaldo, artículos a granel.',
     allowedRoles: ['owner', 'manager', 'boh'],
-    page: null,
-    restaurants: ['nnc-iss'],
-    comingSoon: true
+    page: 'storage.html',
+    restaurants: ['nnc-iss']
   },
 
   // ---- RENTON WAREHOUSE ----

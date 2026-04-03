@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Issaquah Storage Unit Inventory</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --primary: #4338ca; --primary-light: #6366f1; --primary-bg: #eef2ff;
+  --danger: #dc2626; --success: #16a34a;
+  --amber: #d97706; --amber-bg: #fffbeb;
+  --frozen: #0891b2; --frozen-bg: #ecfeff;
+  --supply: #059669; --supply-bg: #ecfdf5;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#4338ca,#1e1b4b);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-box button:hover{background:var(--primary)}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+.header{background:linear-gradient(135deg,#4338ca,#1e1b4b);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.header-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-white{background:#fff;color:var(--gray-700)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+
+.date-nav{background:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:center;gap:16px;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.date-nav button{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:var(--radius);padding:6px 14px;cursor:pointer;font-weight:600;font-size:.85rem}
+.date-nav button:hover{background:var(--gray-200)}
+.date-nav .current-date{font-size:1.15rem;font-weight:700;color:var(--primary);min-width:220px;text-align:center}
+.date-nav .day-name{font-size:.85rem;color:var(--gray-500);font-weight:500;text-align:center}
+
+.inventory-person-bar{background:#fff;padding:10px 24px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.inventory-person-bar label{font-size:.85rem;font-weight:600;color:var(--gray-700)}
+.inventory-person-bar input{padding:6px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem;width:250px}
+.inventory-person-bar input:focus{outline:none;border-color:var(--primary-light)}
+
+.tab-bar{padding:12px 24px;display:flex;gap:10px;background:#fff;overflow-x:auto;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.tab{padding:10px 22px;font-size:.9rem;font-weight:700;color:var(--gray-600);cursor:pointer;white-space:nowrap;transition:all .15s;border-radius:var(--radius);background:var(--gray-100);border:2px solid var(--gray-300)}
+.tab:hover{background:var(--primary-bg);border-color:var(--primary-light);color:var(--primary)}
+.tab.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 2px 6px rgba(67,56,202,.3)}
+
+.filter-bar{padding:12px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.search-input{padding:8px 14px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.9rem;width:260px}
+.search-input:focus{outline:none;border-color:var(--primary-light)}
+
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:16px 24px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:14px 18px;border:1px solid var(--gray-200)}
+.stat-card .label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+.stat-card .value{font-size:1.4rem;font-weight:700;margin-top:2px}
+.stat-card .value.warn{color:var(--danger)}
+
+.table-wrap{padding:16px 24px;overflow-x:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:700px}
+thead th{background:var(--gray-100);padding:6px 8px;text-align:left;font-size:.7rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200);position:sticky;top:0;z-index:5}
+thead th:first-child{min-width:200px;position:sticky;left:0;z-index:10;background:var(--gray-100);box-shadow:2px 0 4px rgba(0,0,0,.08)}
+tbody td{padding:4px 8px;border-bottom:1px solid var(--gray-100);font-size:.84rem}
+tbody td:first-child{position:sticky;left:0;z-index:2;background:#fff;box-shadow:2px 0 4px rgba(0,0,0,.06);font-weight:600}
+tbody tr:hover td{background:var(--primary-bg)}
+tbody tr:hover td:first-child{background:var(--primary-bg)}
+tbody tr.section-header td{background:var(--gray-100);font-weight:700;font-size:.8rem;text-transform:uppercase;color:var(--gray-500);letter-spacing:.5px;padding:8px 14px}
+input[type="number"]{width:60px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;text-align:center}
+input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 2px rgba(99,102,241,.15)}
+.status-ok{color:var(--success);font-weight:600}
+.status-low{color:var(--amber);font-weight:600}
+.status-critical{color:var(--danger);font-weight:700}
+.note-input{width:120px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem}
+.note-input:focus{outline:none;border-color:var(--primary-light)}
+
+/* Transfer button */
+.btn-transfer{background:var(--primary-light);color:#fff;padding:4px 8px;font-size:.75rem;border:none;border-radius:4px;cursor:pointer;white-space:nowrap}
+.btn-transfer:hover{background:var(--primary)}
+
+/* Modal styles */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.visible{opacity:1;pointer-events:all}
+.modal{background:#fff;border-radius:var(--radius);padding:24px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h3{font-size:1.1rem;font-weight:700;margin-bottom:16px;color:var(--gray-900)}
+.modal-field{margin-bottom:14px}
+.modal-field label{display:block;font-size:.85rem;font-weight:600;margin-bottom:4px;color:var(--gray-700)}
+.modal-field input{width:100%;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+.modal-field input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 2px rgba(99,102,241,.15)}
+.modal-field .info{font-size:.8rem;color:var(--gray-500);margin-top:2px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.modal-actions button{padding:8px 16px;border:none;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer}
+.modal-actions .btn-cancel{background:var(--gray-200);color:var(--gray-700)}
+.modal-actions .btn-cancel:hover{background:var(--gray-300)}
+.modal-actions .btn-confirm{background:var(--primary-light);color:#fff}
+.modal-actions .btn-confirm:hover{background:var(--primary)}
+
+/* Transfer history */
+/* Transfer history table styles (rendered in Transfers tab) */
+.transfer-history-table{width:100%;font-size:.82rem;border-collapse:collapse}
+.transfer-history-table th{background:var(--gray-100);padding:8px;text-align:left;font-weight:600;color:var(--gray-600);font-size:.7rem;text-transform:uppercase;border-bottom:2px solid var(--gray-200)}
+.transfer-history-table td{padding:6px 8px;border-bottom:1px solid var(--gray-200)}
+.transfer-history-table tr:hover{background:var(--gray-50)}
+
+/* Settings panel */
+.settings-panel{display:none;padding:24px;background:#fff;margin:16px 24px;border-radius:var(--radius);border:1px solid var(--gray-200)}
+.settings-panel.visible{display:block}
+.settings-panel h3{font-size:1rem;font-weight:700;margin-bottom:16px}
+.settings-section{margin-bottom:24px}
+.settings-section h4{font-size:.85rem;font-weight:700;color:var(--gray-700);margin-bottom:8px}
+.item-edit-row{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--gray-100);flex-wrap:wrap}
+.item-edit-row input,.item-edit-row select{padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
+
+@media(max-width:640px){
+  .header{padding:12px 16px}
+  .header h1{font-size:1.1rem}
+  .date-nav{padding:10px 16px;gap:8px}
+  .tab-bar{padding:10px 16px}
+  .table-wrap{padding:8px}
+  .filter-bar{padding:8px 16px}
+  .stats-bar{padding:8px 16px}
+  input[type="number"]{width:50px}
+  .modal{width:95%}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Issaquah Storage Unit</h2>
+    <p class="subtitle">Sign in to access storage inventory</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email address">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1 id="pageTitle">📦 Issaquah Storage Unit</h1>
+    <div class="header-sub" id="pageSubtitle">Storage Unit Inventory Management</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" onclick="goToDashboard()">← Dashboard</button>
+    <button class="btn btn-ghost btn-sm" id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📊 Excel</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportPDF()">📄 PDF</button>
+    <button class="btn btn-success btn-sm" onclick="sendEmailReport()">📧 Email</button>
+    <button class="btn btn-ghost btn-sm" onclick="auth.signOut()">Sign Out</button>
+  </div>
+</div>
+
+<!-- DATE NAV -->
+<div class="date-nav">
+  <button onclick="changeWeek(-1)">← Prev Week</button>
+  <div>
+    <div class="current-date" id="weekLabel"></div>
+    <div class="day-name" id="weekDayRange"></div>
+  </div>
+  <button onclick="changeWeek(1)">Next Week →</button>
+  <button onclick="goToThisWeek()" id="jumpBtn" class="btn btn-sm btn-primary" style="background:#4338ca;color:#fff;font-weight:800;padding:8px 18px;font-size:.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(67,56,202,.3)">📅 This Week</button>
+</div>
+
+<!-- INVENTORY PERSON -->
+<div class="inventory-person-bar">
+  <label>Counted By:</label>
+  <input type="text" id="inventoryPerson" placeholder="Enter your name" onchange="saveInventoryPerson(this.value)">
+</div>
+
+<!-- STATS -->
+<div class="stats-bar" id="statsBar"></div>
+
+<!-- CATEGORY TABS -->
+<div class="tab-bar" id="tabBar"></div>
+
+<!-- SUB-CATEGORY TABS -->
+<div class="tab-bar" id="subTabBar" style="background:var(--gray-50);padding:8px 24px;gap:6px;border-bottom:none"></div>
+
+<!-- FILTER -->
+<div class="filter-bar">
+  <input type="text" class="search-input" id="searchInput" placeholder="Search items..." oninput="renderTable()">
+</div>
+
+<!-- TABLE / CONTENT AREA -->
+<div class="table-wrap" id="tableWrap"></div>
+
+<!-- TRANSFER MODAL -->
+<div class="modal-overlay" id="transferModal">
+  <div class="modal">
+    <h3>Transfer: <span id="transferItemName"></span></h3>
+    <div class="modal-field">
+      <label>In Stock:</label>
+      <div class="info" id="transferInStock">—</div>
+    </div>
+    <div class="modal-field">
+      <label>Quantity to Transfer:</label>
+      <input type="number" id="transferQty" min="0" step="0.5" placeholder="0">
+    </div>
+    <div class="modal-field">
+      <label>To:</label>
+      <div class="info">NNC Issaquah</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeTransferModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmTransfer()">Confirm Transfer</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="settings-panel" id="settingsPanel">
+  <h3>⚙️ Storage Unit Settings</h3>
+  <div class="settings-section">
+    <h4>Manage Items (<span id="settingsTabLabel"></span>)</h4>
+    <p style="font-size:.82rem;color:var(--gray-500);margin-bottom:12px">Add, edit, or remove items in the current category. Changes are saved automatically.</p>
+    <div id="itemEditor"></div>
+    <button class="btn btn-primary btn-sm" onclick="addNewItem()" style="margin-top:12px">+ Add Item</button>
+  </div>
+  <div class="settings-section">
+    <h4>Email Settings</h4>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <label style="font-size:.82rem;font-weight:600;min-width:120px">EmailJS Public Key:</label>
+      <input type="text" id="emailjsKey" style="flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem" onchange="saveEmailSettings()">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <label style="font-size:.82rem;font-weight:600;min-width:120px">Service ID:</label>
+      <input type="text" id="emailjsService" style="flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem" onchange="saveEmailSettings()">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <label style="font-size:.82rem;font-weight:600;min-width:120px">Template ID:</label>
+      <input type="text" id="emailjsTemplate" style="flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem" onchange="saveEmailSettings()">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <label style="font-size:.82rem;font-weight:600;min-width:120px">Recipients:</label>
+      <input type="text" id="emailRecipients" style="flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem" placeholder="email1@example.com, email2@example.com" onchange="saveEmailSettings()">
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+// ==================== STORAGE CATEGORIES ====================
+const CATEGORIES = {
+  togo: {
+    name: 'To-Go Containers',
+    icon: '🥡',
+    color: '#b45309',
+    sheetKey: 'storage-togo',
+    subCategories: {}
+  },
+  supplies: {
+    name: 'Supplies',
+    icon: '🧴',
+    color: '#059669',
+    sheetKey: 'storage-supplies',
+    subCategories: {}
+  },
+  ingredients: {
+    name: 'Ingredients',
+    icon: '🫒',
+    color: '#dc2626',
+    sheetKey: 'storage-ingredients',
+    subCategories: {}
+  },
+  diningware: {
+    name: 'Diningware',
+    icon: '🍽️',
+    color: '#4338ca',
+    sheetKey: 'storage-diningware',
+    subCategories: {}
+  },
+  catering: {
+    name: 'Onsite Catering',
+    icon: '🎪',
+    color: '#7c2d12',
+    sheetKey: 'storage-catering',
+    subCategories: {}
+  }
+};
+
+const UNITS = ['each','case','bag','box','bottle','can','jar','lb','oz','gallon','pack','pallet','roll','sleeve'];
+
+// ==================== STATE ====================
+let currentWeekStart = getWeekStart(new Date());
+let activeCategory = 'togo';
+let activeSubCat = 'all';
+let settingsVisible = false;
+let restaurantKey = 'nnc-iss';
+let transferModalItem = null;
+
+// ==================== DEFAULT ITEMS (from actual storage inventory) ====================
+const DEFAULT_ITEMS = {
+  togo: [
+    { id:'r28-seekh-kabab-2go', name:'R-28 Seekh Kabab 2go', unit:'case', par:0 },
+    { id:'sc8oz-lunch-special', name:'SC-8 oz Clear Lunch Special/Onion Salad 2go container', unit:'case', par:0 },
+    { id:'half-alum-pan-lids', name:'1/2 Size Aluminum Pan Lids', unit:'case', par:0 },
+    { id:'half-deep-3biryani', name:'1/2 Size Deep containers (3 biryani)', unit:'case', par:0 },
+    { id:'half-shallow-2biryani', name:'1/2 Size Shallow containers (2 biryanis)', unit:'case', par:0 },
+    { id:'no1-white-rice', name:'#1 White Rice containers', unit:'case', par:0 },
+    { id:'pakora-containers', name:'Pakora containers', unit:'case', par:0 },
+    { id:'8oz-hinged-raita', name:'8oz Hinged containers (Raita)', unit:'case', par:0 },
+    { id:'1oz-chutney-containers', name:'1oz containers - chutney', unit:'case', par:0 },
+    { id:'1oz-chutney-lids', name:'1 oz lids - chutney', unit:'case', par:0 },
+    { id:'16oz-black-curry', name:'16oz Black Curry container', unit:'case', par:0 },
+    { id:'utensils-packets', name:'Utensils Packets', unit:'case', par:0 },
+    { id:'black-lids-chai', name:'Black lids for Chai Cup', unit:'case', par:0 },
+    { id:'black-serving-spoons', name:'Black Plastic serving spoons', unit:'each', par:0 },
+    { id:'full-size-alum-lids', name:'Full Size Aluminum Lids', unit:'case', par:0 }
+  ],
+  supplies: [
+    { id:'register-thermal-rolls', name:'Register Thermal Rolls GT318-230"', unit:'case', par:0 },
+    { id:'napkins-2ply-dinner', name:'Napkins (case) (2PLY DINNER)', unit:'case', par:0 },
+    { id:'gloves-small', name:'Gloves small', unit:'box', par:0 },
+    { id:'gloves-large', name:'Gloves large', unit:'box', par:0 },
+    { id:'gloves-xl', name:'Gloves XL', unit:'box', par:0 },
+    { id:'toilet-paper', name:'Toilet paper for customers', unit:'pack', par:0 },
+    { id:'serving-tongs', name:'Black Plastic serving tongs', unit:'each', par:0 },
+    { id:'cup-holders', name:'Cup holders', unit:'case', par:0 },
+    { id:'paper-towel-rolls', name:'Paper towels rolls', unit:'each', par:0 },
+    { id:'probe-wipes', name:'Probe wipes', unit:'pack', par:0 },
+    { id:'labels-togo', name:'Labels for to go orders', unit:'roll', par:0 }
+  ],
+  ingredients: [
+    { id:'canola-fry-oil', name:'Canola Fry Oil', unit:'gallon', par:0 },
+    { id:'canola-salad-oil', name:'Canola Salad Oil', unit:'gallon', par:0 }
+  ],
+  diningware: [
+    { id:'glass-water-bottles', name:'Glass Water Bottles for tables', unit:'each', par:0 }
+  ],
+  catering: [
+    { id:'metal-chafing-dishes', name:'Metal Chafing Dishes for Catering', unit:'each', par:0 }
+  ]
+};
+
+// ==================== PRELOADED HISTORICAL COUNTS ====================
+// From uploaded spreadsheet — 4 count dates mapped to their week-start Mondays
+// Feb 26 (Thu) → week of 2026-02-23, Mar 17 (Tue) → 2026-03-16, Mar 26 (Thu) → 2026-03-23, Mar 31 (Tue) → 2026-03-30
+const PRELOADED_WEEKS = {
+  // ---- Week of Feb 23 (counted Feb 26) ----
+  '2026-02-23_togo': { 'r28-seekh-kabab-2go':{count:23}, 'sc8oz-lunch-special':{count:5}, 'half-alum-pan-lids':{count:20}, 'half-deep-3biryani':{count:4}, 'half-shallow-2biryani':{count:11}, 'no1-white-rice':{count:1}, 'pakora-containers':{count:7}, '8oz-hinged-raita':{count:7}, '1oz-chutney-containers':{count:2}, '1oz-chutney-lids':{count:1}, '16oz-black-curry':{count:0}, 'utensils-packets':{count:0}, 'black-lids-chai':{count:2}, 'black-serving-spoons':{count:8}, 'full-size-alum-lids':{count:0} },
+  '2026-02-23_supplies': { 'register-thermal-rolls':{count:2}, 'napkins-2ply-dinner':{count:2}, 'gloves-small':{count:8}, 'gloves-large':{count:0}, 'gloves-xl':{count:0}, 'toilet-paper':{count:4}, 'serving-tongs':{count:8}, 'cup-holders':{count:1}, 'paper-towel-rolls':{count:5}, 'probe-wipes':{count:6}, 'labels-togo':{count:2} },
+  '2026-02-23_ingredients': { 'canola-fry-oil':{count:8}, 'canola-salad-oil':{count:8} },
+  '2026-02-23_diningware': { 'glass-water-bottles':{count:2} },
+  '2026-02-23_catering': { 'metal-chafing-dishes':{count:36} },
+  // ---- Week of Mar 16 (counted Mar 17) ----
+  '2026-03-16_togo': { 'r28-seekh-kabab-2go':{count:19}, 'sc8oz-lunch-special':{count:5}, 'half-alum-pan-lids':{count:18}, 'half-deep-3biryani':{count:3}, 'half-shallow-2biryani':{count:7}, 'no1-white-rice':{count:0}, 'pakora-containers':{count:7}, '8oz-hinged-raita':{count:7}, '1oz-chutney-containers':{count:2}, '1oz-chutney-lids':{count:1}, '16oz-black-curry':{count:0}, 'utensils-packets':{count:0}, 'black-lids-chai':{count:2}, 'black-serving-spoons':{count:8}, 'full-size-alum-lids':{count:13} },
+  '2026-03-16_supplies': { 'register-thermal-rolls':{count:2}, 'napkins-2ply-dinner':{count:2}, 'gloves-small':{count:8}, 'gloves-large':{count:0}, 'gloves-xl':{count:0}, 'toilet-paper':{count:4}, 'serving-tongs':{count:8}, 'cup-holders':{count:1}, 'paper-towel-rolls':{count:4}, 'probe-wipes':{count:6}, 'labels-togo':{count:2} },
+  '2026-03-16_ingredients': { 'canola-fry-oil':{count:4}, 'canola-salad-oil':{count:4} },
+  '2026-03-16_diningware': { 'glass-water-bottles':{count:2} },
+  '2026-03-16_catering': { 'metal-chafing-dishes':{count:36} },
+  // ---- Week of Mar 23 (counted Mar 26) ----
+  '2026-03-23_togo': { 'r28-seekh-kabab-2go':{count:17}, 'sc8oz-lunch-special':{count:5}, 'half-alum-pan-lids':{count:16}, 'half-deep-3biryani':{count:1}, 'half-shallow-2biryani':{count:6}, 'no1-white-rice':{count:0}, 'pakora-containers':{count:7}, '8oz-hinged-raita':{count:7}, '1oz-chutney-containers':{count:2}, '1oz-chutney-lids':{count:1}, '16oz-black-curry':{count:0}, 'utensils-packets':{count:0}, 'black-lids-chai':{count:2}, 'black-serving-spoons':{count:8}, 'full-size-alum-lids':{count:13} },
+  '2026-03-23_supplies': { 'register-thermal-rolls':{count:2}, 'napkins-2ply-dinner':{count:2}, 'gloves-small':{count:8}, 'gloves-large':{count:0}, 'gloves-xl':{count:0}, 'toilet-paper':{count:4}, 'serving-tongs':{count:8}, 'cup-holders':{count:1}, 'paper-towel-rolls':{count:4}, 'probe-wipes':{count:6}, 'labels-togo':{count:2} },
+  '2026-03-23_ingredients': { 'canola-fry-oil':{count:0}, 'canola-salad-oil':{count:0} },
+  '2026-03-23_diningware': { 'glass-water-bottles':{count:2} },
+  '2026-03-23_catering': { 'metal-chafing-dishes':{count:36} },
+  // ---- Week of Mar 30 (counted Mar 31 — most recent) ----
+  '2026-03-30_togo': { 'r28-seekh-kabab-2go':{count:17}, 'sc8oz-lunch-special':{count:5}, 'half-alum-pan-lids':{count:16}, 'half-deep-3biryani':{count:1}, 'half-shallow-2biryani':{count:6}, 'no1-white-rice':{count:0}, 'pakora-containers':{count:7}, '8oz-hinged-raita':{count:7}, '1oz-chutney-containers':{count:2}, '1oz-chutney-lids':{count:1}, '16oz-black-curry':{count:0}, 'utensils-packets':{count:0}, 'black-lids-chai':{count:2}, 'black-serving-spoons':{count:8}, 'full-size-alum-lids':{count:12} },
+  '2026-03-30_supplies': { 'register-thermal-rolls':{count:2}, 'napkins-2ply-dinner':{count:0}, 'gloves-small':{count:8}, 'gloves-large':{count:0}, 'gloves-xl':{count:0}, 'toilet-paper':{count:4}, 'serving-tongs':{count:7}, 'cup-holders':{count:1}, 'paper-towel-rolls':{count:40}, 'probe-wipes':{count:6}, 'labels-togo':{count:2} },
+  '2026-03-30_ingredients': { 'canola-fry-oil':{count:0}, 'canola-salad-oil':{count:0} },
+  '2026-03-30_diningware': { 'glass-water-bottles':{count:2} },
+  '2026-03-30_catering': { 'metal-chafing-dishes':{count:36} }
+};
+
+// ==================== DATE HELPERS ====================
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0,0,0,0);
+  return d;
+}
+function weekKey(date) {
+  const d = date || currentWeekStart;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function formatDate(date) {
+  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${m[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+function changeWeek(delta) {
+  currentWeekStart = new Date(currentWeekStart);
+  currentWeekStart.setDate(currentWeekStart.getDate() + (delta * 7));
+  render();
+}
+function goToThisWeek() {
+  currentWeekStart = getWeekStart(new Date());
+  render();
+}
+
+// ==================== DATA ====================
+function fsDocId() { return `storage_${restaurantKey}`; }
+
+function loadData() {
+  const raw = localStorage.getItem(fsDocId());
+  if (raw) { try { return JSON.parse(raw); } catch(e) {} }
+  // First load: seed with default items and preloaded historical counts
+  return { items: JSON.parse(JSON.stringify(DEFAULT_ITEMS)), weeks: JSON.parse(JSON.stringify(PRELOADED_WEEKS)), emailjs: {}, emails: '', transfers: [] };
+}
+
+function saveData(d) {
+  localStorage.setItem(fsDocId(), JSON.stringify(d));
+  saveToFirestore(d);
+}
+
+async function saveToFirestore(d) {
+  if (!auth.currentUser) return;
+  try {
+    await db.collection('storage_config').doc(fsDocId()).set({
+      items: d.items, emailjs: d.emailjs||{}, emails: d.emails||'',
+      updatedAt: new Date(), updatedBy: auth.currentUser.email
+    },{ merge: true });
+  } catch(e) { console.error('FS save error:', e); }
+}
+
+async function saveWeekData(wk, category, data) {
+  if (!auth.currentUser) return;
+  try {
+    await db.collection('storage_weeks').doc(`${fsDocId()}_${wk}_${category}`).set(data);
+  } catch(e) { console.error('FS week save:', e); }
+}
+
+function getWeekData(wk, category) {
+  const d = loadData();
+  const key = `${wk}_${category}`;
+  return (d.weeks && d.weeks[key]) || {};
+}
+
+function setField(wk, category, itemId, field, val) {
+  const d = loadData();
+  if (!d.weeks) d.weeks = {};
+  const key = `${wk}_${category}`;
+  if (!d.weeks[key]) d.weeks[key] = {};
+  if (!d.weeks[key][itemId]) d.weeks[key][itemId] = {};
+  d.weeks[key][itemId][field] = val;
+  saveData(d);
+  saveWeekData(wk, category, d.weeks[key]);
+}
+
+function setupFirestoreListener() {
+  db.collection('storage_config').doc(fsDocId()).onSnapshot(snap => {
+    if (!snap.exists) return;
+    const config = snap.data();
+    const d = loadData();
+    if (config.items) d.items = config.items;
+    if (config.emailjs && config.emailjs.publicKey) d.emailjs = config.emailjs;
+    else if (!d.emailjs || !d.emailjs.publicKey) d.emailjs = config.emailjs || d.emailjs || {};
+    if (config.emails) d.emails = config.emails;
+    localStorage.setItem(fsDocId(), JSON.stringify(d));
+    render();
+  });
+
+  db.collection('storage_transfers').orderBy('timestamp', 'desc').limit(100).onSnapshot(snap => {
+    cachedTransfers = [];
+    snap.forEach(doc => {
+      cachedTransfers.push(doc.data());
+    });
+    if (activeCategory === 'transfers') renderTransfersTab();
+  });
+}
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  if (!email||!password){err.textContent='Please enter email and password.';err.style.display='block';return;}
+  btn.disabled=true;btn.textContent='Signing in...';err.style.display='none';
+  try { await auth.signInWithEmailAndPassword(email, password); }
+  catch(e) { err.textContent=e.message;err.style.display='block';btn.disabled=false;btn.textContent='Sign In'; }
+}
+
+auth.onAuthStateChanged(async user => {
+  const overlay = document.getElementById('loginOverlay');
+  if (user) {
+    overlay.classList.add('hidden');
+    const profile = await loadUserProfile();
+    const urlRest = getParam('restaurant');
+    if (urlRest && RESTAURANTS[urlRest]) restaurantKey = urlRest;
+    const urlSheet = getParam('sheet');
+    if (urlSheet === 'storage-drygoods') activeCategory = 'drygoods';
+    else if (urlSheet === 'storage-paper') activeCategory = 'paper';
+    else if (urlSheet === 'storage-cleaning') activeCategory = 'cleaning';
+    else if (urlSheet === 'storage-equipment') activeCategory = 'equipment';
+    setupFirestoreListener();
+    render();
+  } else {
+    overlay.classList.remove('hidden');
+  }
+});
+
+// ==================== RENDER ====================
+function render() {
+  updateDateNav();
+  renderCategories();
+  if (activeCategory === 'transfers') {
+    document.getElementById('statsBar').innerHTML = '';
+    document.getElementById('subTabBar').innerHTML = '';
+    document.getElementById('searchInput').parentElement.style.display = 'none';
+    document.getElementById('inventoryPerson').parentElement.style.display = 'none';
+    renderTransfersTab();
+  } else {
+    document.getElementById('searchInput').parentElement.style.display = '';
+    document.getElementById('inventoryPerson').parentElement.style.display = '';
+    renderStats();
+    renderSubTabs();
+    renderTable();
+    loadInventoryPerson();
+  }
+  if (settingsVisible) renderSettings();
+}
+
+function updateDateNav() {
+  const end = new Date(currentWeekStart);
+  end.setDate(end.getDate()+6);
+  document.getElementById('weekLabel').textContent = `Week of ${formatDate(currentWeekStart)}`;
+  document.getElementById('weekDayRange').textContent = `${formatDate(currentWeekStart)} – ${formatDate(end)}`;
+}
+
+function renderStats() {
+  const d = loadData();
+  const isAll = activeCategory === 'all';
+  const wk = weekKey();
+  let itemsInStock = 0, lowStock = 0, totalItems = 0;
+
+  const catsToCount = isAll ? Object.keys(CATEGORIES) : [activeCategory];
+  catsToCount.forEach(catKey => {
+    const catItems = (d.items && d.items[catKey]) || [];
+    const weekData = getWeekData(wk, catKey);
+    totalItems += catItems.length;
+    catItems.forEach(item => {
+      const data = weekData[item.id] || {};
+      const count = Number(data.count||0);
+      if (count > 0) itemsInStock++;
+      const par = item.par || 0;
+      if (par > 0 && count < par) lowStock++;
+    });
+  });
+
+  const catLabel = isAll ? '📋 All Items' : `${CATEGORIES[activeCategory].icon} ${CATEGORIES[activeCategory].name}`;
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-card"><div class="label">Category</div><div class="value" style="font-size:1.1rem">${catLabel}</div></div>
+    <div class="stat-card"><div class="label">Total Items</div><div class="value">${totalItems}</div></div>
+    <div class="stat-card"><div class="label">Items in Stock</div><div class="value">${itemsInStock}</div></div>
+    <div class="stat-card"><div class="label">Low Stock</div><div class="value ${lowStock>0?'warn':''}">${lowStock}</div></div>
+    <div class="stat-card"><div class="label">Week of</div><div class="value" style="font-size:.95rem;color:var(--gray-500)">${formatDate(currentWeekStart)}</div></div>
+  `;
+}
+
+function renderCategories() {
+  const container = document.getElementById('tabBar');
+  let html = `<div class="tab ${activeCategory==='all'?'active':''}" onclick="setCategory('all')">📋 All Items</div>`;
+  Object.keys(CATEGORIES).forEach(key => {
+    const cat = CATEGORIES[key];
+    const active = key === activeCategory ? 'active' : '';
+    html += `<div class="tab ${active}" onclick="setCategory('${key}')">${cat.icon} ${cat.name}</div>`;
+  });
+  html += `<div class="tab ${activeCategory==='transfers'?'active':''}" style="${activeCategory==='transfers'?'':'background:var(--primary-bg);border-color:var(--primary-light);color:var(--primary)'}" onclick="setCategory('transfers')">📤 Transfers</div>`;
+  container.innerHTML = html;
+}
+
+function setCategory(cat) {
+  activeCategory = cat;
+  activeSubCat = 'all';
+  render();
+}
+
+function renderSubTabs() {
+  // No subcategories in this version — hide sub-tab bar
+  document.getElementById('subTabBar').innerHTML = '';
+}
+
+function setSubCat(cat) {
+  activeSubCat = cat;
+  renderTable();
+}
+
+function getPrevWeekStart() {
+  const prev = new Date(currentWeekStart);
+  prev.setDate(prev.getDate() - 7);
+  return prev;
+}
+
+function renderTable() {
+  const container = document.getElementById('tableWrap');
+  const d = loadData();
+  const wk = weekKey();
+  const prevWk = weekKey(getPrevWeekStart());
+  const search = (document.getElementById('searchInput')?.value||'').toLowerCase();
+  const isAll = activeCategory === 'all';
+
+  // Gather items — either from one category or all
+  let itemsWithCat = [];
+  if (isAll) {
+    Object.keys(CATEGORIES).forEach(catKey => {
+      if (catKey === 'all') return;
+      const catItems = (d.items && d.items[catKey]) || [];
+      catItems.forEach(item => itemsWithCat.push({ ...item, _cat: catKey }));
+    });
+  } else {
+    const catItems = (d.items && d.items[activeCategory]) || [];
+    catItems.forEach(item => itemsWithCat.push({ ...item, _cat: activeCategory }));
+  }
+
+  if (search) itemsWithCat = itemsWithCat.filter(i => i.name.toLowerCase().includes(search));
+
+  let html = `<table><thead><tr>
+    <th>Item</th>${isAll?'<th>Category</th>':''}<th>Unit</th><th>Par Level</th><th>Count</th><th>Usage</th><th>Status</th>
+    <th>Notes</th><th>Transfer</th>
+  </tr></thead><tbody>`;
+
+  let currentCatHeader = '';
+  itemsWithCat.forEach(item => {
+    const catKey = item._cat;
+    const weekData = getWeekData(wk, catKey);
+    const prevWeekData = getWeekData(prevWk, catKey);
+    const data = weekData[item.id] || {};
+    const prevData = prevWeekData[item.id] || {};
+    const count = data.count !== undefined && data.count !== '' ? Number(data.count) : '';
+    const prevCount = prevData.count !== undefined && prevData.count !== '' ? Number(prevData.count) : '';
+    const par = item.par || 0;
+
+    // Usage = previous count - current count (positive = items consumed/moved out)
+    let usageDisplay = '—';
+    let usageStyle = 'color:var(--gray-400)';
+    if (count !== '' && prevCount !== '') {
+      const usage = prevCount - count;
+      if (usage > 0) { usageDisplay = `−${usage}`; usageStyle = 'color:var(--danger);font-weight:600'; }
+      else if (usage < 0) { usageDisplay = `+${Math.abs(usage)}`; usageStyle = 'color:var(--success);font-weight:600'; }
+      else { usageDisplay = '0'; usageStyle = 'color:var(--gray-400)'; }
+    }
+
+    let status = '', statusClass = '';
+    if (count === '') { status = '—'; }
+    else if (par === 0) { status = `${count}`; statusClass = ''; }
+    else if (count >= par) { status = '✓ Good'; statusClass = 'status-ok'; }
+    else if (count >= par * 0.5) { status = '⚠ Low'; statusClass = 'status-low'; }
+    else { status = '⛔ Critical'; statusClass = 'status-critical'; }
+
+    // Category header row in "All" view
+    if (isAll && catKey !== currentCatHeader) {
+      currentCatHeader = catKey;
+      const cat = CATEGORIES[catKey];
+      html += `<tr class="section-header"><td colspan="9" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
+    }
+
+    html += `<tr>
+      <td>${item.name}</td>
+      ${isAll?`<td style="font-size:.75rem;color:var(--gray-500)">${CATEGORIES[catKey].icon}</td>`:''}
+      <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
+      <td style="text-align:center;font-weight:600;color:var(--gray-400)">${par > 0 ? par : '—'}</td>
+      <td><input type="number" value="${count}" min="0" step="0.5"
+        onchange="onCountChange('${item.id}',this.value${isAll?`,'${catKey}'`:''})"
+        style="background:${count===''?'#fffbeb':'#fff'}"></td>
+      <td style="text-align:center;${usageStyle}">${usageDisplay}</td>
+      <td class="${statusClass}">${status}</td>
+      <td><input type="text" class="note-input" value="${data.notes||''}" placeholder="Notes..."
+        onchange="setField(weekKey(),'${catKey}','${item.id}','notes',this.value)"></td>
+      <td><button class="btn-transfer" onclick="openTransferModal('${item.id}','${item.name.replace(/'/g,"\\\\'")}',${count||0})">→ Transfer</button></td>
+    </tr>`;
+  });
+
+  if (itemsWithCat.length === 0) {
+    const cols = isAll ? 9 : 8;
+    html += `<tr><td colspan="${cols}" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+// ==================== FIELD HANDLERS ====================
+function onCountChange(itemId, val, catOverride) {
+  const wk = weekKey();
+  const cat = catOverride || activeCategory;
+  if (val === '') {
+    const d = loadData();
+    const key = `${wk}_${cat}`;
+    if (d.weeks && d.weeks[key] && d.weeks[key][itemId]) {
+      delete d.weeks[key][itemId].count;
+      saveData(d);
+    }
+  } else {
+    setField(wk, cat, itemId, 'count', Number(val));
+  }
+  render();
+}
+
+function saveInventoryPerson(name) {
+  setField(weekKey(), activeCategory, '__meta', 'inventoryPerson', name);
+}
+
+function loadInventoryPerson() {
+  const weekData = getWeekData(weekKey(), activeCategory);
+  document.getElementById('inventoryPerson').value = weekData.__meta?.inventoryPerson || '';
+}
+
+// ==================== TRANSFER MODAL ====================
+function openTransferModal(itemId, itemName, currentCount) {
+  transferModalItem = { itemId, itemName, currentCount };
+  document.getElementById('transferItemName').textContent = itemName;
+  document.getElementById('transferInStock').textContent = currentCount;
+  document.getElementById('transferQty').value = '';
+  document.getElementById('transferModal').classList.add('visible');
+}
+
+function closeTransferModal() {
+  document.getElementById('transferModal').classList.remove('visible');
+  transferModalItem = null;
+}
+
+async function confirmTransfer() {
+  if (!transferModalItem) return;
+  const qty = Number(document.getElementById('transferQty').value || 0);
+  if (qty <= 0) {
+    showToast('Enter a quantity to transfer');
+    return;
+  }
+  if (qty > transferModalItem.currentCount) {
+    showToast('Cannot transfer more than in stock');
+    return;
+  }
+
+  const wk = weekKey();
+  const d = loadData();
+  const newCount = transferModalItem.currentCount - qty;
+  setField(wk, activeCategory, transferModalItem.itemId, 'count', newCount);
+
+  if (auth.currentUser) {
+    try {
+      await db.collection('storage_transfers').add({
+        itemId: transferModalItem.itemId,
+        itemName: transferModalItem.itemName,
+        quantity: qty,
+        from: 'storage',
+        to: 'nnc-iss',
+        date: new Date().toLocaleDateString(),
+        timestamp: new Date(),
+        transferredBy: auth.currentUser.email
+      });
+    } catch(e) { console.error('Transfer save error:', e); }
+  }
+
+  showToast(`Transferred ${qty} ${transferModalItem.itemName.split('(')[0]}`);
+  closeTransferModal();
+  render();
+}
+
+// ==================== TRANSFERS TAB ====================
+let cachedTransfers = [];
+
+function renderTransfersTab() {
+  const container = document.getElementById('tableWrap');
+  const transfers = cachedTransfers;
+
+  let html = `<div style="padding:8px 0">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 style="font-size:1.1rem;font-weight:700;color:var(--gray-900)">📤 Transfer History</h3>
+      <span style="font-size:.82rem;color:var(--gray-500)">${transfers.length} transfer${transfers.length!==1?'s':''} logged</span>
+    </div>`;
+
+  if (transfers.length === 0) {
+    html += `<div style="text-align:center;padding:48px 24px;color:var(--gray-400)">
+      <div style="font-size:2rem;margin-bottom:8px">📤</div>
+      <div style="font-size:.95rem;font-weight:600;margin-bottom:4px">No transfers yet</div>
+      <div style="font-size:.85rem">Use the "→ Transfer" button on any item in the inventory tabs to log when items move to Issaquah</div>
+    </div>`;
+  } else {
+    html += `<table class="transfer-history-table">
+      <thead><tr>
+        <th>Date</th><th>Item</th><th>Qty</th><th>To</th><th>Transferred By</th>
+      </tr></thead><tbody>`;
+
+    transfers.forEach(t => {
+      html += `<tr>
+        <td style="white-space:nowrap">${t.date || '—'}</td>
+        <td style="font-weight:600">${t.itemName || '—'}</td>
+        <td style="text-align:center;font-weight:700;color:var(--danger)">${t.quantity || 0}</td>
+        <td style="font-size:.82rem">NNC Issaquah</td>
+        <td style="font-size:.82rem;color:var(--gray-500)">${t.transferredBy || '—'}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// ==================== SETTINGS ====================
+function toggleSettings() {
+  settingsVisible = !settingsVisible;
+  document.getElementById('settingsPanel').classList.toggle('visible', settingsVisible);
+  if (settingsVisible) renderSettings();
+}
+
+function renderSettings() {
+  const d = loadData();
+  const categoryItems = (d.items && d.items[activeCategory]) || [];
+  const cat = CATEGORIES[activeCategory];
+  document.getElementById('settingsTabLabel').textContent = cat.name;
+  document.getElementById('emailjsKey').value = d.emailjs?.publicKey || '';
+  document.getElementById('emailjsService').value = d.emailjs?.serviceId || '';
+  document.getElementById('emailjsTemplate').value = d.emailjs?.templateId || '';
+  document.getElementById('emailRecipients').value = d.emails || '';
+
+  const editor = document.getElementById('itemEditor');
+  let html = '';
+  categoryItems.forEach((item, idx) => {
+    const unitOptions = UNITS.map(u =>
+      `<option value="${u}"${item.unit===u?' selected':''}>${u}</option>`
+    ).join('');
+    html += `<div class="item-edit-row">
+      <input type="text" value="${item.name}" placeholder="Item name" style="width:250px" onchange="updateItem(${idx},'name',this.value)">
+      <select onchange="updateItem(${idx},'unit',this.value)">${unitOptions}</select>
+      <label style="font-size:.78rem">Par: <input type="number" value="${item.par||0}" min="0" style="width:50px" onchange="updateItem(${idx},'par',Number(this.value))"></label>
+      <button class="btn btn-danger btn-sm" onclick="removeItem(${idx})" style="padding:3px 8px;font-size:.7rem">✕</button>
+    </div>`;
+  });
+  editor.innerHTML = html;
+}
+
+function updateItem(idx, field, val) {
+  const d = loadData();
+  if (!d.items) d.items = {};
+  if (!d.items[activeCategory]) d.items[activeCategory] = [];
+  if (d.items[activeCategory][idx]) {
+    d.items[activeCategory][idx][field] = val;
+    if (field === 'name') {
+      d.items[activeCategory][idx].id = val.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+    }
+    saveData(d);
+  }
+  render();
+}
+
+function removeItem(idx) {
+  if (!confirm('Remove this item?')) return;
+  const d = loadData();
+  d.items[activeCategory].splice(idx, 1);
+  saveData(d);
+  render();
+}
+
+function addNewItem() {
+  const d = loadData();
+  if (!d.items) d.items = {};
+  if (!d.items[activeCategory]) d.items[activeCategory] = [];
+  const cat = CATEGORIES[activeCategory];
+  d.items[activeCategory].push({ id: `new-${Date.now()}`, name: 'New Item', unit: 'each', par: 0 });
+  saveData(d);
+  renderSettings();
+  renderTable();
+}
+
+function saveEmailSettings() {
+  const d = loadData();
+  d.emailjs = {
+    publicKey: document.getElementById('emailjsKey').value.trim(),
+    serviceId: document.getElementById('emailjsService').value.trim(),
+    templateId: document.getElementById('emailjsTemplate').value.trim()
+  };
+  d.emails = document.getElementById('emailRecipients').value.trim();
+  saveData(d);
+  showToast('Email settings saved');
+}
+
+// ==================== EXPORT EXCEL ====================
+function exportExcel() {
+  const d = loadData();
+  const wb = XLSX.utils.book_new();
+
+  const prevWk = weekKey(getPrevWeekStart());
+  Object.keys(CATEGORIES).forEach(catKey => {
+    const cat = CATEGORIES[catKey];
+    const categoryItems = (d.items && d.items[catKey]) || [];
+    const wk = weekKey();
+    const weekData = getWeekData(wk, catKey);
+    const prevWeekData = getWeekData(prevWk, catKey);
+    const rows = [];
+    categoryItems.forEach(item => {
+      const data = weekData[item.id] || {};
+      const prevData = prevWeekData[item.id] || {};
+      const count = data.count !== undefined ? Number(data.count) : '';
+      const prevCount = prevData.count !== undefined ? Number(prevData.count) : '';
+      const par = item.par || 0;
+      let usage = '—';
+      if (count !== '' && prevCount !== '') {
+        const diff = prevCount - count;
+        usage = diff > 0 ? -diff : diff < 0 ? `+${Math.abs(diff)}` : 0;
+      }
+      rows.push({
+        'Item': item.name,
+        'Unit': item.unit,
+        'Par': par > 0 ? par : '—',
+        'Count': count,
+        'Usage': usage,
+        'Status': count===''?'Not Counted': par===0?'':count>=par?'Good': count>=par*0.5?'Low':'Critical',
+        'Notes': data.notes || ''
+      });
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{wch:40},{wch:8},{wch:6},{wch:6},{wch:8},{wch:12},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, ws, cat.name.substring(0,31));
+  });
+
+  XLSX.writeFile(wb, `Storage_${weekKey()}.xlsx`);
+  showToast('Excel exported');
+}
+
+// ==================== EXPORT PDF ====================
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape');
+  const d = loadData();
+  let firstPage = true;
+
+  const prevWk = weekKey(getPrevWeekStart());
+  Object.keys(CATEGORIES).forEach(catKey => {
+    const cat = CATEGORIES[catKey];
+    const categoryItems = (d.items && d.items[catKey]) || [];
+    const wk = weekKey();
+    const weekData = getWeekData(wk, catKey);
+    const prevWeekData = getWeekData(prevWk, catKey);
+    if (!firstPage) doc.addPage();
+    firstPage = false;
+
+    doc.setFontSize(16);
+    doc.text(`Issaquah Storage Unit — ${cat.name}`, 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Week of ${formatDate(currentWeekStart)}`, 14, 22);
+    const person = weekData.__meta?.inventoryPerson || '';
+    if (person) doc.text(`Counted by: ${person}`, 14, 28);
+
+    const rows = [];
+    categoryItems.forEach(item => {
+      const data = weekData[item.id] || {};
+      const prevData = prevWeekData[item.id] || {};
+      const count = data.count !== undefined ? Number(data.count) : '';
+      const prevCount = prevData.count !== undefined ? Number(prevData.count) : '';
+      const par = item.par || 0;
+      let usage = '—';
+      if (count !== '' && prevCount !== '') {
+        const diff = prevCount - count;
+        usage = diff > 0 ? `-${diff}` : diff < 0 ? `+${Math.abs(diff)}` : '0';
+      }
+      const status = count===''?'—': par===0?'': count>=par?'✓ Good': count>=par*0.5?'⚠ Low':'⛔ Critical';
+      rows.push([item.name, item.unit, par>0?par:'—', count===''?'—':count, usage, status, data.notes||'']);
+    });
+
+    doc.autoTable({
+      head: [['Item','Unit','Par','Count','Usage','Status','Notes']],
+      body: rows,
+      startY: person ? 33 : 27,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [67,56,202] },
+      columnStyles: { 0:{cellWidth:50} }
+    });
+  });
+
+  doc.save(`Storage_${weekKey()}.pdf`);
+  showToast('PDF exported');
+}
+
+// ==================== EMAIL ====================
+async function sendEmailReport() {
+  const d = loadData();
+  if (!d.emailjs?.publicKey || !d.emailjs?.serviceId || !d.emailjs?.templateId) {
+    showToast('Configure EmailJS settings first');
+    toggleSettings(); return;
+  }
+  if (!d.emails) { showToast('Add email recipients in settings'); toggleSettings(); return; }
+
+  let bodyHtml = `<h2 style="color:#4338ca">📦 Issaquah Storage Unit — Inventory Report</h2>
+    <p><strong>Week:</strong> ${formatDate(currentWeekStart)}</p>`;
+
+  Object.keys(CATEGORIES).forEach(catKey => {
+    const cat = CATEGORIES[catKey];
+    const categoryItems = (d.items && d.items[catKey]) || [];
+    const wk = weekKey();
+    const weekData = getWeekData(wk, catKey);
+    const person = weekData.__meta?.inventoryPerson || '';
+
+    bodyHtml += `<h3 style="color:${cat.color};margin-top:20px">${cat.icon} ${cat.name}</h3>`;
+    if (person) bodyHtml += `<p style="font-size:13px"><strong>Counted by:</strong> ${person}</p>`;
+
+    bodyHtml += `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;margin-bottom:20px">
+      <thead><tr>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:left;border:1px solid #ddd">Item</th>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Unit</th>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Par</th>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Count</th>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:center;border:1px solid #ddd">Status</th>
+        <th style="padding:6px 8px;background:#4338ca;color:#fff;text-align:left;border:1px solid #ddd">Notes</th>
+      </tr></thead><tbody>`;
+
+    categoryItems.forEach(item => {
+      const data = weekData[item.id] || {};
+      const count = data.count !== undefined ? Number(data.count) : '';
+      const par = item.par || 0;
+      let statusColor = '#6b7280', statusText = '—';
+      if (count !== '') {
+        if (count >= par) { statusColor='#16a34a'; statusText='✓ Good'; }
+        else if (count >= par*0.5) { statusColor='#d97706'; statusText='⚠ Low'; }
+        else { statusColor='#dc2626'; statusText='⛔ Critical'; }
+      }
+      bodyHtml += `<tr>
+        <td style="padding:5px 8px;border:1px solid #eee;font-weight:600">${item.name}</td>
+        <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${item.unit}</td>
+        <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${par}</td>
+        <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${count===''?'—':count}</td>
+        <td style="padding:5px 8px;border:1px solid #eee;text-align:center;color:${statusColor};font-weight:600">${statusText}</td>
+        <td style="padding:5px 8px;border:1px solid #eee;font-size:11px">${data.notes||''}</td>
+      </tr>`;
+    });
+    bodyHtml += `</tbody></table>`;
+  });
+
+  const subject = `Issaquah Storage Unit Inventory — Week of ${formatDate(currentWeekStart)}`;
+  try {
+    emailjs.init(d.emailjs.publicKey);
+    await emailjs.send(d.emailjs.serviceId, d.emailjs.templateId, {
+      to_email: d.emails, subject: subject, message_html: bodyHtml, message: bodyHtml
+    });
+    showToast('Email sent successfully!');
+  } catch(e) {
+    console.error('Email error:', e);
+    showToast('Email failed: ' + (e.text||e.message||'Unknown'));
+  }
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+</script>
+</body>
+</html>
