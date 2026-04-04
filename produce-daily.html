@@ -576,6 +576,7 @@ async function syncDataToFirestore(d){
       produceEmails:d.produceEmails||[],
       produceReplyTo:d.produceReplyTo||[],
       emailjs:d.emailjs||{},
+      produceTemplateId:d.produceTemplateId||'',
       inventoryPerson:d.inventoryPerson||'',
       parVersion:d.parVersion||PAR_VERSION,
       lastSync:new Date()
@@ -607,6 +608,7 @@ async function loadDataFromFirestore(){
       produceEmails:config.produceEmails||[],
       produceReplyTo:config.produceReplyTo||[],
       emailjs:config.emailjs||{},
+      produceTemplateId:config.produceTemplateId||'',
       inventoryPerson:config.inventoryPerson||'',
       parVersion:config.parVersion||PAR_VERSION
     };
@@ -774,6 +776,7 @@ function setupRealtimeListeners(){
       // Preserve emailjs: use Firestore value if it has a publicKey, otherwise keep local
       if(config.emailjs&&config.emailjs.publicKey){d.emailjs=config.emailjs}
       else if(!d.emailjs||!d.emailjs.publicKey){d.emailjs=config.emailjs||d.emailjs||{}}
+      d.produceTemplateId=config.produceTemplateId||d.produceTemplateId;
       d.inventoryPerson=config.inventoryPerson||d.inventoryPerson;
       items=d.items;
       // Update local cache
