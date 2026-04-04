@@ -89,7 +89,7 @@ const SHEET_TYPES = {
     icon: '🥬',
     description: 'Daily produce count and orders.\nConteo diario de productos y pedidos.',
     allowedRoles: ['owner', 'manager', 'kitchen'],
-    page: 'daily.html',
+    page: 'produce-daily.html',
     restaurants: ['nnc-iss']
   },
   'nnc-drygoods': {

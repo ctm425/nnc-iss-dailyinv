@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NNC Issaquah — Kitchen Daily Order</title>
+<title>NNC Issaquah - Daily Produce Inventory & Order</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -23,7 +23,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
 
-.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header{background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .header h1{font-size:1.3rem;font-weight:700}
 .header-sub{opacity:.85;font-size:.85rem}
 .header-right{display:flex;gap:8px;align-items:center}
@@ -49,6 +49,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .inventory-person-bar label{font-size:.85rem;font-weight:600;color:var(--gray-700)}
 .inventory-person-bar input{padding:6px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem;width:250px}
 .inventory-person-bar input:focus{outline:none;border-color:var(--primary-light)}
+.additional-items-box{background:#f0fdf4;border:1px solid #bbf7d0;border-bottom:1px solid #86efac;padding:12px 24px;display:flex;flex-direction:column;gap:6px}
+.additional-items-label{font-size:.8rem;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px}
+.additional-items-box textarea{padding:8px 12px;border:1px solid #86efac;border-radius:6px;font-size:.9rem;font-family:inherit;resize:vertical;min-height:50px;width:100%;box-sizing:border-box}
+.additional-items-box textarea:focus{outline:none;border-color:#059669;box-shadow:0 0 0 2px rgba(5,150,105,.15)}
 
 .no-delivery-banner{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;padding:10px 24px;font-size:.88rem;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .no-delivery-banner .btn-sm{font-size:.75rem}
@@ -62,7 +66,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .tab-bar{padding:12px 24px;display:flex;gap:10px;background:#fff;overflow-x:auto;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
 .tab{padding:10px 22px;font-size:.9rem;font-weight:700;color:var(--gray-600);cursor:pointer;white-space:nowrap;transition:all .15s;border-radius:var(--radius);background:var(--gray-100);border:2px solid var(--gray-300)}
 .tab:hover{background:var(--primary-bg);border-color:var(--primary-light);color:var(--primary)}
-.tab.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 2px 6px rgba(30,58,95,.3)}
+.tab.active{background:var(--produce);color:#fff;border-color:var(--produce);box-shadow:0 2px 6px rgba(5,150,105,.3)}
 
 .filter-bar{padding:12px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .search-input{padding:8px 14px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.9rem;width:260px}
@@ -113,24 +117,14 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 .order-status .shortage-hint,.order-status .surplus-hint{margin-top:2px}
 
 /* Total Order column highlight */
-.total-order-head{background:#1e3a5f!important;color:#fff!important;font-size:.72rem!important}
-.total-order-cell{background:#eff6ff;font-weight:700;font-size:.92rem;text-align:center;color:#1e3a5f}
+.total-order-head{background:#059669!important;color:#fff!important;font-size:.72rem!important}
+.total-order-cell{background:#ecfdf5;font-weight:700;font-size:.92rem;text-align:center;color:#059669}
 .total-order-cell strong{color:#1e3a5f}
 
 .usage-val{font-weight:700}
 .usage-val.negative{color:var(--danger)}
 .usage-val.positive{color:var(--success)}
 
-/* Send-To Sections */
-.send-to-sections{padding:16px 24px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:700px){.send-to-sections{grid-template-columns:1fr}}
-.send-to-box{background:#fff;border-radius:var(--radius);border:2px solid var(--gray-200);padding:0;overflow:hidden}
-.send-to-box .send-to-label{padding:10px 16px;font-size:.85rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#fff;display:flex;align-items:center;gap:8px}
-.send-to-box.renton .send-to-label{background:linear-gradient(135deg,#4338ca,#6366f1)}
-.send-to-box.issaquah .send-to-label{background:linear-gradient(135deg,#1e3a5f,#2563eb)}
-.send-to-box textarea{width:100%;min-height:90px;padding:12px 16px;border:none;font-size:.88rem;font-family:inherit;resize:vertical;line-height:1.5;color:var(--gray-900)}
-.send-to-box textarea::placeholder{color:var(--gray-400)}
-.send-to-box textarea:focus{outline:none;background:#fafbff}
 
 /* Settings */
 .settings-page{display:none;padding:24px}
@@ -197,7 +191,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 .hidden{display:none!important}
 
 /* Login overlay */
-.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);z-index:1000;align-items:center;justify-content:center;opacity:1;transition:opacity .3s}
+.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#059669,#047857);z-index:1000;align-items:center;justify-content:center;opacity:1;transition:opacity .3s}
 .login-overlay.hidden{display:none}
 .login-box{background:#fff;border-radius:12px;padding:40px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
 .login-box h2{font-size:1.4rem;font-weight:700;margin-bottom:8px;color:var(--primary)}
@@ -264,13 +258,13 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 
 <div class="header">
   <div>
-    <h1>NNC Issaquah — Kitchen Daily Order</h1>
-    <div class="header-sub">Cooked Foods from Renton Main Kitchen</div>
+    <h1>NNC Issaquah - Daily Produce Inventory & Order</h1>
+    <div class="header-sub">Fresh Produce Tracking & Ordering</div>
   </div>
   <div class="header-right">
     <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html?open=nnc-iss'" title="Back to Issaquah">← Issaquah</button>
     <span id="userEmail" style="color:#fff;font-size:.85rem;margin-right:12px"></span>
-    <button class="btn btn-ghost" onclick="sendReport()" title="Email today's kitchen order" style="background:rgba(30,58,95,.4);border:1px solid rgba(255,255,255,.5)">Send Today's Order</button>
+    <button class="btn btn-ghost" onclick="sendProduceReport()" title="Email today's produce order" style="background:rgba(5,150,105,.4);border:1px solid rgba(255,255,255,.5)">Send Produce Order</button>
     <button class="btn btn-ghost" onclick="promptSettings()">Settings</button>
     <button class="btn btn-ghost logout-btn" onclick="handleLogout()" title="Sign out">Logout</button>
   </div>
@@ -292,15 +286,9 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <input type="text" id="inventoryPerson" placeholder="Enter your name..." onchange="saveInventoryPerson(this.value)">
   </div>
 
-  <div class="send-to-sections">
-    <div class="send-to-box renton">
-      <div class="send-to-label">&#x1F4E6; Send to Renton</div>
-      <textarea id="sendToRenton" placeholder="Type items to send to Renton..." onchange="saveSendToField('sendToRenton',this.value)" oninput="saveSendToField('sendToRenton',this.value)"></textarea>
-    </div>
-    <div class="send-to-box issaquah">
-      <div class="send-to-label">&#x1F4E6; Send to Issaquah</div>
-      <textarea id="sendToIssaquah" placeholder="Type items to send to Issaquah..." onchange="saveSendToField('sendToIssaquah',this.value)" oninput="saveSendToField('sendToIssaquah',this.value)"></textarea>
-    </div>
+  <div class="additional-items-box">
+    <label class="additional-items-label">Additional Items (not on usual order)</label>
+    <textarea id="additionalProduceItems" rows="3" placeholder="e.g. 2 cases strawberries, 1 box kiwi..." oninput="saveAdditionalItems(this.value)"></textarea>
   </div>
 
   <div id="noDeliveryBanner" class="no-delivery-banner" style="display:none">
@@ -311,7 +299,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   <div class="stats-bar" id="statsBar"></div>
 
   <div class="tab-bar" id="mainTabBar">
-    <div class="tab" data-tab="kitchen" onclick="setTab(this,'kitchen')">NNC Main Kitchen</div>
+    <div class="tab" data-tab="produce" onclick="setTab(this,'produce')">Issaquah Produce</div>
     <div class="tab" data-tab="history" onclick="setTab(this,'history')">7-Day History</div>
     <div class="tab" data-tab="analytics" onclick="setTab(this,'analytics')">Analytics</div>
   </div>
@@ -332,8 +320,8 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   </div>
 
   <div class="settings-section">
-    <h3>Kitchen Email Distribution List</h3>
-    <p>Manage who receives the daily kitchen order report.</p>
+    <h3>Produce Email Distribution List</h3>
+    <p>Manage who receives the daily produce order report (including vendor).</p>
     <div id="emailListContainer"></div>
     <div class="email-add">
       <input type="email" id="newEmail" placeholder="email@example.com" onkeydown="if(event.key==='Enter')addEmail()">
@@ -342,13 +330,24 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   </div>
 
   <div class="settings-section">
+    <h3>CC Addresses</h3>
+    <p>These people will be CC'd on every produce order email. When the vendor hits "Reply All," they'll be included. Use this for managers and ordering staff.</p>
+    <div id="replyToListContainer"></div>
+    <div class="email-add">
+      <input type="email" id="newReplyTo" placeholder="manager@example.com" onkeydown="if(event.key==='Enter')addReplyTo()">
+      <button class="btn btn-success btn-sm" onclick="addReplyTo()">Add</button>
+    </div>
+    <p style="margin-top:10px;font-size:.8rem;color:var(--gray-400)"><strong>Note:</strong> Your EmailJS template must have <code>{{cc}}</code> in the CC field for this to work. <a href="#" onclick="alert('In your EmailJS dashboard:\\n1. Go to Email Templates\\n2. Edit your template\\n3. In the CC field, enter: {{cc}}\\n4. Save');return false" style="color:var(--primary-light)">How to set this up</a></p>
+  </div>
+
+  <div class="settings-section">
     <h3>EmailJS Configuration</h3>
-    <p>To send reports directly from the app (not from personal email), set up a free <a href="https://www.emailjs.com/" target="_blank">EmailJS</a> account and enter your credentials below. See the setup guide in the README.</p>
+    <p>To send reports directly from the app, set up a free <a href="https://www.emailjs.com/" target="_blank">EmailJS</a> account. The Public Key and Service ID are shared with Kitchen. The <strong>Produce Template ID</strong> should point to a separate template that only uses <code>{{{order_summary}}}</code> in the body.</p>
     <div style="display:grid;gap:8px;max-width:400px">
-      <input type="text" id="ejsPublicKey" placeholder="Public Key" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
-      <input type="text" id="ejsServiceId" placeholder="Service ID" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
-      <input type="text" id="ejsTemplateId" placeholder="Template ID" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
-      <button class="btn btn-primary" onclick="saveEmailJS()">Save EmailJS Config</button>
+      <input type="text" id="ejsPublicKey" placeholder="Public Key (shared)" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
+      <input type="text" id="ejsServiceId" placeholder="Service ID (shared)" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px">
+      <input type="text" id="ejsProduceTemplateId" placeholder="Produce Template ID" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;border-color:#059669">
+      <button class="btn btn-primary" onclick="saveEmailJS()" style="background:#059669">Save EmailJS Config</button>
     </div>
     <p id="ejsStatus" style="margin-top:8px;font-size:.85rem;color:var(--gray-500)"></p>
   </div>
@@ -383,15 +382,9 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   </div>
 
   <div class="settings-section">
-    <h3>Par Levels by Day</h3>
-    <p>Set the target inventory level (Today Par) for each item on each day of the week. Normal Order = next day's par level - today's PM count.</p>
-    <div style="margin-bottom:12px">
-      <select id="parCatFilter" onchange="renderParEditor()" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem">
-        <option value="all">All Items</option>
-        <option value="kitchen">NNC Main Kitchen</option>
-        <option value="produce">Issaquah Produce</option>
-      </select>
-    </div>
+    <h3>Produce Par Levels by Day</h3>
+    <p>Set the target inventory level (Today Par) for each produce item on each day of the week. Normal Order = next day's par level - today's PM count.</p>
+    <input type="hidden" id="parCatFilter" value="produce">
     <div class="par-editor" id="parEditor"></div>
   </div>
 
@@ -422,7 +415,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <div class="form-group"><label>Item Name</label><input type="text" id="newName" placeholder="e.g., Samosa"></div>
     <div class="form-group"><label>Unit</label><input type="text" id="newUnit" placeholder="e.g., tray, lbs, case"></div>
     <div class="form-group"><label>Category</label>
-      <select id="newCat"><option value="kitchen">NNC Main Kitchen</option><option value="produce">Issaquah Produce</option></select>
+      <input type="hidden" id="newCat" value="produce"><span style="font-size:.9rem;color:var(--produce);font-weight:600">Issaquah Produce</span>
     </div>
     <div class="modal-actions">
       <button class="btn btn-success" onclick="addItem()">Add</button>
@@ -478,7 +471,7 @@ const DEFAULT_ITEMS = [
 
 // ==================== STATE ====================
 let currentDate = new Date();
-let currentTab = 'kitchen';
+let currentTab = 'produce';
 // Check URL params for sheet context from dashboard
 (function() {
   const params = new URLSearchParams(window.location.search);
@@ -491,7 +484,7 @@ let activeFilters = new Set();
 let items = [];
 let sundayOrdersEnabled = false;
 let analyticsChart = null;
-const STORAGE_KEY = 'nnc_v3';
+const STORAGE_KEY = 'nnc_v3';  // Shared data store with kitchen page
 const DEFAULT_PW = 'nnc2026';
 const PAR_VERSION = 4;
 
@@ -624,28 +617,6 @@ function getDayData(key){const d=loadData();return(d.days&&d.days[key])||{}}
 function setField(key,itemId,field,value){
   const d=loadData();if(!d.days)d.days={};if(!d.days[key])d.days[key]={};if(!d.days[key][itemId])d.days[key][itemId]={};
   d.days[key][itemId][field]=value;saveData(d);
-}
-
-// ==================== SEND-TO SECTIONS ====================
-let sendToDebounce=null;
-function saveSendToField(field,value){
-  clearTimeout(sendToDebounce);
-  sendToDebounce=setTimeout(()=>{
-    const key=dk(currentDate);
-    const d=loadData();
-    if(!d.days)d.days={};
-    if(!d.days[key])d.days[key]={};
-    if(!d.days[key].__sendTo)d.days[key].__sendTo={};
-    d.days[key].__sendTo[field]=value;
-    saveData(d);
-  },300);
-}
-function loadSendToFields(){
-  const key=dk(currentDate);
-  const dd=getDayData(key);
-  const st=dd.__sendTo||{};
-  document.getElementById('sendToRenton').value=st.sendToRenton||'';
-  document.getElementById('sendToIssaquah').value=st.sendToIssaquah||'';
 }
 
 // ==================== AUTHENTICATION ====================
@@ -848,6 +819,26 @@ function loadInventoryPerson(){
   return dayMeta.inventoryPerson||d.inventoryPerson||'';
 }
 
+let additionalItemsDebounce=null;
+function saveAdditionalItems(value){
+  clearTimeout(additionalItemsDebounce);
+  additionalItemsDebounce=setTimeout(()=>{
+    const key=dk(currentDate);
+    const d=loadData();
+    if(!d.days)d.days={};
+    if(!d.days[key])d.days[key]={};
+    if(!d.days[key].__meta)d.days[key].__meta={};
+    d.days[key].__meta.additionalProduceItems=value;
+    saveData(d);
+  },300);
+}
+function loadAdditionalItems(){
+  const d=loadData();
+  const dayMeta=(d.days&&d.days[dk(currentDate)]&&d.days[dk(currentDate)]['__meta'])||{};
+  const el=document.getElementById('additionalProduceItems');
+  if(el)el.value=dayMeta.additionalProduceItems||'';
+}
+
 // ==================== HELPERS ====================
 function r2(v){if(v===''||v===null||v===undefined)return v;const n=Number(v);return isNaN(n)?v:Math.round(n*100)/100}
 
@@ -957,18 +948,20 @@ function render(){
   document.getElementById('noDeliveryBanner').style.display=isSunday(d)?'flex':'none';
   // Load inventory person
   document.getElementById('inventoryPerson').value=loadInventoryPerson();
+  // Load additional items text
+  loadAdditionalItems();
   // Sync tab bar active state
   document.querySelectorAll('#mainTabBar .tab').forEach(t=>{
     t.classList.toggle('active',t.dataset.tab===currentTab);
   });
-  loadSendToFields();renderStats();renderTable();
+  renderStats();renderTable();
 }
 
 function renderStats(){
   const key=dk(currentDate),dd=getDayData(key);
-  const kitchenItems=items.filter(i=>i.category==='kitchen');
-  let total=kitchenItems.length,entered=0,orderCount=0;
-  kitchenItems.forEach(item=>{
+  const produceItems=items.filter(i=>i.category==='produce');
+  let total=produceItems.length,entered=0,orderCount=0;
+  produceItems.forEach(item=>{
     const d=dd[item.id]||{};
     if(d.pm!==undefined)entered++;
     const no=calcNormalOrder(item,d.pm);const eo=d.extraOrder||0;
@@ -1186,7 +1179,8 @@ function renderHistory(){
   }
   html+=`</thead><tbody>`;
 
-  items.forEach(item=>{
+  const produceItems=items.filter(i=>i.category==='produce');
+  produceItems.forEach(item=>{
     if(searchQuery&&!item.name.toLowerCase().includes(searchQuery.toLowerCase()))return;
     html+=`<tr><td><span class="item-name">${item.name}</span> <span class="item-unit">(${item.unit})</span></td>`;
     dates.forEach(d=>{
@@ -1202,7 +1196,7 @@ function renderHistory(){
       }
       if(showOrder){
         const no=dd.normalOrder||0;const eo=dd.extraOrder||0;const total=no+eo;
-        html+=`<td style="text-align:center;font-weight:600;${total>0?'color:var(--primary)':''}">${total||'-'}</td>`;
+        html+=`<td style="text-align:center;font-weight:600;${total>0?'color:var(--produce)':''}">${total||'-'}</td>`;
       }
     });
     html+=`</tr>`;
@@ -1222,7 +1216,8 @@ function getHistoryData(){
     if(showOrder)header.push(lbl+' Order');
   });
   const rows=[];
-  items.forEach(item=>{
+  const produceItems=items.filter(i=>i.category==='produce');
+  produceItems.forEach(item=>{
     if(searchQuery&&!item.name.toLowerCase().includes(searchQuery.toLowerCase()))return;
     const row=[item.name+' ('+item.unit+')'];
     dates.forEach(d=>{
@@ -1260,8 +1255,8 @@ function exportHistoryExcel(){
   ws['!cols']=header.map((_,i)=>({wch:i===0?28:14}));
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.min(header.length-1,5)}}];
   XLSX.utils.book_append_sheet(wb,ws,'7-Day History');
-  XLSX.writeFile(wb,'NNC-7Day-History-'+dk(new Date())+'.xlsx');
-  showToast('7-Day History exported to Excel');
+  XLSX.writeFile(wb,'NNC-Produce-7Day-History-'+dk(new Date())+'.xlsx');
+  showToast('Produce 7-Day History exported to Excel');
 }
 
 function exportHistoryPDF(){
@@ -1271,11 +1266,11 @@ function exportHistoryPDF(){
   const doc=new jsPDF({unit:'mm',format:'letter',orientation:'landscape'});
 
   // Header
-  doc.setFillColor(30,58,95);
+  doc.setFillColor(5,150,105);
   doc.rect(0,0,280,20,'F');
   doc.setTextColor(255,255,255);
   doc.setFontSize(14);doc.setFont('helvetica','bold');
-  doc.text('Naan N Curry Issaquah - 7-Day History ('+viewLabel+')',14,10);
+  doc.text('NNC Issaquah - Produce 7-Day History ('+viewLabel+')',14,10);
   doc.setFontSize(9);doc.setFont('helvetica','normal');
   doc.text('Generated: '+new Date().toLocaleDateString(),14,16);
 
@@ -1284,15 +1279,15 @@ function exportHistoryPDF(){
     head:[header],
     body:rows,
     theme:'grid',
-    headStyles:{fillColor:[30,58,95],textColor:255,fontStyle:'bold',fontSize:7,halign:'center'},
+    headStyles:{fillColor:[5,150,105],textColor:255,fontStyle:'bold',fontSize:7,halign:'center'},
     bodyStyles:{fontSize:7},
     columnStyles:{0:{cellWidth:40}},
     margin:{left:10,right:10},
     styles:{cellPadding:2}
   });
 
-  doc.save('NNC-7Day-History-'+dk(new Date())+'.pdf');
-  showToast('7-Day History exported to PDF');
+  doc.save('NNC-Produce-7Day-History-'+dk(new Date())+'.pdf');
+  showToast('Produce 7-Day History exported to PDF');
 }
 
 // ==================== ANALYTICS ====================
@@ -1345,15 +1340,10 @@ function renderAnalytics(){
         <label style="font-weight:600">Items:</label>
         <div class="multi-select-wrap" id="itemSelectWrap">
           <button class="btn btn-sm btn-white" onclick="toggleItemDropdown()" id="itemSelectBtn" style="min-width:180px;text-align:left;justify-content:space-between">
-            All Kitchen Items <span style="font-size:.7rem;opacity:.6">▼</span>
+            All Produce Items <span style="font-size:.7rem;opacity:.6">▼</span>
           </button>
           <div class="multi-select-dropdown" id="itemDropdown" style="display:none">
-            <label class="multi-select-option"><input type="checkbox" value="__all__" checked onchange="onItemCheckChange(this)"> <strong>All Kitchen Items (Total)</strong></label>
-            <div style="border-top:1px solid var(--gray-200);margin:4px 0;padding-top:4px;font-size:.7rem;font-weight:700;color:var(--gray-400);text-transform:uppercase">NNC Main Kitchen</div>`;
-  items.filter(i=>i.category==='kitchen').forEach(item=>{
-    html+=`<label class="multi-select-option"><input type="checkbox" value="${item.id}" onchange="onItemCheckChange(this)"> ${item.name}</label>`;
-  });
-  html+=`<div style="border-top:1px solid var(--gray-200);margin:4px 0;padding-top:4px;font-size:.7rem;font-weight:700;color:var(--gray-400);text-transform:uppercase">Issaquah Produce</div>`;
+            <label class="multi-select-option"><input type="checkbox" value="__all__" checked onchange="onItemCheckChange(this)"> <strong>All Produce Items (Total)</strong></label>`;
   items.filter(i=>i.category==='produce').forEach(item=>{
     html+=`<label class="multi-select-option"><input type="checkbox" value="${item.id}" onchange="onItemCheckChange(this)"> ${item.name}</label>`;
   });
@@ -1492,7 +1482,7 @@ function getUsageData(){
       if(!meta||meta.inventoryPerson!==personFilter)return;
     }
     let totalUsage=0,count=0;
-    const targetItems=isAll?items.filter(i=>i.category==='kitchen'):items.filter(i=>selectedItems.includes(i.id));
+    const targetItems=isAll?items.filter(i=>i.category==='produce'):items.filter(i=>selectedItems.includes(i.id));
     targetItems.forEach(item=>{
       const id=dd[item.id];
       if(!id||id.pm===undefined)return;
@@ -1506,7 +1496,7 @@ function getUsageData(){
   return results;
 }
 
-const CHART_COLORS=['rgba(30,58,95,.7)','rgba(220,38,38,.7)','rgba(22,163,74,.7)','rgba(245,158,11,.7)','rgba(139,92,246,.7)','rgba(6,182,212,.7)','rgba(236,72,153,.7)','rgba(251,146,60,.7)','rgba(34,211,238,.7)','rgba(163,230,53,.7)'];
+const CHART_COLORS=['rgba(5,150,105,.7)','rgba(22,163,74,.7)','rgba(245,158,11,.7)','rgba(220,38,38,.7)','rgba(139,92,246,.7)','rgba(6,182,212,.7)','rgba(236,72,153,.7)','rgba(251,146,60,.7)','rgba(34,211,238,.7)','rgba(163,230,53,.7)'];
 
 function getUsageDataPerItem(itemId){
   const d=loadData();
@@ -1702,11 +1692,11 @@ function exportCurrentViewPDF(){
   const doc=new jsPDF({unit:'mm',format:'letter'});
 
   // Header
-  doc.setFillColor(30,58,95);
+  doc.setFillColor(5,150,105);
   doc.rect(0,0,216,20,'F');
   doc.setTextColor(255,255,255);
   doc.setFontSize(14);doc.setFont('helvetica','bold');
-  doc.text('Naan N Curry Issaquah - '+viewLabel,14,10);
+  doc.text('NNC Issaquah Produce - '+viewLabel,14,10);
   doc.setFontSize(9);doc.setFont('helvetica','normal');
   doc.text('Item: '+itemLabel+'  |  Generated: '+new Date().toLocaleDateString(),14,16);
 
@@ -1721,7 +1711,7 @@ function exportCurrentViewPDF(){
     head:[['Period','Usage']],
     body:rows,
     theme:'grid',
-    headStyles:{fillColor:[30,58,95],textColor:255,fontStyle:'bold',fontSize:9,halign:'center'},
+    headStyles:{fillColor:[5,150,105],textColor:255,fontStyle:'bold',fontSize:9,halign:'center'},
     bodyStyles:{fontSize:9},
     columnStyles:{0:{cellWidth:80},1:{halign:'center',cellWidth:40}},
     margin:{left:14,right:14},
@@ -1780,7 +1770,7 @@ function checkPassword(){
 function openSettings(){
   document.getElementById('inventoryView').classList.add('hidden');
   document.getElementById('settingsPage').classList.add('show');
-  renderParEditor();renderItemList();renderEmailList();loadEmailJSConfig();
+  renderParEditor();renderItemList();renderEmailList();renderReplyToList();loadEmailJSConfig();
 }
 
 function closeSettings(){
@@ -1800,9 +1790,9 @@ function changePassword(){
 // ==================== EMAIL DISTRIBUTION ====================
 function renderEmailList(){
   const d=loadData();
-  const emails=d.emails||[];
+  const emails=d.produceEmails||[];
   let html='<div class="email-list">';
-  if(!emails.length)html+='<p style="color:var(--gray-400);font-size:.85rem">No emails added yet.</p>';
+  if(!emails.length)html+='<p style="color:var(--gray-400);font-size:.85rem">No produce emails added yet.</p>';
   emails.forEach((email,i)=>{
     html+=`<div class="email-item"><span>${email}</span><button class="btn btn-danger btn-sm" onclick="removeEmail(${i})">Remove</button></div>`;
   });
@@ -1814,38 +1804,43 @@ function addEmail(){
   const input=document.getElementById('newEmail');
   const email=input.value.trim();
   if(!email||!email.includes('@')){alert('Enter a valid email address.');return}
-  const d=loadData();if(!d.emails)d.emails=[];
-  if(d.emails.includes(email)){showToast('Email already in list');return}
-  d.emails.push(email);saveData(d);
+  const d=loadData();if(!d.produceEmails)d.produceEmails=[];
+  if(d.produceEmails.includes(email)){showToast('Email already in list');return}
+  d.produceEmails.push(email);saveData(d);
   input.value='';renderEmailList();showToast('Email added');
 }
 
 function removeEmail(index){
-  const d=loadData();d.emails.splice(index,1);saveData(d);
+  const d=loadData();d.produceEmails.splice(index,1);saveData(d);
   renderEmailList();showToast('Email removed');
 }
 
-// ==================== PRODUCE EMAIL LIST ====================
-function renderProduceEmailList(){
+// ==================== REPLY-TO ADDRESSES ====================
+function renderReplyToList(){
   const d=loadData();
-  const emails=d.produceEmails||[];
+  const addresses=d.produceReplyTo||[];
   let html='<div class="email-list">';
-  if(!emails.length)html+='<p style="color:var(--gray-400);font-size:.85rem">No produce emails added yet.</p>';
-  emails.forEach((email,i)=>{
-    html+=`<div class="email-item"><span>${email}</span><button class="btn btn-danger btn-sm" onclick="removeProduceEmail(${i})">Remove</button></div>`;
+  if(!addresses.length)html+='<p style="color:var(--gray-400);font-size:.85rem">No reply-to addresses added yet. Replies will go to the EmailJS default.</p>';
+  addresses.forEach((email,i)=>{
+    html+=`<div class="email-item"><span>${email}</span><button class="btn btn-danger btn-sm" onclick="removeReplyTo(${i})">Remove</button></div>`;
   });
   html+='</div>';
-  document.getElementById('produceEmailListContainer').innerHTML=html;
+  document.getElementById('replyToListContainer').innerHTML=html;
 }
 
-function addProduceEmail(){
-  const input=document.getElementById('newProduceEmail');
+function addReplyTo(){
+  const input=document.getElementById('newReplyTo');
   const email=input.value.trim();
   if(!email||!email.includes('@')){alert('Enter a valid email address.');return}
-  const d=loadData();if(!d.produceEmails)d.produceEmails=[];
-  if(d.produceEmails.includes(email)){showToast('Email already in produce list');return}
-  d.produceEmails.push(email);saveData(d);
-  input.value='';renderProduceEmailList();showToast('Produce email added');
+  const d=loadData();if(!d.produceReplyTo)d.produceReplyTo=[];
+  if(d.produceReplyTo.includes(email)){showToast('Address already in reply-to list');return}
+  d.produceReplyTo.push(email);saveData(d);
+  input.value='';renderReplyToList();showToast('Reply-to address added');
+}
+
+function removeReplyTo(index){
+  const d=loadData();d.produceReplyTo.splice(index,1);saveData(d);
+  renderReplyToList();showToast('Reply-to address removed');
 }
 
 function removeProduceEmail(index){
@@ -1865,21 +1860,21 @@ function generatePDF(){
   const person=loadInventoryPerson()||'Not specified';
   const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
 
-  // Header - compact (dark blue)
-  doc.setFillColor(30,58,95);
+  // Header - compact (green for produce)
+  doc.setFillColor(5,150,105);
   doc.rect(0,0,280,18,'F');
   doc.setTextColor(255,255,255);
   doc.setFontSize(13);
   doc.setFont('helvetica','bold');
-  doc.text('Naan N Curry Issaquah - Daily Inventory Report',10,8);
+  doc.text('NNC Issaquah - Daily Produce Inventory & Order',10,8);
   doc.setFontSize(8);
   doc.setFont('helvetica','normal');
   doc.text(`${dateStr} (${dayStr})  |  Inventory By: ${person}`,10,14);
 
-  // Table data - Kitchen items only
-  const kitchenItems=items.filter(i=>i.category==='kitchen');
+  // Table data - Produce items only
+  const produceItems=items.filter(i=>i.category==='produce');
   const rows=[];
-  kitchenItems.forEach(item=>{
+  produceItems.forEach(item=>{
     const d=dd[item.id]||{};
     const par=getPar(item,currentDate);
     const am=calcAM(item.id);
@@ -1921,7 +1916,7 @@ function generatePDF(){
     head:[['Item','Par','AM','Status','PM','Use','Order','Extra','Total Order']],
     body:rows,
     theme:'grid',
-    headStyles:{fillColor:[30,58,95],textColor:255,fontStyle:'bold',fontSize:6.5,halign:'center',cellPadding:1.5},
+    headStyles:{fillColor:[5,150,105],textColor:255,fontStyle:'bold',fontSize:6.5,halign:'center',cellPadding:1.5},
     bodyStyles:{fontSize:6,cellPadding:1.2},
     columnStyles:{
       0:{cellWidth:52},
@@ -1940,12 +1935,12 @@ function generatePDF(){
       // Highlight Total Order column
       if(data.column.index===8){
         if(data.section==='head'){
-          data.cell.styles.fillColor=[30,58,95];
+          data.cell.styles.fillColor=[5,150,105];
         }else{
-          data.cell.styles.fillColor=[230,240,255];
+          data.cell.styles.fillColor=[236,253,245];
           data.cell.styles.fontStyle='bold';
           const val=Number(data.cell.raw);
-          if(val>0){data.cell.styles.textColor=[30,58,95]}
+          if(val>0){data.cell.styles.textColor=[5,150,105]}
         }
       }
       if(data.section==='body'&&data.column.index===5){
@@ -2006,11 +2001,10 @@ function savePar(itemId,day,val){
 // ==================== ITEM MANAGEMENT ====================
 function renderItemList(){
   let html='';
-  items.forEach(item=>{
-    const badge=item.category==='kitchen'?'cat-kitchen':'cat-produce';
+  items.filter(i=>i.category==='produce').forEach(item=>{
     html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--gray-100)">
       <div><strong>${item.name}</strong> <span style="color:var(--gray-400);font-size:.8rem">(${item.unit})</span>
-        <span class="cat-badge ${badge}" style="margin-left:6px">${CAT_LABELS[item.category]}</span></div>
+        <span class="cat-badge cat-produce" style="margin-left:6px">Produce</span></div>
       <button class="btn btn-danger btn-sm" onclick="removeItem('${item.id}')">Remove</button>
     </div>`;
   });
@@ -2047,16 +2041,16 @@ function exportDay(){
   const key=dk(currentDate),dd=getDayData(key);
   let lines=[`Naan N Curry Issaquah - Daily Ordering - ${key} (${DAY_NAMES[currentDate.getDay()]})\n`,
     'Category,Item,Unit,Par,AM,PM,Usage,Normal Order,Extra Order,Total Order'];
-  items.forEach(item=>{
+  items.filter(i=>i.category==='produce').forEach(item=>{
     const d=dd[item.id]||{};const par=getPar(item,currentDate);
     const am=calcAM(item.id);const pm=d.pm!==undefined?d.pm:'';
     const usage=(am!==null&&pm!=='')?(am-Number(pm)):'';
     const no=calcNormalOrder(item,d.pm);const eo=d.extraOrder||0;
     const total=(no||0)+eo;
-    lines.push(`"${CAT_LABELS[item.category]}","${item.name}","${item.unit}",${par},${am!==null?am:''},${pm},${usage},${no!==null?no:''},${eo},${total}`);
+    lines.push(`"Produce","${item.name}","${item.unit}",${par},${am!==null?am:''},${pm},${usage},${no!==null?no:''},${eo},${total}`);
   });
   const blob=new Blob([lines.join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`NNC-Order-${key}.csv`;a.click();
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`NNC-Produce-Order-${key}.csv`;a.click();
   showToast('Exported CSV');
 }
 
@@ -2084,11 +2078,12 @@ function exportDailyExcel(){
   const dayStr=DAY_NAMES[currentDate.getDay()];
   const person=loadInventoryPerson()||'';
   const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
+  const produceItems=items.filter(i=>i.category==='produce');
 
   const wb=XLSX.utils.book_new();
   const header=['Category','Item','Unit','Today\'s Par','AM Count','PM Count','Usage','Normal Order','Extra Order','Total Order','Tmrw Par','Reason'];
   const rows=[];
-  items.forEach(item=>{
+  produceItems.forEach(item=>{
     const d=dd[item.id]||{};
     const par=getPar(item,currentDate);
     const am=calcAM(item.id);
@@ -2109,7 +2104,7 @@ function exportDailyExcel(){
   });
 
   const wsData=[
-    ['Naan N Curry Issaquah - Daily Ordering'],
+    ['Naan N Curry Issaquah - Daily Produce Order'],
     [`Date: ${dateStr} (${dayStr})`,`Inventory By: ${person}`],
     [],
     header,
@@ -2123,8 +2118,8 @@ function exportDailyExcel(){
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}}];
 
   XLSX.utils.book_append_sheet(wb,ws,'Daily Inventory');
-  XLSX.writeFile(wb,`NNC-Daily-${key}.xlsx`);
-  showToast('Daily Excel exported');
+  XLSX.writeFile(wb,`NNC-Produce-Daily-${key}.xlsx`);
+  showToast('Produce daily Excel exported');
 }
 
 function exportAnalyticsExcel(){
@@ -2132,17 +2127,18 @@ function exportAnalyticsExcel(){
   const numDays=30;
   const dates=[];
   for(let i=numDays-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);dates.push(d)}
+  const produceItems=items.filter(i=>i.category==='produce');
 
-  // Sheet 1: Daily Summary (all days x all items)
+  // Sheet 1: Daily Summary (all days x produce items)
   const summHeader=['Date','Day'];
-  items.forEach(item=>{summHeader.push(item.name+' AM',item.name+' PM',item.name+' Usage',item.name+' Order')});
+  produceItems.forEach(item=>{summHeader.push(item.name+' AM',item.name+' PM',item.name+' Usage',item.name+' Order')});
   const summRows=[];
   dates.forEach(date=>{
     const key=dk(date);
     const dd=getDayData(key);
     const row=[key,DAY_SHORT[date.getDay()]];
     const savedCurrent=new Date(currentDate);currentDate=date;
-    items.forEach(item=>{
+    produceItems.forEach(item=>{
       const d=dd[item.id]||{};
       const am=calcAM(item.id);
       const pm=d.pm;
@@ -2159,10 +2155,10 @@ function exportAnalyticsExcel(){
   ws1['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
   XLSX.utils.book_append_sheet(wb,ws1,'30-Day Data');
 
-  // Sheet 2: Usage Analytics (avg usage per item per day of week)
+  // Sheet 2: Usage Analytics (avg usage per produce item per day of week)
   const usageHeader=['Item','Unit','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Avg Daily','Total 30d'];
   const usageRows=[];
-  items.forEach(item=>{
+  produceItems.forEach(item=>{
     const dayUsage={0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
     let total30=0;
     dates.forEach(date=>{
@@ -2193,14 +2189,14 @@ function exportAnalyticsExcel(){
   XLSX.utils.book_append_sheet(wb,ws2,'Usage Analytics');
 
   // Sheet 3: Order History
-  const orderHeader=['Date','Day',...items.map(i=>i.name)];
+  const orderHeader=['Date','Day',...produceItems.map(i=>i.name)];
   const orderRows=[];
   dates.forEach(date=>{
     const key=dk(date);
     const dd=getDayData(key);
     const row=[key,DAY_SHORT[date.getDay()]];
     const savedCurrent=new Date(currentDate);currentDate=date;
-    items.forEach(item=>{
+    produceItems.forEach(item=>{
       const d=dd[item.id]||{};
       const no=calcNormalOrder(item,d.pm);
       const eo=d.extraOrder||0;
@@ -2214,21 +2210,26 @@ function exportAnalyticsExcel(){
   ws3['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
   XLSX.utils.book_append_sheet(wb,ws3,'Order History');
 
-  XLSX.writeFile(wb,`NNC-Analytics-${dk(new Date())}.xlsx`);
-  showToast('Analytics Excel exported');
+  XLSX.writeFile(wb,`NNC-Produce-Analytics-${dk(new Date())}.xlsx`);
+  showToast('Produce analytics Excel exported');
 }
 
 // ==================== EMAILJS ====================
 function saveEmailJS(){
   const pk=document.getElementById('ejsPublicKey').value.trim();
   const sid=document.getElementById('ejsServiceId').value.trim();
-  const tid=document.getElementById('ejsTemplateId').value.trim();
-  if(!pk||!sid||!tid){alert('Please fill in all three EmailJS fields.');return}
+  const tid=document.getElementById('ejsProduceTemplateId').value.trim();
+  if(!pk||!sid||!tid){alert('Please fill in all three fields (Public Key, Service ID, and Produce Template ID).');return}
   const d=loadData();
-  d.emailjs={publicKey:pk,serviceId:sid,templateId:tid};
+  // Save shared account config
+  if(!d.emailjs)d.emailjs={};
+  d.emailjs.publicKey=pk;
+  d.emailjs.serviceId=sid;
+  // Save produce-specific template ID separately
+  d.produceTemplateId=tid;
   saveData(d);
-  showToast('EmailJS config saved');
-  document.getElementById('ejsStatus').textContent='Config saved. Reports will now send directly from the app.';
+  showToast('Produce EmailJS config saved');
+  document.getElementById('ejsStatus').textContent='Config saved. Produce reports will use the dedicated template.';
   document.getElementById('ejsStatus').style.color='var(--success)';
 }
 
@@ -2237,120 +2238,11 @@ function loadEmailJSConfig(){
   if(d.emailjs){
     document.getElementById('ejsPublicKey').value=d.emailjs.publicKey||'';
     document.getElementById('ejsServiceId').value=d.emailjs.serviceId||'';
-    document.getElementById('ejsTemplateId').value=d.emailjs.templateId||'';
-    document.getElementById('ejsStatus').textContent='Config loaded. EmailJS is active.';
+  }
+  document.getElementById('ejsProduceTemplateId').value=d.produceTemplateId||'';
+  if(d.emailjs&&d.emailjs.publicKey&&d.produceTemplateId){
+    document.getElementById('ejsStatus').textContent='Config loaded. Produce EmailJS is active.';
     document.getElementById('ejsStatus').style.color='var(--success)';
-  }
-}
-
-function buildReportHTML(){
-  const dd=getDayData(dk(currentDate));
-  const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
-  const kitchenItems=items.filter(i=>i.category==='kitchen');
-  let tableRows='';
-  kitchenItems.forEach(item=>{
-    const d=dd[item.id]||{};
-    const par=getPar(item,currentDate);
-    const am=calcAM(item.id);
-    const pm=d.pm;
-    const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
-    const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
-    const tmrwPar=getPar(item,nextDay);
-    const autoNo=calcNormalOrder(item,pm);
-    const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
-    const eo=d.extraOrder||0;
-    const total=sunNoOrder?0:r2((no||0)+Number(eo));
-    const usageColor=usage!==''?(usage<0?'#dc2626':usage>0?'#16a34a':'#333'):'#999';
-    const totalBg=total>0?'#1e3a5f':'#e5e7eb';
-    const totalColor=total>0?'#ffffff':'#999';
-    const reasonText=d.reason?(d.reason==='other'?(d.reasonOther||'Other'):(REASON_LABELS[d.reason]||d.reason)):'';
-    tableRows+=`<tr>
-      <td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600;font-size:13px">${item.name} <span style="color:#999;font-weight:400;font-size:11px">(${item.unit})</span></td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:#b45309;font-weight:600">${par}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${am!==null?r2(am):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;background:#eff6ff;font-weight:600">${pm!==undefined?r2(pm):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:${usageColor};font-weight:600">${usage!==''?usage:'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${no!==null?r2(no):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${eo||'-'}</td>
-      <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:center;font-size:15px;font-weight:800;background:${totalBg};color:${totalColor};letter-spacing:0.5px">${total||'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">${tmrwPar}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:11px;color:#666">${reasonText||'-'}</td>
-    </tr>`;
-  });
-  return tableRows;
-}
-
-function sendReport(){
-  const d=loadData();
-  const emails=d.emails||[];
-  const person=loadInventoryPerson();
-  if(!person){alert('Please enter the inventory person name before sending the report.');document.getElementById('inventoryPerson').focus();return}
-
-  const dateDisplay=MONTH_NAMES[currentDate.getMonth()]+' '+currentDate.getDate()+', '+currentDate.getFullYear();
-  const dayStr=DAY_NAMES[currentDate.getDay()];
-
-  // Build the Send-To sections for email
-  const key=dk(currentDate);
-  const dayData=getDayData(key);
-  const sendTo=dayData.__sendTo||{};
-  const rentonText=(sendTo.sendToRenton||'').trim();
-  const issaquahText=(sendTo.sendToIssaquah||'').trim();
-
-  let sendToHTML='';
-  if(rentonText||issaquahText){
-    sendToHTML+='<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial;margin-bottom:20px"><tbody>';
-    if(rentonText){
-      sendToHTML+=`<tr><td style="background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;padding:10px 16px;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:1px;border-radius:6px 6px 0 0">&#x1F4E6; SEND TO RENTON</td></tr>
-      <tr><td style="padding:14px 16px;background:#f5f3ff;border:2px solid #c4b5fd;border-top:none;font-size:14px;line-height:1.6;white-space:pre-wrap;border-radius:0 0 6px 6px">${rentonText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td></tr>`;
-    }
-    if(issaquahText){
-      sendToHTML+=`<tr><td style="padding-top:${rentonText?'16px':'0'}"></td></tr>
-      <tr><td style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:10px 16px;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:1px;border-radius:6px 6px 0 0">&#x1F4E6; SEND TO ISSAQUAH</td></tr>
-      <tr><td style="padding:14px 16px;background:#eff6ff;border:2px solid #93c5fd;border-top:none;font-size:14px;line-height:1.6;white-space:pre-wrap;border-radius:0 0 6px 6px">${issaquahText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td></tr>`;
-    }
-    sendToHTML+='</tbody></table>';
-  }
-
-  // Build the HTML table for email body
-  const tableRows=buildReportHTML();
-  const htmlTable=sendToHTML+`<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial">
-    <thead><tr style="background:#1e3a5f">
-      <th style="padding:8px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Item</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Today's Par</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">AM</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f;background:#2563eb;font-weight:700">PM</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Usage</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Order</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Extra</th>
-      <th style="padding:8px 10px;color:#fff;text-align:center;font-size:12px;text-transform:uppercase;font-weight:800;border:1px solid #1e3a5f;background:#b45309;letter-spacing:1px">TOTAL ORDER</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:10px;text-transform:uppercase;border:1px solid #1e3a5f;color:#94a3b8">Tmrw Par</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Reason</th>
-    </tr></thead>
-    <tbody>${tableRows}</tbody>
-  </table>`;
-
-  // If EmailJS is configured, send directly
-  if(d.emailjs&&d.emailjs.publicKey&&emails.length){
-    emailjs.init(d.emailjs.publicKey);
-    emailjs.send(d.emailjs.serviceId,d.emailjs.templateId,{
-      to_email:emails.join(','),
-      from_name:'NNC Inventory System',
-      subject:dateDisplay+' - Issaquah Kitchen Order',
-      date:dateDisplay,
-      day:dayStr,
-      inventory_by:person,
-      order_summary:htmlTable,
-      message:'NNC Main Kitchen - Daily Inventory Report'
-    }).then(()=>{
-      showToast('Report emailed to '+emails.length+' recipient(s)');
-    }).catch(err=>{
-      console.error('EmailJS error:',err);
-      showToast('Email failed. Check EmailJS config.');
-    });
-  }else if(emails.length){
-    showToast('Set up EmailJS in Settings to send reports directly.');
-  }else{
-    showToast('Add emails in Settings to send reports.');
   }
 }
 
@@ -2360,81 +2252,97 @@ function buildProduceReportHTML(){
   const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
   const produceItems=items.filter(i=>i.category==='produce');
   let tableRows='';
+  let orderCount=0;
   produceItems.forEach(item=>{
     const d=dd[item.id]||{};
-    const par=getPar(item,currentDate);
-    const am=calcAM(item.id);
     const pm=d.pm;
-    const usage=(am!==null&&pm!==undefined)?r2(am-Number(pm)):'';
-    const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
-    const tmrwPar=getPar(item,nextDay);
     const autoNo=calcNormalOrder(item,pm);
     const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
     const eo=d.extraOrder||0;
     const total=sunNoOrder?0:r2((no||0)+Number(eo));
-    const usageColor=usage!==''?(usage<0?'#dc2626':usage>0?'#16a34a':'#333'):'#999';
-    const totalBg=total>0?'#059669':'#e5e7eb';
-    const totalColor=total>0?'#ffffff':'#999';
-    const reasonText=d.reason?(d.reason==='other'?(d.reasonOther||'Other'):(REASON_LABELS[d.reason]||d.reason)):'';
-    tableRows+=`<tr>
-      <td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600;font-size:13px">${item.name} <span style="color:#999;font-weight:400;font-size:11px">(${item.unit})</span></td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:#b45309;font-weight:600">${par}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${am!==null?r2(am):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;background:#ecfdf5;font-weight:600">${pm!==undefined?r2(pm):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:${usageColor};font-weight:600">${usage!==''?usage:'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${no!==null?r2(no):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${eo||'-'}</td>
-      <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:center;font-size:15px;font-weight:800;background:${totalBg};color:${totalColor};letter-spacing:0.5px">${total||'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">${tmrwPar}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:11px;color:#666">${reasonText||'-'}</td>
+    if(!total||total<=0)return; // Skip items with zero order
+    orderCount++;
+    const bg=orderCount%2===0?'#f0fdf4':'#ffffff';
+    tableRows+=`<tr style="background:${bg}">
+      <td style="padding:10px 16px;border:1px solid #e5e7eb;font-weight:600;font-size:14px">${item.name} <span style="color:#6b7280;font-weight:400;font-size:12px">(${item.unit})</span></td>
+      <td style="padding:10px 16px;border:1px solid #e5e7eb;text-align:center;font-size:18px;font-weight:800;color:#059669">${total}</td>
     </tr>`;
   });
-  return tableRows;
+  return{tableRows,orderCount};
 }
 
 function sendProduceReport(){
   const d=loadData();
   const emails=d.produceEmails||[];
+  const ccAddresses=d.produceReplyTo||[];
   const person=loadInventoryPerson();
   if(!person){alert('Please enter the inventory person name before sending the report.');document.getElementById('inventoryPerson').focus();return}
 
   const dateDisplay=MONTH_NAMES[currentDate.getMonth()]+' '+currentDate.getDate()+', '+currentDate.getFullYear();
   const dayStr=DAY_NAMES[currentDate.getDay()];
+  // Next day's date for delivery
+  const nextDay=new Date(currentDate);
+  nextDay.setDate(nextDay.getDate()+1);
+  const nextDayDisplay=MONTH_NAMES[nextDay.getMonth()]+' '+nextDay.getDate()+', '+nextDay.getFullYear();
 
-  const tableRows=buildProduceReportHTML();
-  const htmlTable=`<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial">
+  const{tableRows,orderCount}=buildProduceReportHTML();
+
+  let htmlTable='';
+  if(orderCount===0){
+    htmlTable=`<div style="font-family:system-ui,sans-serif,Arial;padding:20px;text-align:center;color:#6b7280;font-size:14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">No produce items needed for today.</div>`;
+  }else{
+    htmlTable=`<table style="width:100%;max-width:480px;border-collapse:collapse;font-family:system-ui,sans-serif,Arial">
     <thead><tr style="background:#059669">
-      <th style="padding:8px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;border:1px solid #059669">Item</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #059669">Today's Par</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #059669">AM</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #059669;background:#047857;font-weight:700">PM</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #059669">Usage</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #059669">Order</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #059669">Extra</th>
-      <th style="padding:8px 10px;color:#fff;text-align:center;font-size:12px;text-transform:uppercase;font-weight:800;border:1px solid #059669;background:#b45309;letter-spacing:1px">TOTAL ORDER</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:10px;text-transform:uppercase;border:1px solid #059669;color:#d1fae5">Tmrw Par</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #059669">Reason</th>
+      <th style="padding:10px 16px;color:#fff;text-align:left;font-size:12px;text-transform:uppercase;font-weight:700;letter-spacing:.5px;border:1px solid #059669">Item</th>
+      <th style="padding:10px 16px;color:#fff;text-align:center;font-size:12px;text-transform:uppercase;font-weight:700;letter-spacing:.5px;border:1px solid #059669">Qty Needed</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>`;
+  }
 
-  if(d.emailjs&&d.emailjs.publicKey&&emails.length){
+  // Get additional items text
+  const additionalItems=(document.getElementById('additionalProduceItems')||{}).value||'';
+
+  // Build the full email body
+  let additionalSection='';
+  if(additionalItems.trim()){
+    additionalSection=`<div style="background:#f0fdf4;border:2px solid #059669;border-radius:6px;padding:12px 16px;margin:0 0 16px 0">
+      <strong style="font-size:13px;color:#059669;text-transform:uppercase;letter-spacing:.5px">Additional Items Needed:</strong>
+      <p style="margin:8px 0 0;font-size:14px;color:#1f2937;white-space:pre-wrap">${additionalItems.trim().replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+    </div>`;
+  }
+
+  const emailBody=`<div style="font-family:system-ui,sans-serif,Arial">
+    <div style="background:#059669;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0">
+      <h2 style="margin:0;font-size:18px;font-weight:700">Naan N Curry Issaquah — Produce Order</h2>
+      <p style="margin:4px 0 0;font-size:13px;opacity:.85">Delivery: ${nextDayDisplay} | Ordered by: ${person} | ${orderCount} item${orderCount!==1?'s':''}</p>
+    </div>
+    <div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:12px 16px;margin:16px 0;text-align:center">
+      <strong style="font-size:15px;color:#92400e;letter-spacing:.5px">⚠️ PLEASE REPLY ALL TO CONFIRM ORDER ⚠️</strong>
+    </div>
+    <div style="padding:16px 0">${htmlTable}</div>
+    ${additionalSection}
+  </div>`;
+
+  const produceTemplateId=d.produceTemplateId;
+  if(d.emailjs&&d.emailjs.publicKey&&produceTemplateId&&emails.length){
     emailjs.init(d.emailjs.publicKey);
-    emailjs.send(d.emailjs.serviceId,d.emailjs.templateId,{
+    const params={
       to_email:emails.join(','),
-      from_name:'NNC Inventory System',
-      subject:dateDisplay+' - Issaquah Produce Order',
-      date:dateDisplay,
-      day:dayStr,
-      inventory_by:person,
-      order_summary:htmlTable,
-      message:'Issaquah Produce - Daily Inventory Report'
-    }).then(()=>{
-      showToast('Produce report emailed to '+emails.length+' recipient(s)');
+      from_name:'Naan N Curry Issaquah Produce',
+      subject:'REPLY ALL TO CONFIRM - Naan N Curry Issaquah Produce Order - '+nextDayDisplay,
+      reply_to:ccAddresses.length?ccAddresses[0]:'',
+      order_summary:emailBody
+    };
+    if(ccAddresses.length)params.cc=ccAddresses.join(',');
+    emailjs.send(d.emailjs.serviceId,produceTemplateId,params).then(()=>{
+      showToast('Produce order emailed to '+emails.length+' recipient(s)'+(ccAddresses.length?' + '+ccAddresses.length+' CC':'')+' — '+orderCount+' items');
     }).catch(err=>{
       console.error('EmailJS error:',err);
       showToast('Produce email failed. Check EmailJS config.');
     });
+  }else if(!produceTemplateId){
+    showToast('Set up the Produce Template ID in Settings before sending.');
   }else if(emails.length){
     showToast('Set up EmailJS in Settings to send produce reports directly.');
   }else{
