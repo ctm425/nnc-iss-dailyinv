@@ -819,7 +819,7 @@ function saveInventoryPerson(name){
 function loadInventoryPerson(){
   const d=loadData();
   const dayMeta=(d.days&&d.days[dk(currentDate)]&&d.days[dk(currentDate)]['__meta'])||{};
-  return dayMeta.inventoryPerson||d.inventoryPerson||'';
+  return dayMeta.inventoryPerson||'';
 }
 
 let additionalItemsDebounce=null;
