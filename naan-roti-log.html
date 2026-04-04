@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Issaquah — Naan/Roti Prep &amp; Usage Log</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --primary: #1e3a5f; --primary-light: #2563eb; --primary-bg: #eff6ff;
+  --danger: #dc2626; --success: #16a34a;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+  --naan-color: #1e3a5f; --naan-light: #2563eb; --naan-bg: #eff6ff;
+  --roti-color: #7c2d12; --roti-light: #b45309; --roti-bg: #fff7ed;
+  --usage-accent: #ea580c; --usage-bg: #fff7ed;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.header-right{display:flex;gap:8px;align-items:center}
+
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+
+.date-nav{background:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:center;gap:16px;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.date-nav button{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:var(--radius);padding:6px 14px;cursor:pointer;font-weight:600;font-size:.85rem}
+.date-nav button:hover{background:var(--gray-200)}
+.date-picker-input{font-size:1rem;font-weight:700;color:var(--primary);border:2px solid var(--primary-light);border-radius:var(--radius);padding:8px 14px;cursor:pointer;background:#fff;text-align:center}
+.date-picker-input:focus{outline:none;box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.day-name{font-size:.85rem;color:var(--gray-500);font-weight:500;text-align:center}
+
+/* Tabs */
+.tab-bar{padding:12px 24px;display:flex;gap:10px;background:#fff;border-bottom:1px solid var(--gray-200)}
+.tab{padding:10px 28px;font-size:.95rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;border-radius:var(--radius);border:2px solid var(--gray-300);background:var(--gray-100);color:var(--gray-600)}
+.tab:hover{border-color:var(--primary-light);color:var(--primary)}
+.tab.active-naan{background:var(--naan-color);color:#fff;border-color:var(--naan-color);box-shadow:0 2px 6px rgba(30,58,95,.3)}
+.tab.active-roti{background:var(--roti-color);color:#fff;border-color:var(--roti-color);box-shadow:0 2px 6px rgba(124,45,18,.3)}
+.tab.active{background:var(--naan-color);color:#fff;border-color:var(--naan-color);box-shadow:0 2px 6px rgba(30,58,95,.3)}
+
+.content{max-width:900px;margin:0 auto;padding:20px 24px}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+.info-banner{background:var(--primary-bg);border:1px solid #93c5fd;border-radius:var(--radius);padding:10px 16px;margin-bottom:16px;font-size:.82rem;color:var(--primary);display:flex;align-items:center;gap:8px}
+.info-banner.warn{background:#fef3c7;border-color:#fbbf24;color:#92400e}
+
+/* Sections */
+.section{background:#fff;border-radius:12px;border:1px solid var(--gray-200);margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.section-header{padding:14px 20px;font-size:1.05rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;display:flex;align-items:center;gap:10px}
+.section-header.naan-prep{background:linear-gradient(135deg,#1e3a5f,#2563eb)}
+.section-header.naan-usage{background:linear-gradient(135deg,#ea580c,#f97316)}
+.section-header.roti-prep{background:linear-gradient(135deg,#7c2d12,#b45309)}
+.section-header.roti-usage{background:linear-gradient(135deg,#be185d,#e11d48)}
+.section-body{padding:16px 20px}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;align-items:center;margin-bottom:10px}
+.form-row label{font-size:.88rem;font-weight:600;color:var(--gray-700)}
+.form-row .hint{font-size:.72rem;color:var(--gray-400);font-weight:400;display:block}
+.form-row input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.95rem;text-align:center;width:100%;max-width:140px;justify-self:end}
+.form-row input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.form-row input.auto{background:#f0fdf4;border-color:#86efac;font-weight:700;color:var(--gray-700)}
+.form-row input.auto-linked{background:#eff6ff;border-color:#93c5fd;font-weight:700;color:var(--primary)}
+.form-row input[readonly]{cursor:default}
+.sub-label{font-size:.78rem;color:var(--gray-400);font-weight:500;padding-left:16px}
+
+.divider{border:none;border-top:2px solid var(--gray-200);margin:14px 0}
+
+.totals-row{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;align-items:center;padding:12px 0}
+.totals-row label{font-size:.95rem;font-weight:800}
+.totals-row .total-val{font-size:1.2rem;font-weight:800;text-align:center;border-radius:8px;padding:8px 12px;max-width:140px;justify-self:end}
+.totals-row .total-val.naan-prep{color:var(--naan-color);background:var(--naan-bg);border:2px solid var(--naan-light)}
+.totals-row .total-val.naan-usage{color:var(--usage-accent);background:var(--usage-bg);border:2px solid var(--usage-accent)}
+.totals-row .total-val.roti-prep{color:var(--roti-color);background:var(--roti-bg);border:2px solid var(--roti-light)}
+.totals-row .total-val.roti-usage{color:#be185d;background:#fdf2f8;border:2px solid #be185d}
+
+/* Weekly */
+.weekly-summary{background:#fff;border-radius:12px;border:1px solid var(--gray-200);margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.weekly-header{padding:14px 20px;font-size:1rem;font-weight:800;background:var(--gray-100);color:var(--gray-700);border-bottom:1px solid var(--gray-200)}
+.weekly-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.weekly-table th{background:var(--gray-50);padding:8px 10px;text-align:center;font-size:.72rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--gray-200)}
+.weekly-table th:first-child{text-align:left;min-width:180px}
+.weekly-table td{padding:6px 10px;text-align:center;border-bottom:1px solid var(--gray-100);font-weight:500}
+.weekly-table td:first-child{text-align:left;font-weight:600;color:var(--gray-700)}
+.weekly-table tr.total-row td{font-weight:800;border-top:2px solid currentColor}
+.weekly-table tr.naan-total td{background:var(--naan-bg);color:var(--naan-color)}
+.weekly-table tr.naan-usage-total td{background:var(--usage-bg);color:var(--usage-accent)}
+.weekly-table tr.roti-total td{background:var(--roti-bg);color:var(--roti-color)}
+.weekly-table tr.roti-usage-total td{background:#fdf2f8;color:#be185d}
+.weekly-table td.today-col{background:#fffbeb;font-weight:700}
+
+/* Historical mode banner */
+.historical-banner{background:#fef3c7;border:2px solid #f59e0b;border-radius:var(--radius);padding:12px 20px;margin:0 auto 0;max-width:900px;font-size:.88rem;color:#92400e;font-weight:600;text-align:center;display:none}
+.historical-banner.show{display:block;margin-top:12px}
+.historical-banner .hist-date{font-weight:800;color:#78350f}
+
+/* Historical mode: override auto field styles to look editable */
+body.historical-mode input.auto,
+body.historical-mode input.auto-linked{background:#fefce8!important;border-color:#fbbf24!important;color:#78350f!important;cursor:text!important}
+
+/* Analytics */
+.analytics-wrap{max-width:900px;margin:0 auto;padding:20px 24px}
+.analytics-controls{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.analytics-controls select,.analytics-controls input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+.chart-container{background:#fff;border-radius:12px;border:1px solid var(--gray-200);padding:20px;margin-bottom:20px;position:relative;height:350px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:16px;border:1px solid var(--gray-200);text-align:center}
+.stat-card .stat-label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;font-weight:700;letter-spacing:.5px}
+.stat-card .stat-value{font-size:1.6rem;font-weight:800;margin-top:4px;color:var(--naan-color)}
+.stat-card .stat-sub{font-size:.75rem;color:var(--gray-400);margin-top:2px}
+.stat-card .stat-change{font-size:.78rem;font-weight:600;margin-top:4px}
+.stat-card .stat-change.up{color:var(--danger)}
+.stat-card .stat-change.down{color:var(--success)}
+.stat-card .stat-change.neutral{color:var(--gray-400)}
+
+/* Analytics Data Table */
+.data-table-wrap{background:#fff;border-radius:12px;border:1px solid var(--gray-200);margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.data-table-header{padding:14px 20px;font-size:1rem;font-weight:800;background:var(--gray-100);color:var(--gray-700);border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.data-table-filter{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;width:220px}
+.data-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.data-table th{background:var(--gray-50);padding:8px 10px;text-align:center;font-size:.72rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--gray-200);cursor:pointer;user-select:none;white-space:nowrap}
+.data-table th:hover{background:var(--gray-200)}
+.data-table th.sort-asc::after{content:' ▲';font-size:.6rem}
+.data-table th.sort-desc::after{content:' ▼';font-size:.6rem}
+.data-table td{padding:6px 10px;text-align:center;border-bottom:1px solid var(--gray-100);font-weight:500}
+.data-table td:first-child{text-align:left;font-weight:600;color:var(--gray-700)}
+.data-table tr:hover td{background:#fffbeb}
+.field-selector{background:#fff;border-radius:12px;border:1px solid var(--gray-200);padding:16px 20px;margin-bottom:20px}
+.field-selector-title{font-size:.85rem;font-weight:700;color:var(--gray-700);margin-bottom:8px}
+.field-checks{display:flex;flex-wrap:wrap;gap:8px 16px}
+.field-checks label{font-size:.82rem;font-weight:500;color:var(--gray-600);display:flex;align-items:center;gap:4px;cursor:pointer}
+.field-checks input[type=checkbox]{accent-color:var(--primary)}
+.export-bar{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.btn-export{padding:8px 16px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;background:#fff;color:var(--gray-700);display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-export:hover{background:var(--gray-100);border-color:var(--gray-400);transform:translateY(-1px)}
+
+.save-bar{position:sticky;bottom:0;background:#fff;border-top:2px solid var(--gray-200);padding:14px 24px;display:flex;justify-content:center;gap:12px;z-index:10;box-shadow:0 -2px 8px rgba(0,0,0,.08)}
+.save-status{font-size:.82rem;color:var(--gray-500);text-align:center;padding:4px 0}
+
+/* Login */
+.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);z-index:1000;align-items:center;justify-content:center}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:12px;padding:40px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
+.login-box h2{font-size:1.4rem;font-weight:700;margin-bottom:8px;color:var(--primary)}
+.login-box p{font-size:.9rem;color:var(--gray-500);margin-bottom:24px}
+.login-form{display:flex;flex-direction:column;gap:14px}
+.login-form input{width:100%;padding:12px 14px;border:1px solid var(--gray-300);border-radius:6px;font-size:.95rem}
+.login-form input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.login-error{color:var(--danger);font-size:.85rem;margin-top:8px;display:none}
+.login-form button{padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:600;cursor:pointer}
+.login-form button:hover{background:#1d4ed8}
+
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:.85rem;font-weight:500;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+@media(max-width:768px){
+  .header{padding:12px 16px}
+  .header h1{font-size:1.05rem}
+  .date-nav{padding:10px 16px;gap:8px}
+  .tab-bar{padding:8px 12px;gap:6px}
+  .tab{padding:8px 16px;font-size:.82rem}
+  .content{padding:12px 12px}
+  .form-row{grid-template-columns:1fr auto}
+  .form-row input{font-size:16px;max-width:100px}
+  .date-picker-input{font-size:16px}
+  .weekly-table{font-size:.72rem}
+  .weekly-table th,.weekly-table td{padding:5px 4px}
+  .chart-container{height:280px}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .analytics-wrap{padding:12px 12px}
+}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>🍛 NNC Inventory</h2>
+    <p>Naan/Roti Prep &amp; Usage Log — Sign in to continue</p>
+    <div class="login-form">
+      <input type="email" id="loginEmail" placeholder="Email address" autocomplete="email">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+      <button onclick="doLogin()">Sign In</button>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <h1>🫓 Naan / Roti — Prep &amp; Usage Log</h1>
+    <div class="header-sub">Naan N Curry Issaquah</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost" onclick="goToDashboard()">← Dashboard</button>
+    <button class="btn btn-ghost" onclick="doLogout()">Logout</button>
+  </div>
+</div>
+
+<!-- Date Nav -->
+<div class="date-nav">
+  <button onclick="changeDate(-1)">◀ Prev</button>
+  <div style="text-align:center">
+    <input type="date" class="date-picker-input" id="datePicker" onchange="onDateChange()">
+    <div class="day-name" id="dayName"></div>
+  </div>
+  <button onclick="changeDate(1)">Next ▶</button>
+  <button class="btn btn-primary" onclick="goToToday()" style="margin-left:8px">Today</button>
+</div>
+
+<!-- Historical mode banner -->
+<div class="historical-banner" id="historicalBanner">
+  ⚠️ Editing historical data for <span class="hist-date" id="histDate"></span> — all fields are unlocked for manual adjustment.
+</div>
+
+<!-- Tabs: Naan | Roti | Analytics -->
+<div class="tab-bar">
+  <div class="tab active-naan" id="tabNaan" onclick="switchTab('naan')">🫓 Naan</div>
+  <div class="tab" id="tabRoti" onclick="switchTab('roti')">🫓 Roti</div>
+  <div class="tab" id="tabAnalytics" onclick="switchTab('analytics')">📈 Analytics</div>
+</div>
+
+<!-- ============================================================ -->
+<!--                         NAAN TAB                              -->
+<!-- ============================================================ -->
+<div class="tab-content active" id="contentNaan">
+<div class="content">
+
+  <!-- NAAN PREP -->
+  <div class="section">
+    <div class="section-header naan-prep">🫓 Naan — Prep</div>
+    <div class="section-body">
+      <div class="form-row">
+        <label>Number of 16lb batches:</label>
+        <input type="number" id="naan_batches" min="0" step="1" oninput="calcNaanPrep()">
+      </div>
+      <div class="form-row">
+        <label>Count of trays (24):</label>
+        <input type="number" id="naan_trays_full" min="0" step="1" oninput="calcNaanPrep()">
+      </div>
+      <div class="form-row">
+        <label>Count of doughballs (24):</label>
+        <input type="number" id="naan_doughballs_full" class="auto" readonly>
+      </div>
+      <hr class="divider">
+      <div class="form-row">
+        <label class="sub-label">Any trays less than 24:</label><span></span>
+      </div>
+      <div class="form-row">
+        <label class="sub-label">Number of trays:</label>
+        <input type="number" id="naan_trays_partial" min="0" step="1" oninput="calcNaanPrep()">
+      </div>
+      <div class="form-row">
+        <label class="sub-label">Count of dough ball per tray:</label>
+        <input type="number" id="naan_balls_per_partial" min="0" step="1" oninput="calcNaanPrep()">
+      </div>
+      <div class="form-row">
+        <label class="sub-label">Total other count:</label>
+        <input type="number" id="naan_other_count" class="auto" readonly>
+      </div>
+      <hr class="divider">
+      <div class="totals-row">
+        <label style="color:var(--naan-color)">Total Naan Trays:</label>
+        <div class="total-val naan-prep" id="naan_total_trays">0</div>
+      </div>
+      <div class="totals-row">
+        <label style="color:var(--naan-color)">Total Naan Doughballs:</label>
+        <div class="total-val naan-prep" id="naan_total_doughballs">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAAN USAGE -->
+  <div class="section">
+    <div class="section-header naan-usage">📊 Naan — Usage</div>
+    <div class="section-body">
+      <div class="info-banner" id="naanUsageBanner">
+        ℹ️ <strong>AM</strong> = previous day's PM count. <strong>Made</strong> = Total Naan Trays from prep above.
+      </div>
+      <div class="form-row">
+        <label>Number of Trays AM:<span class="hint">Leftover from previous day PM</span></label>
+        <input type="number" id="naan_am" min="0" step="1" class="auto-linked" readonly>
+      </div>
+      <div class="form-row">
+        <label>Made:<span class="hint">Total Naan Trays from prep above</span></label>
+        <input type="number" id="naan_made" min="0" step="1" class="auto-linked" readonly>
+      </div>
+      <div class="form-row">
+        <label>Number of Trays PM:<span class="hint">Physical count at end of day</span></label>
+        <input type="number" id="naan_pm" min="0" step="1" oninput="calcNaanUsage()">
+      </div>
+      <div class="form-row">
+        <label>Usage (trays):<span class="hint">AM + Made − PM</span></label>
+        <input type="number" id="naan_usage" class="auto" readonly>
+      </div>
+      <div class="form-row">
+        <label>Waste:<span class="hint">Trays thrown away</span></label>
+        <input type="number" id="naan_waste" min="0" step="1" oninput="calcNaanUsage()">
+      </div>
+      <hr class="divider">
+      <div class="totals-row">
+        <label style="color:var(--usage-accent);font-weight:800">Total Naan Usage:</label>
+        <div class="total-val naan-usage" id="naan_total_usage">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAAN WEEKLY -->
+  <div class="weekly-summary">
+    <div class="weekly-header">📊 Naan — Weekly Summary</div>
+    <div style="overflow-x:auto">
+      <table class="weekly-table"><thead id="naanWeeklyHead"></thead><tbody id="naanWeeklyBody"></tbody></table>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============================================================ -->
+<!--                         ROTI TAB                              -->
+<!-- ============================================================ -->
+<div class="tab-content" id="contentRoti">
+<div class="content">
+
+  <!-- ROTI PREP -->
+  <div class="section">
+    <div class="section-header roti-prep">🫓 Roti — Prep</div>
+    <div class="section-body">
+      <div class="form-row">
+        <label>Pounds of flour used:</label>
+        <input type="number" id="roti_flour" min="0" step="0.1" oninput="calcRotiPrep()">
+      </div>
+      <div class="form-row">
+        <label>Count of trays (12):</label>
+        <input type="number" id="roti_trays_full" min="0" step="1" oninput="calcRotiPrep()">
+      </div>
+      <div class="form-row">
+        <label>Count of doughballs:</label>
+        <input type="number" id="roti_doughballs_full" class="auto" readonly>
+      </div>
+      <hr class="divider">
+      <div class="form-row">
+        <label class="sub-label">Any trays less than 12:</label><span></span>
+      </div>
+      <div class="form-row">
+        <label class="sub-label">Number of trays:</label>
+        <input type="number" id="roti_trays_partial" min="0" step="1" oninput="calcRotiPrep()">
+      </div>
+      <div class="form-row">
+        <label class="sub-label">Count of dough ball per tray:</label>
+        <input type="number" id="roti_balls_per_partial" min="0" step="1" oninput="calcRotiPrep()">
+      </div>
+      <div class="form-row">
+        <label class="sub-label">Total other doughballs:</label>
+        <input type="number" id="roti_other_count" class="auto" readonly>
+      </div>
+      <hr class="divider">
+      <div class="totals-row">
+        <label style="color:var(--roti-color)">Total Roti Trays:</label>
+        <div class="total-val roti-prep" id="roti_total_trays">0</div>
+      </div>
+      <div class="totals-row">
+        <label style="color:var(--roti-color)">Total Roti Doughballs:</label>
+        <div class="total-val roti-prep" id="roti_total_doughballs">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROTI USAGE -->
+  <div class="section">
+    <div class="section-header roti-usage">📊 Roti — Usage</div>
+    <div class="section-body">
+      <div class="info-banner" id="rotiUsageBanner">
+        ℹ️ <strong>AM</strong> = previous day's PM count. <strong>Made</strong> = Total Roti Trays from prep above.
+      </div>
+      <div class="form-row">
+        <label>Number of Trays AM:<span class="hint">Leftover from previous day PM</span></label>
+        <input type="number" id="roti_am" min="0" step="1" class="auto-linked" readonly>
+      </div>
+      <div class="form-row">
+        <label>Made:<span class="hint">Total Roti Trays from prep above</span></label>
+        <input type="number" id="roti_made" min="0" step="1" class="auto-linked" readonly>
+      </div>
+      <div class="form-row">
+        <label>Number of Trays PM:<span class="hint">Physical count at end of day</span></label>
+        <input type="number" id="roti_pm" min="0" step="1" oninput="calcRotiUsage()">
+      </div>
+      <div class="form-row">
+        <label>Usage (trays):<span class="hint">AM + Made − PM</span></label>
+        <input type="number" id="roti_usage" class="auto" readonly>
+      </div>
+      <div class="form-row">
+        <label>Waste:<span class="hint">Trays thrown away</span></label>
+        <input type="number" id="roti_waste" min="0" step="1" oninput="calcRotiUsage()">
+      </div>
+      <hr class="divider">
+      <div class="totals-row">
+        <label style="color:#be185d;font-weight:800">Total Roti Usage:</label>
+        <div class="total-val roti-usage" id="roti_total_usage">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROTI WEEKLY -->
+  <div class="weekly-summary">
+    <div class="weekly-header">📊 Roti — Weekly Summary</div>
+    <div style="overflow-x:auto">
+      <table class="weekly-table"><thead id="rotiWeeklyHead"></thead><tbody id="rotiWeeklyBody"></tbody></table>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============================================================ -->
+<!--                      ANALYTICS TAB                            -->
+<!-- ============================================================ -->
+<div class="tab-content" id="contentAnalytics">
+<div class="analytics-wrap">
+
+  <div class="analytics-controls">
+    <label style="font-weight:600;font-size:.85rem">Date range:</label>
+    <input type="date" id="analyticsFrom">
+    <span style="color:var(--gray-400)">→</span>
+    <input type="date" id="analyticsTo">
+    <button class="btn btn-primary" onclick="loadAnalytics()">Load</button>
+    <button class="btn" style="background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-300)" onclick="setAnalyticsRange(14)">2 Weeks</button>
+    <button class="btn" style="background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-300)" onclick="setAnalyticsRange(30)">30 Days</button>
+  </div>
+
+  <!-- Export Buttons -->
+  <div class="export-bar">
+    <button class="btn-export" onclick="exportPDF()">📄 Export PDF</button>
+    <button class="btn-export" onclick="exportExcel()">📊 Export Excel</button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <!-- Field Selector -->
+  <div class="field-selector">
+    <div class="field-selector-title">📈 Select fields to chart:</div>
+    <div class="field-checks" id="fieldChecks"></div>
+  </div>
+
+  <!-- Trend Chart: Unified with field selection -->
+  <div class="chart-container">
+    <canvas id="trendChart"></canvas>
+  </div>
+
+  <!-- Weekly Averages Comparison -->
+  <div class="weekly-summary">
+    <div class="weekly-header">📊 Weekly Averages Comparison</div>
+    <div style="overflow-x:auto">
+      <table class="weekly-table"><thead id="avgHead"></thead><tbody id="avgBody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Raw Data Table -->
+  <div class="data-table-wrap">
+    <div class="data-table-header">
+      <span>📋 Raw Data</span>
+      <input type="text" class="data-table-filter" id="dataFilter" placeholder="Filter rows..." oninput="filterDataTable()">
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table" id="rawDataTable">
+        <thead id="rawDataHead"></thead>
+        <tbody id="rawDataBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Save Bar -->
+<div class="save-bar">
+  <button class="btn btn-success" onclick="saveAll()" style="min-width:220px;font-size:1rem;padding:12px 24px">💾 Save All Data</button>
+</div>
+<div class="save-status" id="saveStatus"></div>
+
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+// ==================== STATE ====================
+let currentDate = new Date();
+let currentTab = 'naan';
+let prepWeekData = {};
+let usageWeekData = {};
+let trendChart = null;
+let analyticsData = { dates: [], prepMap: {}, usageMap: {} };
+let sortCol = null;
+let sortAsc = true;
+
+// ==================== FIELD DEFINITIONS ====================
+const FIELD_DEFS = [
+  { key: 'naan_total_trays', label: 'Naan Prep Trays', color: '#1e3a5f', default: true, source: 'prep' },
+  { key: 'naan_total_doughballs', label: 'Naan Doughballs', color: '#2563eb', default: false, source: 'prep' },
+  { key: 'roti_total_trays', label: 'Roti Prep Trays', color: '#7c2d12', default: true, source: 'prep' },
+  { key: 'roti_total_doughballs', label: 'Roti Doughballs', color: '#b45309', default: false, source: 'prep' },
+  { key: 'naan_am', label: 'Naan AM', color: '#0ea5e9', default: false, source: 'usage' },
+  { key: 'naan_made', label: 'Naan Made', color: '#6366f1', default: false, source: 'usage' },
+  { key: 'naan_pm', label: 'Naan PM', color: '#8b5cf6', default: false, source: 'usage' },
+  { key: 'naan_usage', label: 'Naan Usage', color: '#ea580c', default: true, source: 'usage' },
+  { key: 'naan_waste', label: 'Naan Waste', color: '#dc2626', default: true, source: 'usage' },
+  { key: 'naan_total_usage', label: 'Naan Total', color: '#f97316', default: false, source: 'usage' },
+  { key: 'roti_am', label: 'Roti AM', color: '#14b8a6', default: false, source: 'usage' },
+  { key: 'roti_made', label: 'Roti Made', color: '#059669', default: false, source: 'usage' },
+  { key: 'roti_pm', label: 'Roti PM', color: '#10b981', default: false, source: 'usage' },
+  { key: 'roti_usage', label: 'Roti Usage', color: '#be185d', default: true, source: 'usage' },
+  { key: 'roti_waste', label: 'Roti Waste', color: '#e11d48', default: false, source: 'usage' },
+  { key: 'roti_total_usage', label: 'Roti Total', color: '#f43f5e', default: false, source: 'usage' }
+];
+
+// ==================== HISTORICAL MODE ====================
+// All auto-calculated and linked fields that are normally readonly
+const AUTO_FIELDS = ['naan_doughballs_full','naan_other_count','naan_usage',
+                     'roti_doughballs_full','roti_other_count','roti_usage'];
+const LINKED_FIELDS = ['naan_am','naan_made','roti_am','roti_made'];
+
+function isHistorical() {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const sel = new Date(currentDate);
+  sel.setHours(0,0,0,0);
+  return sel < today;
+}
+
+function applyEditMode() {
+  const hist = isHistorical();
+  document.body.classList.toggle('historical-mode', hist);
+
+  // Show/hide banner
+  const banner = document.getElementById('historicalBanner');
+  banner.classList.toggle('show', hist);
+  if (hist) {
+    document.getElementById('histDate').textContent = currentDate.toLocaleDateString('en-US', {
+      weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
+    });
+  }
+
+  // Toggle readonly on auto-calculated fields
+  AUTO_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (hist) {
+      el.removeAttribute('readonly');
+      el.oninput = histRecalcTotals;
+    } else {
+      el.setAttribute('readonly', true);
+      el.oninput = null;
+    }
+  });
+
+  // Toggle readonly on linked fields (AM, Made)
+  LINKED_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (hist) {
+      el.removeAttribute('readonly');
+      el.oninput = histRecalcTotals;
+    } else {
+      el.setAttribute('readonly', true);
+      el.oninput = null;
+    }
+  });
+}
+
+// In historical mode, update the total display divs from the unlocked input values
+function histRecalcTotals() {
+  // Naan prep totals
+  const naanFullTrays = num('naan_trays_full');
+  const naanPartialTrays = num('naan_trays_partial');
+  document.getElementById('naan_total_trays').textContent = naanFullTrays + naanPartialTrays;
+  document.getElementById('naan_total_doughballs').textContent = num('naan_doughballs_full') + num('naan_other_count');
+
+  // Roti prep totals
+  const rotiFullTrays = num('roti_trays_full');
+  const rotiPartialTrays = num('roti_trays_partial');
+  document.getElementById('roti_total_trays').textContent = rotiFullTrays + rotiPartialTrays;
+  document.getElementById('roti_total_doughballs').textContent = num('roti_doughballs_full') + num('roti_other_count');
+
+  // Naan usage total
+  const naanUsage = num('naan_usage');
+  const naanWaste = num('naan_waste');
+  document.getElementById('naan_total_usage').textContent = naanUsage + naanWaste;
+
+  // Roti usage total
+  const rotiUsage = num('roti_usage');
+  const rotiWaste = num('roti_waste');
+  document.getElementById('roti_total_usage').textContent = rotiUsage + rotiWaste;
+}
+
+// ==================== TAB SWITCHING ====================
+function switchTab(tab) {
+  currentTab = tab;
+  // Update tab styles
+  document.getElementById('tabNaan').className = tab === 'naan' ? 'tab active-naan' : 'tab';
+  document.getElementById('tabRoti').className = tab === 'roti' ? 'tab active-roti' : 'tab';
+  document.getElementById('tabAnalytics').className = tab === 'analytics' ? 'tab active' : 'tab';
+  document.getElementById('contentNaan').classList.toggle('active', tab === 'naan');
+  document.getElementById('contentRoti').classList.toggle('active', tab === 'roti');
+  document.getElementById('contentAnalytics').classList.toggle('active', tab === 'analytics');
+
+  // Hide date nav and save bar for analytics
+  const isEntry = tab === 'naan' || tab === 'roti';
+  document.querySelector('.date-nav').style.display = isEntry ? 'flex' : 'none';
+  document.querySelector('.save-bar').style.display = isEntry ? 'flex' : 'none';
+  document.getElementById('historicalBanner').classList.toggle('show', isEntry && isHistorical());
+
+  // When switching to roti tab, refresh linked values
+  if (tab === 'roti') {
+    linkRotiPrepToUsage();
+    calcRotiUsage();
+  } else if (tab === 'naan') {
+    linkNaanPrepToUsage();
+    calcNaanUsage();
+  } else if (tab === 'analytics') {
+    loadAnalytics();
+  }
+}
+
+// ==================== DATE HELPERS ====================
+function formatDate(d) { return d.toISOString().split('T')[0]; }
+function getDayName(d) { return d.toLocaleDateString('en-US', { weekday: 'long' }); }
+
+function getWeekStart(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = (day + 5) % 7; // Tue=0
+  dt.setDate(dt.getDate() - diff);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function getWeekDates(d) {
+  const start = getWeekStart(d);
+  const dates = [];
+  for (let i = 0; i < 6; i++) {
+    const dt = new Date(start);
+    dt.setDate(dt.getDate() + i);
+    dates.push(dt);
+  }
+  return dates;
+}
+
+function getPrevDate(d) {
+  const prev = new Date(d);
+  prev.setDate(prev.getDate() - 1);
+  return prev;
+}
+
+function setDate(d) {
+  currentDate = new Date(d);
+  document.getElementById('datePicker').value = formatDate(currentDate);
+  document.getElementById('dayName').textContent = getDayName(currentDate);
+  applyEditMode();
+  loadAllData();
+}
+
+function changeDate(delta) {
+  const d = new Date(currentDate);
+  d.setDate(d.getDate() + delta);
+  setDate(d);
+}
+
+function onDateChange() {
+  const val = document.getElementById('datePicker').value;
+  if (val) setDate(new Date(val + 'T12:00:00'));
+}
+
+function goToToday() { setDate(new Date()); }
+
+// ==================== PREP CALCULATIONS ====================
+function calcNaanPrep() {
+  if (isHistorical()) return; // In historical mode, user controls all values directly
+  const trays = num('naan_trays_full');
+  document.getElementById('naan_doughballs_full').value = trays * 24 || '';
+  const pt = num('naan_trays_partial');
+  const bp = num('naan_balls_per_partial');
+  document.getElementById('naan_other_count').value = pt * bp || '';
+  document.getElementById('naan_total_trays').textContent = trays + pt;
+  document.getElementById('naan_total_doughballs').textContent = (trays * 24) + (pt * bp);
+  linkNaanPrepToUsage();
+  calcNaanUsage();
+}
+
+function calcRotiPrep() {
+  if (isHistorical()) return;
+  const trays = num('roti_trays_full');
+  document.getElementById('roti_doughballs_full').value = trays * 12 || '';
+  const pt = num('roti_trays_partial');
+  const bp = num('roti_balls_per_partial');
+  document.getElementById('roti_other_count').value = pt * bp || '';
+  document.getElementById('roti_total_trays').textContent = trays + pt;
+  document.getElementById('roti_total_doughballs').textContent = (trays * 12) + (pt * bp);
+  linkRotiPrepToUsage();
+  calcRotiUsage();
+}
+
+// ==================== USAGE CALCULATIONS ====================
+function calcNaanUsage() {
+  if (isHistorical()) { histRecalcTotals(); return; }
+  const am = num('naan_am'), made = num('naan_made'), pm = num('naan_pm'), waste = num('naan_waste');
+  const usage = am + made - pm;
+  document.getElementById('naan_usage').value = usage;
+  document.getElementById('naan_total_usage').textContent = usage + waste;
+}
+
+function calcRotiUsage() {
+  if (isHistorical()) { histRecalcTotals(); return; }
+  const am = num('roti_am'), made = num('roti_made'), pm = num('roti_pm'), waste = num('roti_waste');
+  const usage = am + made - pm;
+  document.getElementById('roti_usage').value = usage;
+  document.getElementById('roti_total_usage').textContent = usage + waste;
+}
+
+function num(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+function linkNaanPrepToUsage() {
+  if (isHistorical()) return; // Don't override manual entries in historical mode
+  const totalTrays = parseInt(document.getElementById('naan_total_trays').textContent) || 0;
+  document.getElementById('naan_made').value = totalTrays || '';
+}
+
+function linkRotiPrepToUsage() {
+  if (isHistorical()) return;
+  const totalTrays = parseInt(document.getElementById('roti_total_trays').textContent) || 0;
+  document.getElementById('roti_made').value = totalTrays || '';
+}
+
+// ==================== FIELD DEFINITIONS ====================
+const NAAN_PREP_FIELDS = ['naan_batches','naan_trays_full','naan_trays_partial','naan_balls_per_partial'];
+const ROTI_PREP_FIELDS = ['roti_flour','roti_trays_full','roti_trays_partial','roti_balls_per_partial'];
+const NAAN_USAGE_MANUAL = ['naan_pm','naan_waste'];
+const ROTI_USAGE_MANUAL = ['roti_pm','roti_waste'];
+
+// ==================== DATA COLLECTION ====================
+function collectAllData() {
+  const prep = {};
+  NAAN_PREP_FIELDS.concat(ROTI_PREP_FIELDS).forEach(f => { prep[f] = num(f); });
+
+  if (isHistorical()) {
+    // In historical mode, read totals from what the user typed / what's displayed
+    prep.naan_doughballs_full = num('naan_doughballs_full');
+    prep.naan_other_count = num('naan_other_count');
+    prep.roti_doughballs_full = num('roti_doughballs_full');
+    prep.roti_other_count = num('roti_other_count');
+    prep.naan_total_trays = parseInt(document.getElementById('naan_total_trays').textContent) || 0;
+    prep.naan_total_doughballs = parseInt(document.getElementById('naan_total_doughballs').textContent) || 0;
+    prep.roti_total_trays = parseInt(document.getElementById('roti_total_trays').textContent) || 0;
+    prep.roti_total_doughballs = parseInt(document.getElementById('roti_total_doughballs').textContent) || 0;
+  } else {
+    prep.naan_total_trays = num('naan_trays_full') + num('naan_trays_partial');
+    prep.naan_total_doughballs = (num('naan_trays_full') * 24) + (num('naan_trays_partial') * num('naan_balls_per_partial'));
+    prep.roti_total_trays = num('roti_trays_full') + num('roti_trays_partial');
+    prep.roti_total_doughballs = (num('roti_trays_full') * 12) + (num('roti_trays_partial') * num('roti_balls_per_partial'));
+  }
+  prep.updatedAt = new Date().toISOString();
+  prep.updatedBy = auth.currentUser ? auth.currentUser.email : 'unknown';
+
+  const usage = {};
+  ['naan_am','naan_made','naan_pm','naan_usage','naan_waste',
+   'roti_am','roti_made','roti_pm','roti_usage','roti_waste'].forEach(f => {
+    usage[f] = parseFloat(document.getElementById(f).value) || 0;
+  });
+  usage.naan_total_usage = usage.naan_usage + usage.naan_waste;
+  usage.roti_total_usage = usage.roti_usage + usage.roti_waste;
+  usage.updatedAt = new Date().toISOString();
+  usage.updatedBy = auth.currentUser ? auth.currentUser.email : 'unknown';
+
+  return { prep, usage };
+}
+
+// ==================== FIREBASE ====================
+function prepDocPath(ds) { return `naan-roti-prep/nnc-iss/${ds}`; }
+function usageDocPath(ds) { return `naan-roti-usage/nnc-iss/${ds}`; }
+
+async function saveAll() {
+  if (!auth.currentUser) return showToast('Please sign in first');
+  const ds = formatDate(currentDate);
+  const { prep, usage } = collectAllData();
+  try {
+    await Promise.all([
+      db.doc(prepDocPath(ds)).set(prep, { merge: true }),
+      db.doc(usageDocPath(ds)).set(usage, { merge: true })
+    ]);
+    showToast('✅ All data saved for ' + ds);
+    document.getElementById('saveStatus').textContent = 'Last saved: ' + new Date().toLocaleTimeString();
+    prepWeekData[ds] = prep;
+    usageWeekData[ds] = usage;
+    renderNaanWeekly();
+    renderRotiWeekly();
+  } catch (err) {
+    console.error('Save error:', err);
+    showToast('❌ Error saving: ' + err.message);
+  }
+}
+
+async function loadAllData() {
+  if (!auth.currentUser) return;
+  const ds = formatDate(currentDate);
+  const prevDs = formatDate(getPrevDate(currentDate));
+
+  // Clear all
+  NAAN_PREP_FIELDS.concat(ROTI_PREP_FIELDS).forEach(f => { document.getElementById(f).value = ''; });
+  NAAN_USAGE_MANUAL.concat(ROTI_USAGE_MANUAL).forEach(f => { document.getElementById(f).value = ''; });
+  ['naan_am','naan_made','roti_am','roti_made','naan_usage','roti_usage',
+   'naan_doughballs_full','naan_other_count','roti_doughballs_full','roti_other_count'].forEach(f => {
+    document.getElementById(f).value = '';
+  });
+  ['naan_total_trays','naan_total_doughballs','roti_total_trays','roti_total_doughballs'].forEach(f => {
+    document.getElementById(f).textContent = '0';
+  });
+  ['naan_total_usage','roti_total_usage'].forEach(f => {
+    document.getElementById(f).textContent = '0';
+  });
+
+  try {
+    const [prepDoc, usageDoc, prevUsageDoc] = await Promise.all([
+      db.doc(prepDocPath(ds)).get(),
+      db.doc(usageDocPath(ds)).get(),
+      db.doc(usageDocPath(prevDs)).get()
+    ]);
+
+    // Populate prep
+    if (prepDoc.exists) {
+      const pd = prepDoc.data();
+      NAAN_PREP_FIELDS.concat(ROTI_PREP_FIELDS).forEach(f => {
+        document.getElementById(f).value = pd[f] || '';
+      });
+
+      if (isHistorical()) {
+        // In historical mode, populate auto-calc fields from saved data
+        ['naan_doughballs_full','naan_other_count','roti_doughballs_full','roti_other_count'].forEach(f => {
+          document.getElementById(f).value = pd[f] || '';
+        });
+        ['naan_total_trays','naan_total_doughballs','roti_total_trays','roti_total_doughballs'].forEach(f => {
+          document.getElementById(f).textContent = pd[f] || 0;
+        });
+      }
+    }
+    calcNaanPrep();
+    calcRotiPrep();
+
+    if (isHistorical()) {
+      // Historical: populate ALL usage fields from saved data directly
+      if (usageDoc.exists) {
+        const ud = usageDoc.data();
+        ['naan_am','naan_made','naan_pm','naan_usage','naan_waste',
+         'roti_am','roti_made','roti_pm','roti_usage','roti_waste'].forEach(f => {
+          document.getElementById(f).value = ud[f] || '';
+        });
+        document.getElementById('naan_total_usage').textContent = ud.naan_total_usage || 0;
+        document.getElementById('roti_total_usage').textContent = ud.roti_total_usage || 0;
+      }
+    } else {
+      // Current/future: auto-link AM from prev day, Made from prep
+      const prevData = prevUsageDoc.exists ? prevUsageDoc.data() : null;
+      document.getElementById('naan_am').value = prevData ? (prevData.naan_pm || '') : '';
+      document.getElementById('roti_am').value = prevData ? (prevData.roti_pm || '') : '';
+
+      linkNaanPrepToUsage();
+      linkRotiPrepToUsage();
+
+      // Populate usage manual fields only
+      if (usageDoc.exists) {
+        const ud = usageDoc.data();
+        NAAN_USAGE_MANUAL.concat(ROTI_USAGE_MANUAL).forEach(f => {
+          document.getElementById(f).value = ud[f] || '';
+        });
+      }
+
+      calcNaanUsage();
+      calcRotiUsage();
+    }
+
+    // Week data
+    await loadWeekData();
+  } catch (err) {
+    console.error('Load error:', err);
+    showToast('❌ Error loading data');
+  }
+}
+
+async function loadWeekData() {
+  const dates = getWeekDates(currentDate);
+  prepWeekData = {};
+  usageWeekData = {};
+
+  const promises = dates.flatMap(d => {
+    const ds = formatDate(d);
+    return [
+      db.doc(prepDocPath(ds)).get().then(doc => { if (doc.exists) prepWeekData[ds] = doc.data(); }),
+      db.doc(usageDocPath(ds)).get().then(doc => { if (doc.exists) usageWeekData[ds] = doc.data(); })
+    ];
+  });
+
+  await Promise.all(promises);
+  renderNaanWeekly();
+  renderRotiWeekly();
+}
+
+// ==================== WEEKLY SUMMARIES ====================
+function weeklyHeader(dates, elId) {
+  let h = '<tr><th>Metric</th>';
+  dates.forEach(d => {
+    h += `<th>${d.toLocaleDateString('en-US',{weekday:'short'})}<br>${(d.getMonth()+1)}/${d.getDate()}</th>`;
+  });
+  h += '<th>WKLY TOTAL</th></tr>';
+  document.getElementById(elId).innerHTML = h;
+}
+
+function weeklyRows(rows, dates, prepMap, usageMap, todayStr) {
+  let html = '';
+  rows.forEach(row => {
+    if (row.label === '---') {
+      html += `<tr><td colspan="${dates.length+2}" style="padding:6px;border-bottom:2px solid var(--gray-200)"></td></tr>`;
+      return;
+    }
+    const cls = row.rowClass ? ` class="total-row ${row.rowClass}"` : '';
+    html += `<tr${cls}><td>${row.label}</td>`;
+    let wt = 0;
+    dates.forEach(d => {
+      const ds = formatDate(d);
+      const map = row.source === 'usage' ? usageMap : prepMap;
+      const val = map[ds] ? (map[ds][row.key] || 0) : 0;
+      wt += val;
+      const tc = ds === todayStr ? ' class="today-col"' : '';
+      html += `<td${tc}>${val || ''}</td>`;
+    });
+    html += `<td style="font-weight:700">${wt || ''}</td></tr>`;
+  });
+  return html;
+}
+
+function renderNaanWeekly() {
+  const dates = getWeekDates(currentDate);
+  const ts = formatDate(currentDate);
+  weeklyHeader(dates, 'naanWeeklyHead');
+
+  const rows = [
+    { label: 'Batches (16lb)', key: 'naan_batches', source: 'prep' },
+    { label: 'Full Trays (24)', key: 'naan_trays_full', source: 'prep' },
+    { label: 'Partial Trays', key: 'naan_trays_partial', source: 'prep' },
+    { label: 'Total Trays', key: 'naan_total_trays', source: 'prep', rowClass: 'naan-total' },
+    { label: 'Total Doughballs', key: 'naan_total_doughballs', source: 'prep', rowClass: 'naan-total' },
+    { label: '---' },
+    { label: 'Trays AM', key: 'naan_am', source: 'usage' },
+    { label: 'Made', key: 'naan_made', source: 'usage' },
+    { label: 'Trays PM', key: 'naan_pm', source: 'usage' },
+    { label: 'Usage (trays)', key: 'naan_usage', source: 'usage' },
+    { label: 'Waste', key: 'naan_waste', source: 'usage' },
+    { label: 'Total Naan Usage', key: 'naan_total_usage', source: 'usage', rowClass: 'naan-usage-total' }
+  ];
+
+  document.getElementById('naanWeeklyBody').innerHTML = weeklyRows(rows, dates, prepWeekData, usageWeekData, ts);
+}
+
+function renderRotiWeekly() {
+  const dates = getWeekDates(currentDate);
+  const ts = formatDate(currentDate);
+  weeklyHeader(dates, 'rotiWeeklyHead');
+
+  const rows = [
+    { label: 'Flour (lbs)', key: 'roti_flour', source: 'prep' },
+    { label: 'Full Trays (12)', key: 'roti_trays_full', source: 'prep' },
+    { label: 'Partial Trays', key: 'roti_trays_partial', source: 'prep' },
+    { label: 'Total Trays', key: 'roti_total_trays', source: 'prep', rowClass: 'roti-total' },
+    { label: 'Total Doughballs', key: 'roti_total_doughballs', source: 'prep', rowClass: 'roti-total' },
+    { label: '---' },
+    { label: 'Trays AM', key: 'roti_am', source: 'usage' },
+    { label: 'Made', key: 'roti_made', source: 'usage' },
+    { label: 'Trays PM', key: 'roti_pm', source: 'usage' },
+    { label: 'Usage (trays)', key: 'roti_usage', source: 'usage' },
+    { label: 'Waste', key: 'roti_waste', source: 'usage' },
+    { label: 'Total Roti Usage', key: 'roti_total_usage', source: 'usage', rowClass: 'roti-usage-total' }
+  ];
+
+  document.getElementById('rotiWeeklyBody').innerHTML = weeklyRows(rows, dates, prepWeekData, usageWeekData, ts);
+}
+
+// ==================== ANALYTICS ====================
+function setAnalyticsRange(days) {
+  const to = new Date();
+  const from = new Date(); from.setDate(from.getDate() - days);
+  document.getElementById('analyticsFrom').value = formatDate(from);
+  document.getElementById('analyticsTo').value = formatDate(to);
+  loadAnalytics();
+}
+
+async function loadAnalytics() {
+  if (!auth.currentUser) return;
+  const fromStr = document.getElementById('analyticsFrom').value;
+  const toStr = document.getElementById('analyticsTo').value;
+  if (!fromStr || !toStr) { setAnalyticsRange(14); return; }
+
+  const from = new Date(fromStr + 'T00:00:00');
+  const to = new Date(toStr + 'T23:59:59');
+  const dates = [];
+  const d = new Date(from);
+  while (d <= to) { dates.push(new Date(d)); d.setDate(d.getDate() + 1); }
+
+  // Load all data from both collections
+  const prepMap = {};
+  const usageMap = {};
+  const promises = dates.flatMap(dt => {
+    const ds = formatDate(dt);
+    return [
+      db.doc(prepDocPath(ds)).get().then(doc => { if (doc.exists) prepMap[ds] = doc.data(); }),
+      db.doc(usageDocPath(ds)).get().then(doc => { if (doc.exists) usageMap[ds] = doc.data(); })
+    ];
+  });
+  await Promise.all(promises);
+
+  analyticsData = { dates, prepMap, usageMap };
+  renderFieldChecks();
+  renderStatsCards(dates, prepMap, usageMap);
+  renderTrendChart();
+  renderWeeklyAvgTable(dates, prepMap, usageMap);
+  renderRawDataTable();
+}
+
+function renderStatsCards(dates, prepMap, usageMap) {
+  const uVals = dates.map(d => usageMap[formatDate(d)]).filter(Boolean);
+  const pVals = dates.map(d => prepMap[formatDate(d)]).filter(Boolean);
+  if (!uVals.length && !pVals.length) {
+    document.getElementById('statsGrid').innerHTML = '<p style="color:var(--gray-400)">No data in range</p>';
+    return;
+  }
+
+  const naanUsage = uVals.map(v => v.naan_total_usage || 0);
+  const rotiUsage = uVals.map(v => v.roti_total_usage || 0);
+  const naanPrep = pVals.map(v => v.naan_total_trays || 0);
+  const rotiPrep = pVals.map(v => v.roti_total_trays || 0);
+  const naanWaste = uVals.map(v => v.naan_waste || 0);
+
+  const avg = arr => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
+  const max = arr => arr.length ? Math.max(...arr) : 0;
+
+  // % change naan usage: recent half vs prior half
+  const mid = Math.floor(naanUsage.length / 2);
+  const recentAvg = avg(naanUsage.slice(mid));
+  const priorAvg = avg(naanUsage.slice(0, mid));
+  const change = priorAvg > 0 ? ((recentAvg - priorAvg) / priorAvg * 100) : 0;
+  const changeClass = change > 5 ? 'up' : change < -5 ? 'down' : 'neutral';
+  const changeText = change !== 0 ? `${change > 0 ? '▲' : '▼'} ${Math.abs(change).toFixed(1)}% vs prior period` : 'No change';
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Avg Naan Usage / Day</div>
+      <div class="stat-value">${avg(naanUsage).toFixed(1)}</div>
+      <div class="stat-change ${changeClass}">${changeText}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Roti Usage / Day</div>
+      <div class="stat-value">${avg(rotiUsage).toFixed(1)}</div>
+      <div class="stat-sub">${uVals.length} days of data</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Naan Prep / Day</div>
+      <div class="stat-value">${avg(naanPrep).toFixed(1)}</div>
+      <div class="stat-sub">trays prepped</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Peak Naan Usage</div>
+      <div class="stat-value">${max(naanUsage).toFixed(1)}</div>
+      <div class="stat-sub">Avg Waste: ${avg(naanWaste).toFixed(1)}</div>
+    </div>
+  `;
+}
+
+function renderFieldChecks() {
+  const el = document.getElementById('fieldChecks');
+  el.innerHTML = FIELD_DEFS.map(f =>
+    `<label><input type="checkbox" data-key="${f.key}" ${f.default ? 'checked' : ''} onchange="renderTrendChart()"> ${f.label}</label>`
+  ).join('');
+}
+
+function getSelectedFields() {
+  return Array.from(document.querySelectorAll('#fieldChecks input:checked')).map(cb => {
+    const key = cb.dataset.key;
+    return FIELD_DEFS.find(f => f.key === key);
+  }).filter(Boolean);
+}
+
+function renderTrendChart() {
+  const { dates, prepMap, usageMap } = analyticsData;
+  if (!dates.length) return;
+  const fields = getSelectedFields();
+  const labels = dates.map(d => d.toLocaleDateString('en-US', { month:'short', day:'numeric' }));
+
+  const datasets = fields.map(f => {
+    const map = f.source === 'prep' ? prepMap : usageMap;
+    return {
+      label: f.label,
+      data: dates.map(d => { const v = map[formatDate(d)]; return v ? (v[f.key] || 0) : null; }),
+      borderColor: f.color,
+      backgroundColor: f.color + '1a',
+      borderWidth: 2, tension: .3, spanGaps: true,
+      fill: fields.length === 1
+    };
+  });
+
+  if (trendChart) trendChart.destroy();
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' }, title: { display: true, text: 'Naan/Roti — Trends', font: { size: 14, weight: 'bold' } } },
+      scales: { y: { beginAtZero: true, title: { display: true, text: 'Count' } } }
+    }
+  });
+}
+
+function renderWeeklyAvgTable(dates, prepMap, usageMap) {
+  // Group by week (Tue start)
+  const weeks = {};
+  dates.forEach(d => {
+    const ws = formatDate(getWeekStart(d));
+    if (!weeks[ws]) weeks[ws] = { prep: [], usage: [] };
+    const pData = prepMap[formatDate(d)];
+    const uData = usageMap[formatDate(d)];
+    if (pData) weeks[ws].prep.push(pData);
+    if (uData) weeks[ws].usage.push(uData);
+  });
+
+  const weekKeys = Object.keys(weeks).sort();
+  let h = '<tr><th>Week Starting</th><th>Days</th><th>Avg Naan Prep</th><th>Avg Naan Usage</th><th>Avg Naan Waste</th><th>Avg Roti Prep</th><th>Avg Roti Usage</th><th>Total Naan Usage</th><th>Total Roti Usage</th></tr>';
+  document.getElementById('avgHead').innerHTML = h;
+
+  const avg = (arr, key) => arr.length ? (arr.reduce((s,v) => s + (v[key]||0), 0) / arr.length) : 0;
+  const sum = (arr, key) => arr.reduce((s,v) => s + (v[key]||0), 0);
+
+  let body = '';
+  weekKeys.forEach((wk, i) => {
+    const data = weeks[wk];
+    const wkDate = new Date(wk + 'T12:00:00');
+    const label = wkDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const isLatest = i === weekKeys.length - 1;
+    const days = Math.max(data.prep.length, data.usage.length);
+
+    body += `<tr${isLatest ? ' style="font-weight:700;background:var(--naan-bg)"' : ''}>
+      <td>${label}</td><td>${days}</td>
+      <td>${avg(data.prep,'naan_total_trays').toFixed(1)}</td>
+      <td>${avg(data.usage,'naan_total_usage').toFixed(1)}</td>
+      <td>${avg(data.usage,'naan_waste').toFixed(1)}</td>
+      <td>${avg(data.prep,'roti_total_trays').toFixed(1)}</td>
+      <td>${avg(data.usage,'roti_total_usage').toFixed(1)}</td>
+      <td>${sum(data.usage,'naan_total_usage').toFixed(1)}</td>
+      <td>${sum(data.usage,'roti_total_usage').toFixed(1)}</td>
+    </tr>`;
+  });
+  document.getElementById('avgBody').innerHTML = body;
+}
+
+// ==================== AUTH ====================
+function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const pw = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  auth.signInWithEmailAndPassword(email, pw).catch(err => {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  });
+}
+function doLogout() { auth.signOut(); }
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    await loadUserProfile();
+    setDate(new Date());
+    setAnalyticsRange(14);
+  } else {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+  }
+});
+
+function goToDashboard() { window.location.href = 'index.html'; }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ==================== RAW DATA TABLE ====================
+function renderRawDataTable() {
+  const { dates, prepMap, usageMap } = analyticsData;
+  const cols = [{ key: 'date', label: 'Date' }, ...FIELD_DEFS.map(f => ({ key: f.key, label: f.label }))];
+
+  let h = '<tr>';
+  cols.forEach((c, i) => {
+    const cls = sortCol === i ? (sortAsc ? 'sort-asc' : 'sort-desc') : '';
+    h += `<th class="${cls}" onclick="sortDataTable(${i})">${c.label}</th>`;
+  });
+  h += '</tr>';
+  document.getElementById('rawDataHead').innerHTML = h;
+
+  let rows = dates.map(d => {
+    const ds = formatDate(d);
+    const row = { date: ds };
+    FIELD_DEFS.forEach(f => {
+      const map = f.source === 'prep' ? prepMap : usageMap;
+      const v = map[ds];
+      row[f.key] = v ? (v[f.key] || 0) : 0;
+    });
+    return row;
+  }).filter(r => FIELD_DEFS.some(f => r[f.key] !== 0));
+
+  if (sortCol !== null) {
+    const key = sortCol === 0 ? 'date' : FIELD_DEFS[sortCol - 1].key;
+    rows.sort((a, b) => {
+      const va = a[key], vb = b[key];
+      if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortAsc ? va - vb : vb - va;
+    });
+  }
+
+  const filter = (document.getElementById('dataFilter').value || '').toLowerCase();
+  if (filter) rows = rows.filter(r => r.date.includes(filter));
+
+  let body = '';
+  rows.forEach(r => {
+    body += '<tr>';
+    body += `<td>${r.date}</td>`;
+    FIELD_DEFS.forEach(f => { body += `<td>${r[f.key]}</td>`; });
+    body += '</tr>';
+  });
+  if (!rows.length) body = `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--gray-400);padding:20px">No data found</td></tr>`;
+  document.getElementById('rawDataBody').innerHTML = body;
+}
+
+function sortDataTable(colIndex) {
+  if (sortCol === colIndex) { sortAsc = !sortAsc; } else { sortCol = colIndex; sortAsc = true; }
+  renderRawDataTable();
+}
+
+function filterDataTable() { renderRawDataTable(); }
+
+function getExportRows() {
+  const { dates, prepMap, usageMap } = analyticsData;
+  return dates.map(d => {
+    const ds = formatDate(d);
+    const row = { Date: ds };
+    FIELD_DEFS.forEach(f => {
+      const map = f.source === 'prep' ? prepMap : usageMap;
+      const v = map[ds];
+      row[f.label] = v ? (v[f.key] || 0) : 0;
+    });
+    return row;
+  }).filter(r => FIELD_DEFS.some(f => r[f.label] !== 0));
+}
+
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape');
+  const rows = getExportRows();
+  const headers = ['Date', ...FIELD_DEFS.map(f => f.label)];
+  const body = rows.map(r => headers.map(h => r[h]));
+
+  doc.setFontSize(16);
+  doc.text('Naan/Roti Prep & Usage — Analytics Report', 14, 15);
+  doc.setFontSize(9);
+  doc.text(`Date range: ${document.getElementById('analyticsFrom').value} to ${document.getElementById('analyticsTo').value}`, 14, 22);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 27);
+
+  doc.autoTable({
+    head: [headers], body,
+    startY: 32, styles: { fontSize: 7 }, headStyles: { fillColor: [30, 58, 95] }
+  });
+  doc.save('naan-roti-analytics.pdf');
+  showToast('📄 PDF exported');
+}
+
+function exportExcel() {
+  const rows = getExportRows();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Naan Roti');
+  XLSX.writeFile(wb, 'naan-roti-analytics.xlsx');
+  showToast('📊 Excel exported');
+}
+</script>
+</body>
+</html>

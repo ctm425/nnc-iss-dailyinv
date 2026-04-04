@@ -189,6 +189,68 @@ const SHEET_TYPES = {
     restaurants: ['renton-wh']
   },
 
+  // ---- NNC ISSAQUAH DAILY USAGE & PREP LOG ----
+  'nnc-naan-roti-log': {
+    name: 'Naan/Roti Prep & Usage',
+    category: 'usage-prep',
+    frequency: 'daily',
+    icon: '🫓',
+    description: 'Daily Naan & Roti tracking — prep (batches, trays, doughballs) and usage (AM/PM counts, waste).\nRegistro diario de preparación y uso de Naan y Roti.',
+    allowedRoles: ['owner', 'manager', 'kitchen'],
+    page: 'naan-roti-log.html',
+    restaurants: ['nnc-iss']
+  },
+  'nnc-rice-usage': {
+    name: 'Rice Usage Log',
+    category: 'usage-prep',
+    frequency: 'daily',
+    icon: '🍚',
+    description: 'Daily rice tracking — made, leftover, usage, waste.\nRegistro diario de arroz — producción, sobrante, uso, desperdicio.',
+    allowedRoles: ['owner', 'manager', 'kitchen'],
+    page: 'rice-usage-log.html',
+    restaurants: ['nnc-iss']
+  },
+  'nnc-chicken-prep': {
+    name: 'Raw Chicken Processing',
+    category: 'usage-prep',
+    frequency: 'daily',
+    icon: '🍗',
+    description: 'Daily raw chicken processing — cases, bags, weight, fat, water content.\nProcesamiento diario de pollo crudo — cajas, bolsas, peso, grasa, contenido de agua.',
+    allowedRoles: ['owner', 'manager', 'kitchen'],
+    page: 'chicken-prep-log.html',
+    restaurants: ['nnc-iss']
+  },
+  'nnc-tikka-prep': {
+    name: 'Tikka (CTM) Processing',
+    category: 'usage-prep',
+    frequency: 'daily',
+    icon: '🍢',
+    description: 'Tikka processing — raw, cooked, and cutting stages with dark/white meat tracking.\nProcesamiento de Tikka — etapas crudo, cocido y corte con seguimiento de carne oscura/blanca.',
+    allowedRoles: ['owner', 'manager', 'kitchen'],
+    page: 'tikka-prep-log.html',
+    restaurants: ['nnc-iss']
+  },
+  'nnc-produce-prep': {
+    name: 'Produce Prep',
+    category: 'usage-prep',
+    frequency: 'daily',
+    icon: '🧅',
+    description: 'Daily produce prep — onion, potato, paneer processing.\nPreparación diaria de productos — procesamiento de cebolla, papa, paneer.',
+    allowedRoles: ['owner', 'manager', 'kitchen'],
+    page: 'produce-prep-log.html',
+    restaurants: ['nnc-iss']
+  },
+  'nnc-packing-log': {
+    name: 'Packing Log',
+    category: 'usage-prep',
+    frequency: 'daily',
+    icon: '📦',
+    description: 'Daily packing — Haleem, Keema, Seekh Kabab, Karela, Nehari Sauce.\nEmpaque diario — Haleem, Keema, Seekh Kabab, Karela, Salsa Nehari.',
+    allowedRoles: ['owner', 'manager', 'kitchen'],
+    page: 'packing-log.html',
+    restaurants: ['nnc-iss']
+  },
+
   // ---- PREP DATA (cross-location) ----
   'prep-iss': {
     name: 'Issaquah Prep Log',

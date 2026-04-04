@@ -533,7 +533,8 @@ function showLocationDetail(key) {
     daily: { title: 'Daily Operations', badge: 'AM/PM Tracking' },
     inventory: { title: 'Non Daily Inventory', badge: 'Weekly Inventory' },
     operations: { title: 'Vendor & Operations', badge: 'Live Data' },
-    prep: { title: 'Prep Data', badge: 'Cost Optimization' }
+    prep: { title: 'Prep Data', badge: 'Cost Optimization' },
+    'usage-prep': { title: 'Issaquah Daily Usage and Prep Log', badge: 'Daily Tracking' }
   };
 
   let sheetsHtml = '';
@@ -672,7 +673,7 @@ function showIssaquahDetail(container, loc, color) {
     <div class="sheet-grid">
       <div class="sheet-card" onclick="openSheet('nnc-daily-kitchen')">
         <div class="accent-bar" style="background:${color}"></div>
-        <div class="icon">🍛</div>
+        <div class="icon">👨‍🍳</div>
         <div class="name">Kitchen Daily Order</div>
         <div class="desc">Cooked foods from Renton Main Kitchen — AM/PM counts & ordering</div>
         <div class="meta">
@@ -685,6 +686,70 @@ function showIssaquahDetail(container, loc, color) {
         <div class="icon">🥬</div>
         <div class="name">Produce Daily Order</div>
         <div class="desc">Fresh produce inventory — AM/PM counts & ordering</div>
+        <div class="meta">
+          <span class="tag freq">daily</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:20px">Issaquah Daily Usage &amp; Prep Log <span class="badge">Daily Tracking</span></div>
+    <div class="sheet-grid">
+      <div class="sheet-card" onclick="openSheet('nnc-naan-roti-log')">
+        <div class="accent-bar" style="background:#1e3a5f"></div>
+        <div class="icon">🫓</div>
+        <div class="name">Naan/Roti Prep & Usage</div>
+        <div class="desc">Daily Naan & Roti tracking — prep (batches, trays, doughballs) and usage (AM/PM counts, waste)</div>
+        <div class="meta">
+          <span class="tag freq">daily</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-rice-usage')">
+        <div class="accent-bar" style="background:#065f46"></div>
+        <div class="icon">🍚</div>
+        <div class="name">Rice Usage Log</div>
+        <div class="desc">Daily rice tracking — made, leftover, usage, waste</div>
+        <div class="meta">
+          <span class="tag freq">daily</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-chicken-prep')">
+        <div class="accent-bar" style="background:#92400e"></div>
+        <div class="icon">🍗</div>
+        <div class="name">Raw Chicken Processing</div>
+        <div class="desc">Cases, bags, weight, fat, water content tracking</div>
+        <div class="meta">
+          <span class="tag freq">daily</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-tikka-prep')">
+        <div class="accent-bar" style="background:#dc2626"></div>
+        <div class="icon">🍢</div>
+        <div class="name">Tikka (CTM) Processing</div>
+        <div class="desc">Raw, cooked, and cutting stages — dark/white meat tracking</div>
+        <div class="meta">
+          <span class="tag freq">daily</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-produce-prep')">
+        <div class="accent-bar" style="background:#15803d"></div>
+        <div class="icon">🧅</div>
+        <div class="name">Produce Prep</div>
+        <div class="desc">Onion, potato, paneer processing</div>
+        <div class="meta">
+          <span class="tag freq">daily</span>
+          <span class="tag status-ok">Active</span>
+        </div>
+      </div>
+      <div class="sheet-card" onclick="openSheet('nnc-packing-log')">
+        <div class="accent-bar" style="background:#4338ca"></div>
+        <div class="icon">📦</div>
+        <div class="name">Packing Log</div>
+        <div class="desc">Haleem, Keema, Seekh Kabab, Karela, Nehari Sauce</div>
         <div class="meta">
           <span class="tag freq">daily</span>
           <span class="tag status-ok">Active</span>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC — Naan Data Loader</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;padding:40px 24px;max-width:700px;margin:0 auto}
+h1{font-size:1.4rem;margin-bottom:8px;color:#1e3a5f}
+p{color:#6b7280;margin-bottom:20px;font-size:.9rem}
+.login-section{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:20px}
+.login-section input{padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem;width:200px;margin-right:8px}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-success{background:#16a34a;color:#fff;font-size:1.1rem;padding:14px 32px}
+.btn-danger{background:#dc2626;color:#fff}
+.status{margin-top:12px;font-size:.85rem;font-weight:500}
+.status.ok{color:#16a34a}
+.status.err{color:#dc2626}
+.log{background:#111827;color:#a3e635;border-radius:8px;padding:16px;margin-top:20px;font-family:monospace;font-size:.82rem;max-height:400px;overflow-y:auto;white-space:pre-wrap;display:none}
+.log.show{display:block}
+.data-preview{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;font-size:.82rem;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.78rem}
+th{background:#f3f4f6;padding:6px 8px;text-align:center;font-weight:700;border:1px solid #e5e7eb}
+td{padding:4px 8px;text-align:center;border:1px solid #e5e7eb}
+th:first-child,td:first-child{text-align:left}
+.section-label{font-weight:800;padding:8px;background:#1e3a5f;color:#fff;text-align:left;font-size:.82rem}
+.section-label.usage{background:#ea580c}
+</style>
+</head>
+<body>
+
+<h1>🫓 Naan Prep & Usage — Data Loader</h1>
+<p>This page will upload the historical Naan data for the week of 3/31 – 4/4/2026 into Firebase. Log in, review the data below, then click <strong>Upload All Data</strong>.</p>
+
+<div class="login-section">
+  <div id="authStatus" style="margin-bottom:10px;font-weight:600;color:#6b7280">Not signed in</div>
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="pw" placeholder="Password">
+  <button class="btn btn-primary" onclick="doLogin()">Sign In</button>
+  <button class="btn btn-danger" onclick="doLogout()" style="display:none" id="logoutBtn">Logout</button>
+</div>
+
+<div class="data-preview">
+  <h3 style="margin-bottom:8px">Data to upload:</h3>
+  <table>
+    <tr><th></th><th>Tue 3/31</th><th>Wed 4/1</th><th>Thu 4/2</th><th>Fri 4/3</th><th>Sat 4/4</th></tr>
+    <tr><td colspan="6" class="section-label">NAAN PREP</td></tr>
+    <tr><td>16lb batches</td><td>3</td><td>6</td><td>3</td><td>4</td><td>3</td></tr>
+    <tr><td>Trays (24)</td><td>9</td><td>18</td><td>9</td><td>12</td><td>9</td></tr>
+    <tr><td>Doughballs</td><td>216</td><td>432</td><td>216</td><td>288</td><td>216</td></tr>
+    <tr><td>Total Trays</td><td>9</td><td>18</td><td>9</td><td>12</td><td>9</td></tr>
+    <tr><td>Total Doughballs</td><td>216</td><td>432</td><td>216</td><td>288</td><td>216</td></tr>
+    <tr><td colspan="6" class="section-label usage">NAAN USAGE</td></tr>
+    <tr><td>AM Trays</td><td>12.5</td><td>12.5</td><td>23.5</td><td>25</td><td>26.5</td></tr>
+    <tr><td>Made</td><td>9</td><td>18</td><td>9</td><td>12</td><td>9</td></tr>
+    <tr><td>PM Trays</td><td>12.5</td><td>23.5</td><td>25</td><td>26.5</td><td><em>TBD</em></td></tr>
+    <tr><td>Usage</td><td>9</td><td>7</td><td>7.5</td><td>10.5</td><td>35.5</td></tr>
+    <tr><td>Waste</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+    <tr><td>Total Usage</td><td>9</td><td>7</td><td>7.5</td><td>10.5</td><td>35.5</td></tr>
+  </table>
+  <tr><td colspan="6" class="section-label" style="background:#065f46">RICE USAGE</td></tr>
+  <tr><td>Number Made</td><td>9</td><td>7</td><td>8</td><td>14</td><td>0</td></tr>
+  <tr><td>PM Left Over</td><td>1.5</td><td>1</td><td>1</td><td>2.5</td><td>0</td></tr>
+  <tr><td>Usage</td><td>7.5</td><td>6</td><td>7</td><td>11.5</td><td>0</td></tr>
+  <tr><td>Waste</td><td>1.5</td><td>1</td><td>1</td><td>2.5</td><td>0</td></tr>
+  <tr><td>Total</td><td>9</td><td>7</td><td>8</td><td>14</td><td>0</td></tr>
+  </table>
+  <p style="margin-top:8px;color:#92400e;font-size:.78rem">⚠️ Saturday 4/4 PM trays not yet counted — usage will update once PM is entered on the live page.</p>
+</div>
+
+<div style="text-align:center">
+  <button class="btn btn-success" id="uploadBtn" onclick="uploadAll()" disabled>💾 Upload All Data</button>
+</div>
+
+<div class="log" id="log"></div>
+
+<script src="shared.js"></script>
+<script>
+const log = document.getElementById('log');
+function addLog(msg) {
+  log.classList.add('show');
+  log.textContent += msg + '\n';
+  log.scrollTop = log.scrollHeight;
+}
+
+function doLogin() {
+  const email = document.getElementById('email').value;
+  const pw = document.getElementById('pw').value;
+  auth.signInWithEmailAndPassword(email, pw).catch(e => {
+    document.getElementById('authStatus').textContent = '❌ ' + e.message;
+    document.getElementById('authStatus').style.color = '#dc2626';
+  });
+}
+
+function doLogout() { auth.signOut(); }
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    document.getElementById('authStatus').textContent = '✅ Signed in as ' + user.email;
+    document.getElementById('authStatus').style.color = '#16a34a';
+    document.getElementById('uploadBtn').disabled = false;
+    document.getElementById('logoutBtn').style.display = 'inline-block';
+  } else {
+    document.getElementById('authStatus').textContent = 'Not signed in';
+    document.getElementById('authStatus').style.color = '#6b7280';
+    document.getElementById('uploadBtn').disabled = true;
+    document.getElementById('logoutBtn').style.display = 'none';
+  }
+});
+
+// ==================== DATA ====================
+const PREP_DATA = {
+  '2026-03-31': {
+    naan_batches: 3, naan_trays_full: 9, naan_trays_partial: 0, naan_balls_per_partial: 0,
+    naan_doughballs_full: 216, naan_other_count: 0,
+    naan_total_trays: 9, naan_total_doughballs: 216,
+    roti_flour: 0, roti_trays_full: 0, roti_trays_partial: 0, roti_balls_per_partial: 0,
+    roti_total_trays: 0, roti_total_doughballs: 0
+  },
+  '2026-04-01': {
+    naan_batches: 6, naan_trays_full: 18, naan_trays_partial: 0, naan_balls_per_partial: 0,
+    naan_doughballs_full: 432, naan_other_count: 0,
+    naan_total_trays: 18, naan_total_doughballs: 432,
+    roti_flour: 4, roti_trays_full: 2, roti_trays_partial: 0, roti_balls_per_partial: 0,
+    roti_total_trays: 2, roti_total_doughballs: 24
+  },
+  '2026-04-02': {
+    naan_batches: 3, naan_trays_full: 9, naan_trays_partial: 0, naan_balls_per_partial: 0,
+    naan_doughballs_full: 216, naan_other_count: 0,
+    naan_total_trays: 9, naan_total_doughballs: 216,
+    roti_flour: 4, roti_trays_full: 2, roti_trays_partial: 0, roti_balls_per_partial: 0,
+    roti_total_trays: 2, roti_total_doughballs: 24
+  },
+  '2026-04-03': {
+    naan_batches: 4, naan_trays_full: 12, naan_trays_partial: 0, naan_balls_per_partial: 0,
+    naan_doughballs_full: 288, naan_other_count: 0,
+    naan_total_trays: 12, naan_total_doughballs: 288,
+    roti_flour: 8, roti_trays_full: 4, roti_trays_partial: 0, roti_balls_per_partial: 0,
+    roti_total_trays: 4, roti_total_doughballs: 48
+  },
+  '2026-04-04': {
+    naan_batches: 3, naan_trays_full: 9, naan_trays_partial: 0, naan_balls_per_partial: 0,
+    naan_doughballs_full: 216, naan_other_count: 0,
+    naan_total_trays: 9, naan_total_doughballs: 216,
+    roti_flour: 4, roti_trays_full: 2, roti_trays_partial: 0, roti_balls_per_partial: 0,
+    roti_total_trays: 2, roti_total_doughballs: 24
+  }
+};
+
+const USAGE_DATA = {
+  '2026-03-31': {
+    naan_am: 12.5, naan_made: 9, naan_pm: 12.5, naan_usage: 9, naan_waste: 0, naan_total_usage: 9,
+    roti_am: 2, roti_made: 0, roti_pm: 3, roti_usage: -1, roti_waste: 0, roti_total_usage: -1
+  },
+  '2026-04-01': {
+    naan_am: 12.5, naan_made: 18, naan_pm: 23.5, naan_usage: 7, naan_waste: 0, naan_total_usage: 7,
+    roti_am: 3, roti_made: 2, roti_pm: 4, roti_usage: 1, roti_waste: 0, roti_total_usage: 1
+  },
+  '2026-04-02': {
+    naan_am: 23.5, naan_made: 9, naan_pm: 25, naan_usage: 7.5, naan_waste: 0, naan_total_usage: 7.5,
+    roti_am: 4, roti_made: 2, roti_pm: 4, roti_usage: 2, roti_waste: 0, roti_total_usage: 2
+  },
+  '2026-04-03': {
+    naan_am: 25, naan_made: 12, naan_pm: 26.5, naan_usage: 10.5, naan_waste: 0, naan_total_usage: 10.5,
+    roti_am: 4, roti_made: 4, roti_pm: 6, roti_usage: 2, roti_waste: 0, roti_total_usage: 2
+  },
+  '2026-04-04': {
+    naan_am: 26.5, naan_made: 9, naan_pm: 0, naan_usage: 35.5, naan_waste: 0, naan_total_usage: 35.5,
+    roti_am: 6, roti_made: 2, roti_pm: 0, roti_usage: 8, roti_waste: 0, roti_total_usage: 8
+  }
+};
+
+const RICE_DATA = {
+  '2026-03-31': { rice_made: 9, rice_pm: 1.5, rice_usage: 7.5, rice_waste: 1.5, rice_total: 9 },
+  '2026-04-01': { rice_made: 7, rice_pm: 1, rice_usage: 6, rice_waste: 1, rice_total: 7 },
+  '2026-04-02': { rice_made: 8, rice_pm: 1, rice_usage: 7, rice_waste: 1, rice_total: 8 },
+  '2026-04-03': { rice_made: 14, rice_pm: 2.5, rice_usage: 11.5, rice_waste: 2.5, rice_total: 14 },
+  '2026-04-04': { rice_made: 0, rice_pm: 0, rice_usage: 0, rice_waste: 0, rice_total: 0 }
+};
+
+async function uploadAll() {
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Uploading...';
+
+  const email = auth.currentUser.email;
+  const now = new Date().toISOString();
+  let success = 0;
+  let errors = 0;
+
+  addLog('Starting upload...');
+
+  for (const [date, data] of Object.entries(PREP_DATA)) {
+    try {
+      data.updatedAt = now;
+      data.updatedBy = email;
+      await db.doc(`naan-roti-prep/nnc-iss/${date}`).set(data, { merge: true });
+      addLog(`✅ Prep saved: ${date}`);
+      success++;
+    } catch (e) {
+      addLog(`❌ Prep FAILED ${date}: ${e.message}`);
+      errors++;
+    }
+  }
+
+  for (const [date, data] of Object.entries(USAGE_DATA)) {
+    try {
+      data.updatedAt = now;
+      data.updatedBy = email;
+      await db.doc(`naan-roti-usage/nnc-iss/${date}`).set(data, { merge: true });
+      addLog(`✅ Usage saved: ${date}`);
+      success++;
+    } catch (e) {
+      addLog(`❌ Usage FAILED ${date}: ${e.message}`);
+      errors++;
+    }
+  }
+
+  for (const [date, data] of Object.entries(RICE_DATA)) {
+    try {
+      data.updatedAt = now;
+      data.updatedBy = email;
+      await db.doc(`rice-usage/nnc-iss/${date}`).set(data, { merge: true });
+      addLog(`✅ Rice saved: ${date}`);
+      success++;
+    } catch (e) {
+      addLog(`❌ Rice FAILED ${date}: ${e.message}`);
+      errors++;
+    }
+  }
+
+  addLog(`\nDone! ${success} documents saved, ${errors} errors.`);
+
+  if (errors === 0) {
+    btn.textContent = '✅ All Data Uploaded!';
+    btn.style.background = '#065f46';
+  } else {
+    btn.textContent = '⚠️ Completed with errors';
+    btn.style.background = '#92400e';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

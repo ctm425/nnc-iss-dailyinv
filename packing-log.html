@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Issaquah — Packing Log</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --primary: #4338ca; --primary-light: #6366f1; --primary-bg: #eef2ff;
+  --danger: #dc2626; --success: #16a34a;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+  --packing-color: #4338ca; --packing-light: #6366f1; --packing-bg: #eef2ff;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+.header{background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.header-right{display:flex;gap:8px;align-items:center}
+
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+
+.date-nav{background:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:center;gap:16px;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.date-nav button{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:var(--radius);padding:6px 14px;cursor:pointer;font-weight:600;font-size:.85rem}
+.date-nav button:hover{background:var(--gray-200)}
+.date-picker-input{font-size:1rem;font-weight:700;color:var(--packing-color);border:2px solid var(--packing-light);border-radius:var(--radius);padding:8px 14px;cursor:pointer;background:#fff;text-align:center}
+.date-picker-input:focus{outline:none;box-shadow:0 0 0 3px rgba(67,56,202,.2)}
+.day-name{font-size:.85rem;color:var(--gray-500);font-weight:500;text-align:center}
+
+/* Tabs */
+.tab-bar{padding:12px 24px;display:flex;gap:10px;background:#fff;border-bottom:1px solid var(--gray-200)}
+.tab{padding:10px 28px;font-size:.95rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;border-radius:var(--radius);border:2px solid var(--gray-300);background:var(--gray-100);color:var(--gray-600)}
+.tab:hover{border-color:var(--packing-light);color:var(--packing-color)}
+.tab.active{background:var(--packing-color);color:#fff;border-color:var(--packing-color);box-shadow:0 2px 6px rgba(67,56,202,.3)}
+
+.content{max-width:900px;margin:0 auto;padding:20px 24px}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* Historical banner */
+.historical-banner{background:#fef3c7;border:2px solid #f59e0b;border-radius:var(--radius);padding:12px 20px;margin:0 auto;max-width:900px;font-size:.88rem;color:#92400e;font-weight:600;text-align:center;display:none}
+.historical-banner.show{display:block;margin-top:12px}
+body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf24!important;color:#78350f!important;cursor:text!important}
+
+/* Sections */
+.section{background:#fff;border-radius:12px;border:1px solid var(--gray-200);margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.section-header{padding:14px 20px;font-size:1.05rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;display:flex;align-items:center;gap:10px}
+.section-body{padding:16px 20px}
+
+/* Section-specific gradient headers */
+.section-header.haleem{background:linear-gradient(135deg,#1e3a5f,#2563eb)}
+.section-header.keema{background:linear-gradient(135deg,#7c2d12,#b45309)}
+.section-header.seekh{background:linear-gradient(135deg,#065f46,#059669)}
+.section-header.karela{background:linear-gradient(135deg,#854d0e,#a16207)}
+.section-header.nehari{background:linear-gradient(135deg,#4338ca,#6366f1)}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;align-items:center;margin-bottom:10px}
+.form-row label{font-size:.88rem;font-weight:600;color:var(--gray-700)}
+.form-row .hint{font-size:.72rem;color:var(--gray-400);font-weight:400;display:block}
+.form-row input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.95rem;text-align:center;width:100%;max-width:140px;justify-self:end}
+.form-row input:focus{outline:none;border-color:var(--packing-light);box-shadow:0 0 0 3px rgba(67,56,202,.15)}
+.form-row input.auto{background:#f0fdf4;border-color:#86efac;font-weight:700;color:var(--gray-700)}
+.form-row input[readonly]{cursor:default}
+
+.divider{border:none;border-top:2px solid var(--gray-200);margin:14px 0}
+
+.totals-row{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;align-items:center;padding:12px 0}
+.totals-row label{font-size:.95rem;font-weight:800;color:var(--packing-color)}
+.totals-row .total-val{font-size:1.2rem;font-weight:800;text-align:center;border-radius:8px;padding:8px 12px;max-width:140px;justify-self:end;color:var(--packing-color);background:var(--packing-bg);border:2px solid var(--packing-light)}
+
+/* Weekly */
+.weekly-summary{background:#fff;border-radius:12px;border:1px solid var(--gray-200);margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.weekly-header{padding:14px 20px;font-size:1rem;font-weight:800;background:var(--gray-100);color:var(--gray-700);border-bottom:1px solid var(--gray-200)}
+.weekly-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.weekly-table th{background:var(--gray-50);padding:8px 10px;text-align:center;font-size:.72rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--gray-200)}
+.weekly-table th:first-child{text-align:left;min-width:180px}
+.weekly-table td{padding:6px 10px;text-align:center;border-bottom:1px solid var(--gray-100);font-weight:500}
+.weekly-table td:first-child{text-align:left;font-weight:600;color:var(--gray-700)}
+.weekly-table tr.total-row td{font-weight:800;background:var(--packing-bg);color:var(--packing-color);border-top:2px solid var(--packing-light)}
+.weekly-table td.today-col{background:#fffbeb;font-weight:700}
+
+/* Analytics */
+.analytics-wrap{max-width:900px;margin:0 auto;padding:20px 24px}
+.analytics-controls{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.analytics-controls select,.analytics-controls input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+.chart-container{background:#fff;border-radius:12px;border:1px solid var(--gray-200);padding:20px;margin-bottom:20px;position:relative;height:350px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:16px;border:1px solid var(--gray-200);text-align:center}
+.stat-card .stat-label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;font-weight:700;letter-spacing:.5px}
+.stat-card .stat-value{font-size:1.6rem;font-weight:800;margin-top:4px;color:var(--packing-color)}
+.stat-card .stat-sub{font-size:.75rem;color:var(--gray-400);margin-top:2px}
+.stat-card .stat-change{font-size:.78rem;font-weight:600;margin-top:4px}
+.stat-card .stat-change.up{color:var(--danger)}
+.stat-card .stat-change.down{color:var(--success)}
+.stat-card .stat-change.neutral{color:var(--gray-400)}
+
+/* Analytics Data Table */
+.data-table-wrap{background:#fff;border-radius:12px;border:1px solid var(--gray-200);margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.data-table-header{padding:14px 20px;font-size:1rem;font-weight:800;background:var(--gray-100);color:var(--gray-700);border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.data-table-filter{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;width:220px}
+.data-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.data-table th{background:var(--gray-50);padding:8px 10px;text-align:center;font-size:.72rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--gray-200);cursor:pointer;user-select:none;white-space:nowrap}
+.data-table th:hover{background:var(--gray-200)}
+.data-table th.sort-asc::after{content:' ▲';font-size:.6rem}
+.data-table th.sort-desc::after{content:' ▼';font-size:.6rem}
+.data-table td{padding:6px 10px;text-align:center;border-bottom:1px solid var(--gray-100);font-weight:500}
+.data-table td:first-child{text-align:left;font-weight:600;color:var(--gray-700)}
+.data-table tr:hover td{background:#fffbeb}
+.field-selector{background:#fff;border-radius:12px;border:1px solid var(--gray-200);padding:16px 20px;margin-bottom:20px}
+.field-selector-title{font-size:.85rem;font-weight:700;color:var(--gray-700);margin-bottom:8px}
+.field-checks{display:flex;flex-wrap:wrap;gap:8px 16px}
+.field-checks label{font-size:.82rem;font-weight:500;color:var(--gray-600);display:flex;align-items:center;gap:4px;cursor:pointer}
+.field-checks input[type=checkbox]{accent-color:var(--primary)}
+.export-bar{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.btn-export{padding:8px 16px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;background:#fff;color:var(--gray-700);display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-export:hover{background:var(--gray-100);border-color:var(--gray-400);transform:translateY(-1px)}
+
+.save-bar{position:sticky;bottom:0;background:#fff;border-top:2px solid var(--gray-200);padding:14px 24px;display:flex;justify-content:center;gap:12px;z-index:10;box-shadow:0 -2px 8px rgba(0,0,0,.08)}
+.save-bar.hidden{display:none}
+.save-status{font-size:.82rem;color:var(--gray-500);text-align:center;padding:4px 0}
+
+/* Login */
+.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#4338ca,#6366f1);z-index:1000;align-items:center;justify-content:center}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:12px;padding:40px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
+.login-box h2{font-size:1.4rem;font-weight:700;margin-bottom:8px;color:var(--packing-color)}
+.login-box p{font-size:.9rem;color:var(--gray-500);margin-bottom:24px}
+.login-form{display:flex;flex-direction:column;gap:14px}
+.login-form input{width:100%;padding:12px 14px;border:1px solid var(--gray-300);border-radius:6px;font-size:.95rem}
+.login-form input:focus{outline:none;border-color:var(--packing-light);box-shadow:0 0 0 3px rgba(67,56,202,.1)}
+.login-error{color:var(--danger);font-size:.85rem;margin-top:8px;display:none}
+.login-form button{padding:12px;background:var(--packing-light);color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:600;cursor:pointer}
+.login-form button:hover{background:#4f46e5}
+
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:.85rem;font-weight:500;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+@media(max-width:768px){
+  .header{padding:12px 16px}
+  .header h1{font-size:1.05rem}
+  .date-nav{padding:10px 16px;gap:8px}
+  .tab-bar{padding:8px 12px;gap:6px}
+  .tab{padding:8px 16px;font-size:.82rem}
+  .content,.analytics-wrap{padding:12px 12px}
+  .form-row{grid-template-columns:1fr auto}
+  .form-row input{font-size:16px;max-width:100px}
+  .date-picker-input{font-size:16px}
+  .weekly-table{font-size:.72rem}
+  .weekly-table th,.weekly-table td{padding:5px 4px}
+  .chart-container{height:280px}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>📦 NNC Inventory</h2>
+    <p>Packing Log — Sign in to continue</p>
+    <div class="login-form">
+      <input type="email" id="loginEmail" placeholder="Email address" autocomplete="email">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+      <button onclick="doLogin()">Sign In</button>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <h1>📦 Packing — Daily Log</h1>
+    <div class="header-sub">Naan N Curry Issaquah</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost" onclick="goToDashboard()">← Dashboard</button>
+    <button class="btn btn-ghost" onclick="doLogout()">Logout</button>
+  </div>
+</div>
+
+<!-- Date Nav -->
+<div class="date-nav" id="dateNav">
+  <button onclick="changeDate(-1)">◀ Prev</button>
+  <div style="text-align:center">
+    <input type="date" class="date-picker-input" id="datePicker" onchange="onDateChange()">
+    <div class="day-name" id="dayName"></div>
+  </div>
+  <button onclick="changeDate(1)">Next ▶</button>
+  <button class="btn btn-primary" onclick="goToToday()" style="margin-left:8px">Today</button>
+</div>
+
+<!-- Tabs -->
+<div class="tab-bar">
+  <div class="tab active" id="tabEntry" onclick="switchTab('entry')">📦 Daily Entry</div>
+  <div class="tab" id="tabAnalytics" onclick="switchTab('analytics')">📈 Analytics</div>
+</div>
+
+<!-- Historical banner -->
+<div class="historical-banner" id="historicalBanner">
+  ⚠️ Editing historical data for <span id="histDate"></span> — all fields are unlocked.
+</div>
+
+<!-- ============================================================ -->
+<!--                      DAILY ENTRY TAB                          -->
+<!-- ============================================================ -->
+<div class="tab-content active" id="contentEntry">
+<div class="content">
+
+  <!-- HALEEM -->
+  <div class="section">
+    <div class="section-header haleem">🍲 Haleem</div>
+    <div class="section-body">
+      <div class="form-row">
+        <label>Number of Trays:<span class="hint">Trays prepared today</span></label>
+        <input type="number" id="haleem_trays" min="0" step="1" oninput="markDirty()">
+      </div>
+      <div class="form-row">
+        <label>Total Ziploc Bags:<span class="hint">Bags packed from all trays</span></label>
+        <input type="number" id="haleem_bags" min="0" step="1" oninput="markDirty()">
+      </div>
+      <div class="form-row">
+        <label>Sent to Renton:<span class="hint">Bags shipped to Renton location</span></label>
+        <input type="number" id="haleem_renton" min="0" step="1" oninput="markDirty()">
+      </div>
+    </div>
+  </div>
+
+  <!-- KEEMA -->
+  <div class="section">
+    <div class="section-header keema">🍛 Keema</div>
+    <div class="section-body">
+      <div class="form-row">
+        <label>Number of Trays:<span class="hint">Trays prepared today</span></label>
+        <input type="number" id="keema_trays" min="0" step="1" oninput="markDirty()">
+      </div>
+      <div class="form-row">
+        <label>Total Ziploc Bags:<span class="hint">Bags packed from all trays</span></label>
+        <input type="number" id="keema_bags" min="0" step="1" oninput="markDirty()">
+      </div>
+      <div class="form-row">
+        <label>Sent to Renton:<span class="hint">Bags shipped to Renton location</span></label>
+        <input type="number" id="keema_renton" min="0" step="1" oninput="markDirty()">
+      </div>
+    </div>
+  </div>
+
+  <!-- SEEKH KABAB -->
+  <div class="section">
+    <div class="section-header seekh">🍗 Seekh Kabab</div>
+    <div class="section-body">
+      <div class="form-row">
+        <label>Chicken Count:<span class="hint">Total chicken seekh prepared</span></label>
+        <input type="number" id="seekh_chicken" min="0" step="1" oninput="markDirty()">
+      </div>
+      <div class="form-row">
+        <label>Lamb Count:<span class="hint">Total lamb seekh prepared</span></label>
+        <input type="number" id="seekh_lamb" min="0" step="1" oninput="markDirty()">
+      </div>
+    </div>
+  </div>
+
+  <!-- KARELA -->
+  <div class="section">
+    <div class="section-header karela">🥒 Karela</div>
+    <div class="section-body">
+      <div class="form-row">
+        <label>Number of Cases:<span class="hint">Cases prepared today</span></label>
+        <input type="number" id="karela_cases" min="0" step="1" oninput="markDirty()">
+      </div>
+      <div class="form-row">
+        <label>Total Ziploc Bags:<span class="hint">Bags packed from all cases</span></label>
+        <input type="number" id="karela_bags" min="0" step="1" oninput="markDirty()">
+      </div>
+      <div class="form-row">
+        <label>Sent to Renton:<span class="hint">Bags shipped to Renton location</span></label>
+        <input type="number" id="karela_renton" min="0" step="1" oninput="markDirty()">
+      </div>
+    </div>
+  </div>
+
+  <!-- NEHARI SAUCE -->
+  <div class="section">
+    <div class="section-header nehari">🍲 Nehari Sauce</div>
+    <div class="section-body">
+      <div class="form-row">
+        <label>Total Number of Bags:<span class="hint">Total bags prepared today</span></label>
+        <input type="number" id="nehari_bags" min="0" step="1" oninput="markDirty()">
+      </div>
+      <div class="form-row">
+        <label>Sent to Renton:<span class="hint">Bags shipped to Renton location</span></label>
+        <input type="number" id="nehari_renton" min="0" step="1" oninput="markDirty()">
+      </div>
+    </div>
+  </div>
+
+  <!-- Weekly Summary -->
+  <div class="weekly-summary">
+    <div class="weekly-header">📊 Packing — Weekly Summary</div>
+    <div style="overflow-x:auto">
+      <table class="weekly-table"><thead id="weeklyHead"></thead><tbody id="weeklyBody"></tbody></table>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============================================================ -->
+<!--                      ANALYTICS TAB                            -->
+<!-- ============================================================ -->
+<div class="tab-content" id="contentAnalytics">
+<div class="analytics-wrap">
+
+  <div class="analytics-controls">
+    <label style="font-weight:600;font-size:.85rem">Date range:</label>
+    <input type="date" id="analyticsFrom">
+    <span style="color:var(--gray-400)">→</span>
+    <input type="date" id="analyticsTo">
+    <button class="btn btn-primary" onclick="loadAnalytics()">Load</button>
+    <button class="btn" style="background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-300)" onclick="setAnalyticsRange(14)">2 Weeks</button>
+    <button class="btn" style="background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-300)" onclick="setAnalyticsRange(30)">30 Days</button>
+  </div>
+
+  <!-- Export Bar -->
+  <div class="export-bar">
+    <button class="btn-export" onclick="exportPDF()">📄 Export PDF</button>
+    <button class="btn-export" onclick="exportExcel()">📊 Export Excel</button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <!-- Field Selector -->
+  <div class="field-selector">
+    <div class="field-selector-title">Chart Fields</div>
+    <div class="field-checks" id="fieldChecks"></div>
+  </div>
+
+  <!-- Trend Chart -->
+  <div class="chart-container">
+    <canvas id="trendChart"></canvas>
+  </div>
+
+  <!-- Weekly Averages Comparison -->
+  <div class="weekly-summary">
+    <div class="weekly-header">📊 Weekly Averages Comparison</div>
+    <div style="overflow-x:auto">
+      <table class="weekly-table"><thead id="avgHead"></thead><tbody id="avgBody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Raw Data Table -->
+  <div class="data-table-wrap">
+    <div class="data-table-header">
+      <span>Raw Data</span>
+      <input type="text" class="data-table-filter" id="dataFilter" placeholder="Filter by date..." onkeyup="filterDataTable()">
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table"><thead id="rawDataHead"></thead><tbody id="rawDataBody"></tbody></table>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Save Bar -->
+<div class="save-bar" id="saveBar">
+  <button class="btn btn-success" onclick="saveData()" style="min-width:220px;font-size:1rem;padding:12px 24px">💾 Save Packing Data</button>
+</div>
+<div class="save-status" id="saveStatus"></div>
+
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+// ==================== STATE ====================
+let currentDate = new Date();
+let currentTab = 'entry';
+let weekData = {};
+let trendChart = null;
+let isDirty = false;
+let analyticsData = { dates: [], dataMap: {} };
+let sortCol = null;
+let sortAsc = true;
+
+// ==================== ANALYTICS FIELD DEFINITIONS ====================
+const FIELD_DEFS = [
+  { key: 'haleem_trays', label: 'Haleem Trays', color: '#2563eb', default: true },
+  { key: 'haleem_bags', label: 'Haleem Bags', color: '#60a5fa', default: false },
+  { key: 'haleem_renton', label: 'Haleem Renton', color: '#93c5fd', default: false },
+  { key: 'keema_trays', label: 'Keema Trays', color: '#b45309', default: true },
+  { key: 'keema_bags', label: 'Keema Bags', color: '#d97706', default: false },
+  { key: 'keema_renton', label: 'Keema Renton', color: '#fbbf24', default: false },
+  { key: 'seekh_chicken', label: 'Seekh Chicken', color: '#059669', default: true },
+  { key: 'seekh_lamb', label: 'Seekh Lamb', color: '#10b981', default: true },
+  { key: 'karela_cases', label: 'Karela Cases', color: '#a16207', default: false },
+  { key: 'karela_bags', label: 'Karela Bags', color: '#d97706', default: false },
+  { key: 'karela_renton', label: 'Karela Renton', color: '#fcd34d', default: false },
+  { key: 'nehari_bags', label: 'Nehari Bags', color: '#6366f1', default: true },
+  { key: 'nehari_renton', label: 'Nehari Renton', color: '#818cf8', default: false }
+];
+
+// ==================== DIRTY FLAG ====================
+function markDirty() {
+  isDirty = true;
+}
+
+// ==================== HISTORICAL MODE ====================
+// Since all fields are manual input (no auto-calculations), historical mode just shows the banner
+// All fields are already editable, so we don't change readonly status
+function isHistorical() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const sel = new Date(currentDate); sel.setHours(0,0,0,0);
+  return sel < today;
+}
+
+function applyEditMode() {
+  const hist = isHistorical();
+  document.body.classList.toggle('historical-mode', hist);
+  const banner = document.getElementById('historicalBanner');
+  banner.classList.toggle('show', hist);
+  if (hist) {
+    document.getElementById('histDate').textContent = currentDate.toLocaleDateString('en-US', {
+      weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
+    });
+  }
+}
+
+// ==================== TAB SWITCHING ====================
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabEntry').classList.toggle('active', tab === 'entry');
+  document.getElementById('tabAnalytics').classList.toggle('active', tab === 'analytics');
+  document.getElementById('contentEntry').classList.toggle('active', tab === 'entry');
+  document.getElementById('contentAnalytics').classList.toggle('active', tab === 'analytics');
+  document.getElementById('dateNav').style.display = tab === 'entry' ? 'flex' : 'none';
+  document.getElementById('saveBar').classList.toggle('hidden', tab !== 'entry');
+  document.getElementById('historicalBanner').classList.toggle('show', tab === 'entry' && isHistorical());
+  if (tab === 'analytics') loadAnalytics();
+}
+
+// ==================== DATE HELPERS ====================
+function formatDate(d) { return d.toISOString().split('T')[0]; }
+function getDayName(d) { return d.toLocaleDateString('en-US', { weekday: 'long' }); }
+
+function getWeekStart(d) {
+  const dt = new Date(d); const day = dt.getDay();
+  dt.setDate(dt.getDate() - ((day + 5) % 7));
+  dt.setHours(0,0,0,0); return dt;
+}
+
+function getWeekDates(d) {
+  const start = getWeekStart(d);
+  return Array.from({length:6}, (_,i) => { const dt = new Date(start); dt.setDate(dt.getDate()+i); return dt; });
+}
+
+function setDate(d) {
+  currentDate = new Date(d);
+  document.getElementById('datePicker').value = formatDate(currentDate);
+  document.getElementById('dayName').textContent = getDayName(currentDate);
+  applyEditMode();
+  isDirty = false;
+  loadDayData();
+  loadWeekData();
+}
+
+function changeDate(delta) { const d = new Date(currentDate); d.setDate(d.getDate()+delta); setDate(d); }
+function onDateChange() { const v = document.getElementById('datePicker').value; if(v) setDate(new Date(v+'T12:00:00')); }
+function goToToday() { setDate(new Date()); }
+
+// ==================== FIREBASE ====================
+function docPath(ds) { return `packing-log/nnc-iss/${ds}`; }
+
+function collectData() {
+  const data = {
+    haleem_trays: num('haleem_trays'),
+    haleem_bags: num('haleem_bags'),
+    haleem_renton: num('haleem_renton'),
+    keema_trays: num('keema_trays'),
+    keema_bags: num('keema_bags'),
+    keema_renton: num('keema_renton'),
+    seekh_chicken: num('seekh_chicken'),
+    seekh_lamb: num('seekh_lamb'),
+    karela_cases: num('karela_cases'),
+    karela_bags: num('karela_bags'),
+    karela_renton: num('karela_renton'),
+    nehari_bags: num('nehari_bags'),
+    nehari_renton: num('nehari_renton'),
+    updatedAt: new Date().toISOString(),
+    updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
+  };
+  return data;
+}
+
+async function saveData() {
+  if (!auth.currentUser) return showToast('Please sign in first');
+  const ds = formatDate(currentDate);
+  const data = collectData();
+  try {
+    await db.doc(docPath(ds)).set(data, { merge: true });
+    showToast('✅ Packing data saved for ' + ds);
+    document.getElementById('saveStatus').textContent = 'Last saved: ' + new Date().toLocaleTimeString();
+    weekData[ds] = data;
+    isDirty = false;
+    renderWeekly();
+  } catch (err) { console.error(err); showToast('❌ Error: ' + err.message); }
+}
+
+async function loadDayData() {
+  if (!auth.currentUser) return;
+  const ds = formatDate(currentDate);
+  const fields = ['haleem_trays','haleem_bags','haleem_renton','keema_trays','keema_bags','keema_renton',
+                  'seekh_chicken','seekh_lamb','karela_cases','karela_bags','karela_renton','nehari_bags','nehari_renton'];
+  fields.forEach(f => { document.getElementById(f).value = ''; });
+  try {
+    const doc = await db.doc(docPath(ds)).get();
+    if (doc.exists) {
+      const d = doc.data();
+      fields.forEach(f => {
+        document.getElementById(f).value = d[f] || '';
+      });
+    }
+  } catch (err) { console.error(err); }
+}
+
+async function loadWeekData() {
+  if (!auth.currentUser) return;
+  const dates = getWeekDates(currentDate);
+  weekData = {};
+  const promises = dates.map(d => {
+    const ds = formatDate(d);
+    return db.doc(docPath(ds)).get().then(doc => { if (doc.exists) weekData[ds] = doc.data(); });
+  });
+  await Promise.all(promises);
+  renderWeekly();
+}
+
+// ==================== WEEKLY SUMMARY ====================
+function renderWeekly() {
+  const dates = getWeekDates(currentDate);
+  const ts = formatDate(currentDate);
+  let h = '<tr><th>Metric</th>';
+  dates.forEach(d => { h += `<th>${d.toLocaleDateString('en-US',{weekday:'short'})}<br>${(d.getMonth()+1)}/${d.getDate()}</th>`; });
+  h += '<th>WKLY TOTAL</th></tr>';
+  document.getElementById('weeklyHead').innerHTML = h;
+
+  const rows = [
+    { label: 'Haleem — Trays', key: 'haleem_trays' },
+    { label: 'Haleem — Bags', key: 'haleem_bags' },
+    { label: 'Haleem — Sent to Renton', key: 'haleem_renton' },
+    { label: 'Keema — Trays', key: 'keema_trays' },
+    { label: 'Keema — Bags', key: 'keema_bags' },
+    { label: 'Keema — Sent to Renton', key: 'keema_renton' },
+    { label: 'Seekh Kabab — Chicken', key: 'seekh_chicken' },
+    { label: 'Seekh Kabab — Lamb', key: 'seekh_lamb' },
+    { label: 'Karela — Cases', key: 'karela_cases' },
+    { label: 'Karela — Bags', key: 'karela_bags' },
+    { label: 'Karela — Sent to Renton', key: 'karela_renton' },
+    { label: 'Nehari Sauce — Bags', key: 'nehari_bags' },
+    { label: 'Nehari Sauce — Sent to Renton', key: 'nehari_renton' }
+  ];
+
+  let body = '';
+  rows.forEach(row => {
+    body += `<tr><td>${row.label}</td>`;
+    let wt = 0;
+    dates.forEach(d => {
+      const ds = formatDate(d);
+      const val = weekData[ds] ? (weekData[ds][row.key] || 0) : 0;
+      wt += val;
+      body += `<td${ds===ts?' class="today-col"':''}>${val || ''}</td>`;
+    });
+    body += `<td style="font-weight:700">${wt || ''}</td></tr>`;
+  });
+  document.getElementById('weeklyBody').innerHTML = body;
+}
+
+// ==================== ANALYTICS ====================
+function setAnalyticsRange(days) {
+  const to = new Date();
+  const from = new Date(); from.setDate(from.getDate() - days);
+  document.getElementById('analyticsFrom').value = formatDate(from);
+  document.getElementById('analyticsTo').value = formatDate(to);
+  loadAnalytics();
+}
+
+async function loadAnalytics() {
+  if (!auth.currentUser) return;
+  const fromStr = document.getElementById('analyticsFrom').value;
+  const toStr = document.getElementById('analyticsTo').value;
+  if (!fromStr || !toStr) { setAnalyticsRange(14); return; }
+
+  const from = new Date(fromStr + 'T00:00:00');
+  const to = new Date(toStr + 'T23:59:59');
+  const dates = [];
+  const d = new Date(from);
+  while (d <= to) { dates.push(new Date(d)); d.setDate(d.getDate() + 1); }
+
+  // Load all data
+  const dataMap = {};
+  const promises = dates.map(dt => {
+    const ds = formatDate(dt);
+    return db.doc(docPath(ds)).get().then(doc => { if (doc.exists) dataMap[ds] = doc.data(); });
+  });
+  await Promise.all(promises);
+
+  analyticsData = { dates, dataMap };
+  renderFieldChecks();
+  renderStatsCards(dates, dataMap);
+  renderTrendChart();
+  renderWeeklyAvgTable(dates, dataMap);
+  renderRawDataTable();
+}
+
+function renderStatsCards(dates, dataMap) {
+  const vals = dates.map(d => dataMap[formatDate(d)]).filter(Boolean);
+  if (!vals.length) { document.getElementById('statsGrid').innerHTML = '<p style="color:var(--gray-400)">No data in range</p>'; return; }
+
+  const haleem_bags = vals.map(v => v.haleem_bags || 0);
+  const keema_bags = vals.map(v => v.keema_bags || 0);
+  const seekh_total = vals.map(v => (v.seekh_chicken || 0) + (v.seekh_lamb || 0));
+  const karela_bags = vals.map(v => v.karela_bags || 0);
+  const nehari_bags = vals.map(v => v.nehari_bags || 0);
+  const all_trays = vals.map(v => (v.haleem_trays || 0) + (v.keema_trays || 0));
+  const all_bags_combined = vals.map(v => (v.haleem_bags||0) + (v.keema_bags||0) + (v.karela_bags||0) + (v.nehari_bags||0));
+  const all_renton = vals.map(v => (v.haleem_renton||0) + (v.keema_renton||0) + (v.karela_renton||0) + (v.nehari_renton||0));
+
+  const avg = arr => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
+  const max = arr => arr.length ? Math.max(...arr) : 0;
+  const min = arr => arr.length ? Math.min(...arr) : 0;
+
+  // Split into current week and prior week for comparison
+  const midpoint = Math.floor(vals.length / 2);
+  const recentBags = all_bags_combined.slice(midpoint);
+  const priorBags = all_bags_combined.slice(0, midpoint);
+  const recentAvg = avg(recentBags);
+  const priorAvg = avg(priorBags);
+  const change = priorAvg > 0 ? ((recentAvg - priorAvg) / priorAvg * 100) : 0;
+  const changeClass = change > 5 ? 'up' : change < -5 ? 'down' : 'neutral';
+  const changeText = change !== 0 ? `${change > 0 ? '▲' : '▼'} ${Math.abs(change).toFixed(1)}% vs prior period` : 'No change';
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Avg Total Trays / Day</div>
+      <div class="stat-value">${avg(all_trays).toFixed(1)}</div>
+      <div class="stat-sub">${vals.length} days of data</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Bags Packed / Day</div>
+      <div class="stat-value">${avg(all_bags_combined).toFixed(1)}</div>
+      <div class="stat-change ${changeClass}">${changeText}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Sent to Renton / Day</div>
+      <div class="stat-value">${avg(all_renton).toFixed(1)}</div>
+      <div class="stat-sub">Min: ${min(all_renton).toFixed(1)} / Max: ${max(all_renton).toFixed(1)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Peak Bags Packed</div>
+      <div class="stat-value">${max(all_bags_combined).toFixed(1)}</div>
+      <div class="stat-sub">Low: ${min(all_bags_combined).toFixed(1)}</div>
+    </div>
+  `;
+}
+
+function renderFieldChecks() {
+  const el = document.getElementById('fieldChecks');
+  el.innerHTML = FIELD_DEFS.map(f =>
+    `<label><input type="checkbox" data-key="${f.key}" ${f.default ? 'checked' : ''} onchange="renderTrendChart()"> ${f.label}</label>`
+  ).join('');
+}
+
+function getSelectedFields() {
+  return Array.from(document.querySelectorAll('#fieldChecks input:checked')).map(cb => {
+    const key = cb.dataset.key;
+    return FIELD_DEFS.find(f => f.key === key);
+  }).filter(Boolean);
+}
+
+function renderTrendChart() {
+  const { dates, dataMap } = analyticsData;
+  if (!dates.length) return;
+  const fields = getSelectedFields();
+  const labels = dates.map(d => d.toLocaleDateString('en-US', { month:'short', day:'numeric' }));
+
+  const datasets = fields.map(f => ({
+    label: f.label,
+    data: dates.map(d => { const v = dataMap[formatDate(d)]; return v ? (v[f.key] || 0) : null; }),
+    borderColor: f.color,
+    backgroundColor: f.color + '1a',
+    borderWidth: 2, tension: .3, spanGaps: true,
+    fill: fields.length === 1
+  }));
+
+  if (trendChart) trendChart.destroy();
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' }, title: { display: true, text: 'Packing — Trends', font: { size: 14, weight: 'bold' } } },
+      scales: { y: { beginAtZero: true, title: { display: true, text: 'Count' } } }
+    }
+  });
+}
+
+function renderWeeklyAvgTable(dates, dataMap) {
+  // Group by week (Tue start)
+  const weeks = {};
+  dates.forEach(d => {
+    const ws = formatDate(getWeekStart(d));
+    if (!weeks[ws]) weeks[ws] = [];
+    const data = dataMap[formatDate(d)];
+    if (data) weeks[ws].push(data);
+  });
+
+  const weekKeys = Object.keys(weeks).sort();
+  let h = '<tr><th>Week Starting</th><th>Days</th><th>Avg Total Trays</th><th>Avg Total Bags</th><th>Avg Sent Renton</th><th>Total Trays</th><th>Total Bags</th><th>Min Bags</th><th>Max Bags</th></tr>';
+  document.getElementById('avgHead').innerHTML = h;
+
+  const avg = (arr, key) => arr.length ? (arr.reduce((s,v) => s + (v[key]||0), 0) / arr.length) : 0;
+  const sum = (arr, key) => arr.reduce((s,v) => s + (v[key]||0), 0);
+  const minV = (arr, key) => arr.length ? Math.min(...arr.map(v => v[key]||0)) : 0;
+  const maxV = (arr, key) => arr.length ? Math.max(...arr.map(v => v[key]||0)) : 0;
+
+  const sumTrays = (arr) => arr.reduce((s,v) => s + (v.haleem_trays||0) + (v.keema_trays||0), 0);
+  const sumBags = (arr) => arr.reduce((s,v) => s + (v.haleem_bags||0) + (v.keema_bags||0) + (v.karela_bags||0) + (v.nehari_bags||0), 0);
+  const sumRenton = (arr) => arr.reduce((s,v) => s + (v.haleem_renton||0) + (v.keema_renton||0) + (v.karela_renton||0) + (v.nehari_renton||0), 0);
+  const avgBags = (arr) => arr.length ? (sumBags(arr) / arr.length) : 0;
+  const avgTrays = (arr) => arr.length ? ((sumTrays(arr) / arr.length)) : 0;
+  const avgRenton = (arr) => arr.length ? (sumRenton(arr) / arr.length) : 0;
+  const minBags = (arr) => arr.length ? Math.min(...arr.map(v => (v.haleem_bags||0)+(v.keema_bags||0)+(v.karela_bags||0)+(v.nehari_bags||0))) : 0;
+  const maxBags = (arr) => arr.length ? Math.max(...arr.map(v => (v.haleem_bags||0)+(v.keema_bags||0)+(v.karela_bags||0)+(v.nehari_bags||0))) : 0;
+
+  let body = '';
+  weekKeys.forEach((wk, i) => {
+    const data = weeks[wk];
+    const wkDate = new Date(wk + 'T12:00:00');
+    const label = wkDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const isLatest = i === weekKeys.length - 1;
+
+    body += `<tr${isLatest ? ' style="font-weight:700;background:var(--packing-bg)"' : ''}>
+      <td>${label}</td><td>${data.length}</td>
+      <td>${avgTrays(data).toFixed(1)}</td>
+      <td>${avgBags(data).toFixed(1)}</td>
+      <td>${avgRenton(data).toFixed(1)}</td>
+      <td>${sumTrays(data).toFixed(1)}</td>
+      <td>${sumBags(data).toFixed(1)}</td>
+      <td>${minBags(data).toFixed(1)}</td>
+      <td>${maxBags(data).toFixed(1)}</td>
+    </tr>`;
+  });
+  document.getElementById('avgBody').innerHTML = body;
+}
+
+// ==================== DATA TABLE & EXPORT ====================
+function renderRawDataTable() {
+  const { dates, dataMap } = analyticsData;
+  const cols = [{ key: 'date', label: 'Date' }, ...FIELD_DEFS.map(f => ({ key: f.key, label: f.label }))];
+
+  let h = '<tr>';
+  cols.forEach((c, i) => {
+    const cls = sortCol === i ? (sortAsc ? 'sort-asc' : 'sort-desc') : '';
+    h += `<th class="${cls}" onclick="sortDataTable(${i})">${c.label}</th>`;
+  });
+  h += '</tr>';
+  document.getElementById('rawDataHead').innerHTML = h;
+
+  let rows = dates.map(d => {
+    const ds = formatDate(d);
+    const v = dataMap[ds];
+    return { date: ds, ...FIELD_DEFS.reduce((o, f) => { o[f.key] = v ? (v[f.key] || 0) : 0; return o; }, {}) };
+  }).filter(r => FIELD_DEFS.some(f => r[f.key] !== 0));
+
+  if (sortCol !== null) {
+    const key = sortCol === 0 ? 'date' : FIELD_DEFS[sortCol - 1].key;
+    rows.sort((a, b) => {
+      const va = a[key], vb = b[key];
+      if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortAsc ? va - vb : vb - va;
+    });
+  }
+
+  const filter = (document.getElementById('dataFilter').value || '').toLowerCase();
+  if (filter) rows = rows.filter(r => r.date.includes(filter));
+
+  let body = '';
+  rows.forEach(r => {
+    body += '<tr>';
+    body += `<td>${r.date}</td>`;
+    FIELD_DEFS.forEach(f => { body += `<td>${r[f.key]}</td>`; });
+    body += '</tr>';
+  });
+  if (!rows.length) body = `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--gray-400);padding:20px">No data found</td></tr>`;
+  document.getElementById('rawDataBody').innerHTML = body;
+}
+
+function sortDataTable(colIndex) {
+  if (sortCol === colIndex) { sortAsc = !sortAsc; } else { sortCol = colIndex; sortAsc = true; }
+  renderRawDataTable();
+}
+
+function filterDataTable() { renderRawDataTable(); }
+
+function getExportRows() {
+  const { dates, dataMap } = analyticsData;
+  return dates.map(d => {
+    const ds = formatDate(d);
+    const v = dataMap[ds];
+    const row = { Date: ds };
+    FIELD_DEFS.forEach(f => { row[f.label] = v ? (v[f.key] || 0) : 0; });
+    return row;
+  }).filter(r => FIELD_DEFS.some(f => r[f.label] !== 0));
+}
+
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape');
+  const rows = getExportRows();
+  const headers = ['Date', ...FIELD_DEFS.map(f => f.label)];
+  const body = rows.map(r => headers.map(h => r[h]));
+
+  doc.setFontSize(16);
+  doc.text('Packing Log — Analytics Report', 14, 15);
+  doc.setFontSize(9);
+  doc.text(`Date range: ${document.getElementById('analyticsFrom').value} to ${document.getElementById('analyticsTo').value}`, 14, 22);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 27);
+
+  doc.autoTable({
+    head: [headers], body,
+    startY: 32, styles: { fontSize: 8 }, headStyles: { fillColor: [67, 56, 202] }
+  });
+  doc.save('packing-log-analytics.pdf');
+  showToast('📄 PDF exported');
+}
+
+function exportExcel() {
+  const rows = getExportRows();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Packing Log');
+  XLSX.writeFile(wb, 'packing-log-analytics.xlsx');
+  showToast('📊 Excel exported');
+}
+
+// ==================== HELPERS ====================
+function num(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+// ==================== AUTH ====================
+function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const pw = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  auth.signInWithEmailAndPassword(email, pw).catch(err => { errEl.textContent = err.message; errEl.style.display = 'block'; });
+}
+function doLogout() { auth.signOut(); }
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    await loadUserProfile();
+    setDate(new Date());
+    // Default analytics range
+    setAnalyticsRange(14);
+  } else {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+  }
+});
+
+function goToDashboard() { window.location.href = 'index.html'; }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
