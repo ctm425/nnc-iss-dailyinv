@@ -787,8 +787,8 @@ function collectAllData() {
 }
 
 // ==================== FIREBASE ====================
-function prepDocPath(ds) { return `naan-roti-prep/nnc-iss/${ds}`; }
-function usageDocPath(ds) { return `naan-roti-usage/nnc-iss/${ds}`; }
+function prepDocPath(ds) { return `naan-roti-prep/nnc-iss/records/${ds}`; }
+function usageDocPath(ds) { return `naan-roti-usage/nnc-iss/records/${ds}`; }
 
 async function saveAll() {
   if (!auth.currentUser) return showToast('Please sign in first');

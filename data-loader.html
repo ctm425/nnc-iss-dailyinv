@@ -193,7 +193,7 @@ async function uploadCollection(collection) {
         updatedAt: now,
         updatedBy: 'historical-import'
       };
-      await db.doc(`${collection}/nnc-iss/${date}`).set(data, { merge: true });
+      await db.doc(`${collection}/nnc-iss/records/${date}`).set(data, { merge: true });
       addLog(`✅ ${collection} ${date}`);
       success++;
     } catch (e) {
@@ -232,7 +232,7 @@ async function uploadAll() {
           updatedAt: now,
           updatedBy: 'historical-import'
         };
-        await db.doc(`${collection}/nnc-iss/${date}`).set(data, { merge: true });
+        await db.doc(`${collection}/nnc-iss/records/${date}`).set(data, { merge: true });
         totalSuccess++;
       } catch (e) {
         addLog(`❌ ${collection}/${date}: ${e.message}`);
