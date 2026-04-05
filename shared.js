@@ -103,11 +103,11 @@ const SHEET_TYPES = {
     restaurants: ['nnc-iss']
   },
   'nnc-frozen': {
-    name: 'Frozen Inventory',
+    name: 'Weekly Main Kitchen Inventory',
     category: 'inventory',
-    frequency: '2x weekly',
-    icon: '🧊',
-    description: 'Frozen prepared items from NNC kitchen — counted twice per week',
+    frequency: 'weekly',
+    icon: '🏭',
+    description: 'Frozen prepared items & spices from NNC Main Kitchen — counted weekly',
     allowedRoles: ['owner', 'manager', 'boh'],
     page: 'drygoods.html',
     restaurants: ['nnc-iss']
@@ -118,6 +118,16 @@ const SHEET_TYPES = {
     frequency: '2x weekly',
     icon: '🧴',
     description: 'To-go containers, cleaning, kitchen, office & general supplies — counted twice per week',
+    allowedRoles: ['owner', 'manager', 'boh'],
+    page: 'drygoods.html',
+    restaurants: ['nnc-iss']
+  },
+  'nnc-allnonfrozen': {
+    name: 'All Non-Frozen Inventory',
+    category: 'inventory',
+    frequency: '2x weekly',
+    icon: '📋',
+    description: 'Combined view — all supplies, dry goods & spices in one place',
     allowedRoles: ['owner', 'manager', 'boh'],
     page: 'drygoods.html',
     restaurants: ['nnc-iss']
