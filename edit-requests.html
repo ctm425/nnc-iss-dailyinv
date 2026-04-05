@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Issaquah — Edit Requests Review</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{--primary:#1e3a5f;--primary-light:#2563eb;--gray-50:#f8fafc;--gray-100:#f1f5f9;--gray-200:#e2e8f0;--gray-300:#cbd5e1;--gray-400:#94a3b8;--gray-500:#64748b;--gray-700:#334155;--gray-900:#0f172a;--success:#16a34a;--danger:#dc2626;--warning:#f59e0b;--radius:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+.header{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-sm{padding:6px 12px;font-size:.78rem}
+.content{max-width:900px;margin:0 auto;padding:24px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+.stat{background:#fff;border-radius:var(--radius);padding:16px;border:1px solid var(--gray-200);text-align:center}
+.stat .label{font-size:.72rem;color:var(--gray-400);text-transform:uppercase;font-weight:700;letter-spacing:.5px}
+.stat .value{font-size:1.8rem;font-weight:800;margin-top:4px}
+.stat .value.pending-val{color:var(--warning)}
+.stat .value.approved-val{color:var(--success)}
+.stat .value.denied-val{color:var(--danger)}
+.filter-bar{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.filter-chip{padding:8px 16px;border-radius:20px;font-size:.82rem;font-weight:600;cursor:pointer;border:1px solid var(--gray-300);background:#fff;transition:all .15s}
+.filter-chip:hover,.filter-chip.active{background:var(--primary-light);color:#fff;border-color:var(--primary-light)}
+.request-card{background:#fff;border-radius:12px;border:1px solid var(--gray-200);margin-bottom:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.request-card.status-pending{border-left:4px solid var(--warning)}
+.request-card.status-approved{border-left:4px solid var(--success)}
+.request-card.status-denied{border-left:4px solid var(--danger)}
+.rc-header{padding:14px 18px;display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap}
+.rc-page{font-size:.78rem;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.rc-detail{font-size:.95rem;font-weight:600;margin-top:4px;color:var(--gray-900)}
+.rc-meta{font-size:.78rem;color:var(--gray-400);margin-top:4px}
+.rc-notes{font-size:.85rem;color:var(--gray-500);margin-top:6px;font-style:italic}
+.badge{display:inline-block;padding:4px 12px;border-radius:12px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.badge.pending{background:#fef3c7;color:#92400e}
+.badge.approved{background:#dcfce7;color:#166534}
+.badge.denied{background:#fee2e2;color:#991b1b}
+.rc-actions{padding:0 18px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rc-actions input{padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem;flex:1;min-width:200px}
+.rc-actions input:focus{outline:none;border-color:var(--primary-light)}
+.btn-approve{background:var(--success);color:#fff}
+.btn-deny{background:var(--danger);color:#fff}
+.empty-state{text-align:center;padding:48px 24px;color:var(--gray-400);font-size:.95rem}
+.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#2563eb);z-index:1000;align-items:center;justify-content:center}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:12px;padding:40px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
+.login-box h2{font-size:1.4rem;font-weight:700;margin-bottom:8px;color:var(--primary)}
+.login-box p{font-size:.9rem;color:var(--gray-500);margin-bottom:24px}
+.login-form{display:flex;flex-direction:column;gap:12px}
+.login-form input{padding:12px 16px;border:1px solid var(--gray-200);border-radius:6px;font-size:.95rem}
+.login-form input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.login-error{color:var(--danger);font-size:.85rem;margin-top:8px;display:none}
+.login-form button{padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:600;cursor:pointer}
+.access-denied{text-align:center;padding:60px 24px;color:var(--danger);font-weight:600;font-size:1rem}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:.85rem;font-weight:500;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>📋 NNC Inventory</h2>
+    <p>Edit Requests — Sign in to continue</p>
+    <div class="login-form">
+      <input type="email" id="loginEmail" placeholder="Email address" autocomplete="email">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <button onclick="doLogin()">Sign In</button>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <h1>📋 Edit Requests</h1>
+    <div class="header-sub">Naan N Curry Issaquah — Owner Review</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-ghost" onclick="window.location.href='index.html?open=nnc-iss'">← Issaquah</button>
+    <button class="btn btn-ghost" onclick="auth.signOut()">Logout</button>
+  </div>
+</div>
+
+<div class="content" id="mainContent" style="display:none">
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="label">Pending</div><div class="value pending-val" id="statPending">0</div></div>
+    <div class="stat"><div class="label">Approved</div><div class="value approved-val" id="statApproved">0</div></div>
+    <div class="stat"><div class="label">Denied</div><div class="value denied-val" id="statDenied">0</div></div>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter-bar">
+    <div class="filter-chip active" onclick="setFilter('all')">All</div>
+    <div class="filter-chip" onclick="setFilter('pending')">Pending</div>
+    <div class="filter-chip" onclick="setFilter('approved')">Approved</div>
+    <div class="filter-chip" onclick="setFilter('denied')">Denied</div>
+  </div>
+
+  <!-- Requests List -->
+  <div id="requestsList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+let allRequests = [];
+let currentFilter = 'all';
+
+// ==================== AUTH ====================
+function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const pw = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  auth.signInWithEmailAndPassword(email, pw).catch(err => {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  });
+}
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    const profile = await loadUserProfile();
+    if (!profile || (profile.role !== 'owner' && profile.role !== 'manager')) {
+      document.getElementById('mainContent').style.display = 'none';
+      document.querySelector('.content').innerHTML = '<div class="access-denied">You do not have access to this page. Only owners and managers can review edit requests.</div>';
+      return;
+    }
+    document.getElementById('mainContent').style.display = 'block';
+    loadAllRequests();
+  } else {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+  }
+});
+
+// ==================== LOAD REQUESTS ====================
+async function loadAllRequests() {
+  try {
+    const snap = await db.collection('edit-requests')
+      .orderBy('submittedAt', 'desc')
+      .limit(100)
+      .get();
+
+    allRequests = [];
+    snap.forEach(doc => { allRequests.push({ id: doc.id, ...doc.data() }); });
+
+    updateStats();
+    renderRequests();
+  } catch (err) {
+    document.getElementById('requestsList').innerHTML = `<div class="empty-state" style="color:var(--danger)">Error: ${err.message}</div>`;
+  }
+}
+
+function updateStats() {
+  const counts = { pending: 0, approved: 0, denied: 0 };
+  allRequests.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
+  document.getElementById('statPending').textContent = counts.pending;
+  document.getElementById('statApproved').textContent = counts.approved;
+  document.getElementById('statDenied').textContent = counts.denied;
+}
+
+// ==================== FILTER ====================
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  renderRequests();
+}
+
+// ==================== RENDER ====================
+function renderRequests() {
+  const container = document.getElementById('requestsList');
+  const filtered = currentFilter === 'all' ? allRequests : allRequests.filter(r => r.status === currentFilter);
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty-state">No requests found.</div>';
+    return;
+  }
+
+  let html = '';
+  filtered.forEach(r => {
+    const submitted = r.submittedAt?.toDate ? r.submittedAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '...';
+    const isPending = r.status === 'pending';
+
+    html += `<div class="request-card status-${r.status}">
+      <div class="rc-header">
+        <div>
+          <div class="rc-page">${r.page} — ${r.date}</div>
+          <div class="rc-detail">${r.item} → <strong>${r.correctValue}</strong></div>
+          ${r.notes ? `<div class="rc-notes">"${r.notes}"</div>` : ''}
+          <div class="rc-meta">by ${r.submittedBy} · ${submitted}</div>
+          ${r.reviewNotes ? `<div style="font-size:.82rem;color:var(--primary);margin-top:4px">Response: ${r.reviewNotes}</div>` : ''}
+        </div>
+        <span class="badge ${r.status}">${r.status}</span>
+      </div>
+      ${isPending ? `<div class="rc-actions">
+        <input type="text" id="note-${r.id}" placeholder="Response note (optional)">
+        <button class="btn btn-sm btn-approve" onclick="reviewRequest('${r.id}','approved')">Approve</button>
+        <button class="btn btn-sm btn-deny" onclick="reviewRequest('${r.id}','denied')">Deny</button>
+      </div>` : ''}
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+// ==================== REVIEW ====================
+async function reviewRequest(id, status) {
+  const noteEl = document.getElementById('note-' + id);
+  const note = noteEl ? noteEl.value.trim() : '';
+
+  try {
+    await db.collection('edit-requests').doc(id).update({
+      status,
+      reviewedBy: auth.currentUser.email,
+      reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      reviewNotes: note
+    });
+
+    // Update local state
+    const req = allRequests.find(r => r.id === id);
+    if (req) {
+      req.status = status;
+      req.reviewedBy = auth.currentUser.email;
+      req.reviewNotes = note;
+    }
+
+    updateStats();
+    renderRequests();
+    showToast(`Request ${status}`);
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

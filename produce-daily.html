@@ -281,6 +281,8 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <button onclick="goToToday()" class="btn btn-sm btn-primary" style="background:#4338ca;color:#fff;font-weight:800;padding:8px 18px;font-size:.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(67,56,202,.3)">📅 Today</button>
   </div>
 
+  <div id="histLockBanner" style="display:none;background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px 20px;margin:0 24px;font-size:.88rem;color:#92400e;font-weight:600;text-align:center"></div>
+
   <div class="inventory-person-bar">
     <label>Inventory By:</label>
     <input type="text" id="inventoryPerson" placeholder="Enter your name..." onchange="saveInventoryPerson(this.value)">
@@ -558,6 +560,10 @@ function loadData(){
   return d;
 }
 function saveData(d){
+  if(isHistorical()&&!isOwner()){
+    showToast('Historical data is locked. Submit an edit request instead.');
+    return;
+  }
   // Save to local cache
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
   // Sync to Firestore if user is authenticated
@@ -616,7 +622,21 @@ async function loadDataFromFirestore(){
 }
 function dk(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function getDayData(key){const d=loadData();return(d.days&&d.days[key])||{}}
+function isHistorical(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const sel=new Date(currentDate);sel.setHours(0,0,0,0);
+  return sel<today;
+}
+function isOwner(){
+  return currentUserProfile&&currentUserProfile.role==='owner';
+}
+function openEditRequest(){
+  const ds=dk(currentDate);
+  const page=document.title;
+  window.location.href='edit-request.html?date='+ds+'&page='+encodeURIComponent(page);
+}
 function setField(key,itemId,field,value){
+  if(isHistorical()&&!isOwner())return;
   const d=loadData();if(!d.days)d.days={};if(!d.days[key])d.days[key]={};if(!d.days[key][itemId])d.days[key][itemId]={};
   d.days[key][itemId][field]=value;saveData(d);
 }
@@ -947,6 +967,15 @@ function render(){
   const d=currentDate;
   document.getElementById('datePicker').value=dk(d);
   document.getElementById('dayName').textContent=DAY_NAMES[d.getDay()];
+  // Historical lock for non-owners
+  const histLock=document.getElementById('histLockBanner');
+  if(isHistorical()&&!isOwner()){
+    const dateStr=currentDate.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
+    histLock.style.display='block';
+    histLock.innerHTML='🔒 Historical data for '+dateStr+' is locked. <button style="margin-left:12px;padding:6px 16px;font-size:.82rem;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer" onclick="openEditRequest()">Request an Edit</button>';
+  }else{
+    histLock.style.display='none';
+  }
   // Show/hide no-delivery banner
   document.getElementById('noDeliveryBanner').style.display=isSunday(d)?'flex':'none';
   // Load inventory person
@@ -1100,6 +1129,14 @@ function renderTable(){
   html+='</tbody></table>';
   if(!filtered.length)html='<div style="text-align:center;padding:40px;color:var(--gray-400)">No items match.</div>';
   document.getElementById('mainContent').innerHTML=html;
+  // Disable inputs when historical and not owner
+  if(isHistorical()&&!isOwner()){
+    document.querySelectorAll('input[type="number"], select.reason-select, input.reason-other-input').forEach(el=>{
+      el.disabled=true;
+      el.style.opacity='0.5';
+      el.style.cursor='not-allowed';
+    });
+  }
 }
 
 function onAMChange(key,itemId,val){

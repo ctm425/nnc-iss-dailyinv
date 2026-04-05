@@ -208,7 +208,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 
 <!-- Historical banner -->
 <div class="historical-banner" id="historicalBanner">
-  ⚠️ Editing historical data for <span id="histDate"></span> — all fields are unlocked.
+  <span id="histBannerContent">⚠️ Editing historical data for <span id="histDate"></span> — all fields are unlocked.</span>
 </div>
 
 <!-- ============================================================ -->
@@ -380,19 +380,32 @@ function isHistorical() {
   return sel < today;
 }
 
+function isOwner() {
+  return currentUserProfile && currentUserProfile.role === 'owner';
+}
+
 function applyEditMode() {
   const hist = isHistorical();
-  document.body.classList.toggle('historical-mode', hist);
+  const owner = isOwner();
+  document.body.classList.toggle('historical-mode', hist && owner);
   const banner = document.getElementById('historicalBanner');
   banner.classList.toggle('show', hist);
+
+  const bannerContent = document.getElementById('histBannerContent');
   if (hist) {
-    document.getElementById('histDate').textContent = currentDate.toLocaleDateString('en-US', {
-      weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
-    });
+    if (owner) {
+      bannerContent.innerHTML = '⚠️ Editing historical data for <span id="histDate"></span> — all fields are unlocked.';
+      document.getElementById('histDate').textContent = currentDate.toLocaleDateString('en-US', {
+        weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
+      });
+    } else {
+      bannerContent.innerHTML = '🔒 Historical data for ' + currentDate.toLocaleDateString('en-US', {weekday:'long',month:'short',day:'numeric',year:'numeric'}) + ' is locked. <button class="btn btn-primary" style="margin-left:12px;padding:6px 16px;font-size:.82rem" onclick="openEditRequest()">Request an Edit</button>';
+    }
   }
+
   AUTO_FIELDS.forEach(id => {
     const el = document.getElementById(id);
-    if (hist) { el.removeAttribute('readonly'); } else { el.setAttribute('readonly', true); }
+    if (hist && owner) { el.removeAttribute('readonly'); } else { el.setAttribute('readonly', true); }
   });
 }
 
@@ -422,6 +435,12 @@ function getWeekStart(d) {
 function getWeekDates(d) {
   const start = getWeekStart(d);
   return Array.from({length:6}, (_,i) => { const dt = new Date(start); dt.setDate(dt.getDate()+i); return dt; });
+}
+
+function openEditRequest() {
+  const ds = formatDate(currentDate);
+  const page = document.title;
+  window.location.href = 'edit-request.html?date=' + ds + '&page=' + encodeURIComponent(page);
 }
 
 function setDate(d) {
@@ -486,6 +505,9 @@ function collectData() {
 }
 
 async function saveData() {
+  if (isHistorical() && !isOwner()) {
+    return showToast('Historical data is locked. Submit an edit request instead.');
+  }
   if (!auth.currentUser) return showToast('Please sign in first');
   const ds = formatDate(currentDate);
   const data = collectData();

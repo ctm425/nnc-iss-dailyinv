@@ -225,7 +225,7 @@ body.historical-mode input.auto-linked{background:#fefce8!important;border-color
 
 <!-- Historical mode banner -->
 <div class="historical-banner" id="historicalBanner">
-  ⚠️ Editing historical data for <span class="hist-date" id="histDate"></span> — all fields are unlocked for manual adjustment.
+  <span id="histBannerContent">⚠️ Editing historical data for <span class="hist-date" id="histDate"></span> — all fields are unlocked for manual adjustment.</span>
 </div>
 
 <!-- Tabs: Naan | Roti | Analytics -->
@@ -542,23 +542,35 @@ function isHistorical() {
   return sel < today;
 }
 
+function isOwner() {
+  return currentUserProfile && currentUserProfile.role === 'owner';
+}
+
 function applyEditMode() {
   const hist = isHistorical();
-  document.body.classList.toggle('historical-mode', hist);
+  const owner = isOwner();
+  document.body.classList.toggle('historical-mode', hist && owner);
 
   // Show/hide banner
   const banner = document.getElementById('historicalBanner');
   banner.classList.toggle('show', hist);
+
+  const bannerContent = document.getElementById('histBannerContent');
   if (hist) {
-    document.getElementById('histDate').textContent = currentDate.toLocaleDateString('en-US', {
-      weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
-    });
+    if (owner) {
+      bannerContent.innerHTML = '⚠️ Editing historical data for <span id="histDate"></span> — all fields are unlocked for manual adjustment.';
+      document.getElementById('histDate').textContent = currentDate.toLocaleDateString('en-US', {
+        weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
+      });
+    } else {
+      bannerContent.innerHTML = '🔒 Historical data for ' + currentDate.toLocaleDateString('en-US', {weekday:'long',month:'short',day:'numeric',year:'numeric'}) + ' is locked. <button class="btn btn-primary" style="margin-left:12px;padding:6px 16px;font-size:.82rem" onclick="openEditRequest()">Request an Edit</button>';
+    }
   }
 
-  // Toggle readonly on auto-calculated fields
+  // Toggle readonly on auto-calculated fields (only if owner)
   AUTO_FIELDS.forEach(id => {
     const el = document.getElementById(id);
-    if (hist) {
+    if (hist && owner) {
       el.removeAttribute('readonly');
       el.oninput = histRecalcTotals;
     } else {
@@ -567,10 +579,10 @@ function applyEditMode() {
     }
   });
 
-  // Toggle readonly on linked fields (AM, Made)
+  // Toggle readonly on linked fields (AM, Made) (only if owner)
   LINKED_FIELDS.forEach(id => {
     const el = document.getElementById(id);
-    if (hist) {
+    if (hist && owner) {
       el.removeAttribute('readonly');
       el.oninput = histRecalcTotals;
     } else {
@@ -683,6 +695,12 @@ function onDateChange() {
 
 function goToToday() { setDate(new Date()); }
 
+function openEditRequest() {
+  const ds = formatDate(currentDate);
+  const page = document.title;
+  window.location.href = 'edit-request.html?date=' + ds + '&page=' + encodeURIComponent(page);
+}
+
 // ==================== PREP CALCULATIONS ====================
 function calcNaanPrep() {
   if (isHistorical()) return; // In historical mode, user controls all values directly
@@ -789,6 +807,9 @@ function prepDocPath(ds) { return `naan-roti-prep/nnc-iss/records/${ds}`; }
 function usageDocPath(ds) { return `naan-roti-usage/nnc-iss/records/${ds}`; }
 
 async function saveAll() {
+  if (isHistorical() && !isOwner()) {
+    return showToast('Historical data is locked. Submit an edit request instead.');
+  }
   if (!auth.currentUser) return showToast('Please sign in first');
   const ds = formatDate(currentDate);
   const { prep, usage } = collectAllData();

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Issaquah — Submit Edit Request</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{--primary:#1e3a5f;--primary-light:#2563eb;--gray-50:#f8fafc;--gray-100:#f1f5f9;--gray-200:#e2e8f0;--gray-300:#cbd5e1;--gray-400:#94a3b8;--gray-500:#64748b;--gray-700:#334155;--gray-900:#0f172a;--success:#16a34a;--danger:#dc2626;--radius:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+.header{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.content{max-width:700px;margin:0 auto;padding:24px}
+.card{background:#fff;border-radius:12px;border:1px solid var(--gray-200);padding:24px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.card h2{font-size:1.1rem;font-weight:700;margin-bottom:16px;color:var(--primary)}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:.85rem;font-weight:600;color:var(--gray-700);margin-bottom:6px}
+.form-group .hint{font-size:.78rem;color:var(--gray-400);font-weight:400;margin-left:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 14px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.form-group textarea{min-height:100px;resize:vertical}
+.submit-bar{display:flex;gap:12px;align-items:center}
+.submit-bar .btn{padding:12px 28px;font-size:1rem}
+#submitStatus{font-size:.85rem;margin-top:8px;display:none}
+.my-requests{margin-top:24px}
+.request-item{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:14px 18px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:start;gap:12px}
+.request-item .req-main{flex:1}
+.request-item .req-page{font-size:.78rem;color:var(--gray-400);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.request-item .req-detail{font-size:.88rem;margin-top:4px;color:var(--gray-700)}
+.request-item .req-notes{font-size:.82rem;color:var(--gray-500);margin-top:4px;font-style:italic}
+.request-item .req-date{font-size:.78rem;color:var(--gray-400);white-space:nowrap}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.badge.pending{background:#fef3c7;color:#92400e}
+.badge.approved{background:#dcfce7;color:#166534}
+.badge.denied{background:#fee2e2;color:#991b1b}
+.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#2563eb);z-index:1000;align-items:center;justify-content:center}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:12px;padding:40px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
+.login-box h2{font-size:1.4rem;font-weight:700;margin-bottom:8px;color:var(--primary)}
+.login-box p{font-size:.9rem;color:var(--gray-500);margin-bottom:24px}
+.login-form{display:flex;flex-direction:column;gap:12px}
+.login-form input{padding:12px 16px;border:1px solid var(--gray-200);border-radius:6px;font-size:.95rem}
+.login-form input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.login-error{color:var(--danger);font-size:.85rem;margin-top:8px;display:none}
+.login-form button{padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:600;cursor:pointer}
+.login-form button:hover{background:#1e3a5f}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:.85rem;font-weight:500;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>📝 NNC Inventory</h2>
+    <p>Submit Edit Request — Sign in to continue</p>
+    <div class="login-form">
+      <input type="email" id="loginEmail" placeholder="Email address" autocomplete="email">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <button onclick="doLogin()">Sign In</button>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <h1>📝 Submit Edit Request</h1>
+    <div class="header-sub">Naan N Curry Issaquah</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-ghost" onclick="window.location.href='index.html?open=nnc-iss'">← Issaquah</button>
+    <button class="btn btn-ghost" onclick="auth.signOut()">Logout</button>
+  </div>
+</div>
+
+<div class="content">
+  <!-- Submit Form -->
+  <div class="card">
+    <h2>Request a Data Correction</h2>
+    <div class="form-group">
+      <label>Page <span class="hint">(which tracking sheet?)</span></label>
+      <select id="reqPage">
+        <option value="">Select a page...</option>
+        <option value="Kitchen Daily Order">Kitchen Daily Order</option>
+        <option value="Produce Daily Order">Produce Daily Order</option>
+        <option value="Chicken Prep">Chicken Prep</option>
+        <option value="Tikka (CTM) Prep">Tikka (CTM) Prep</option>
+        <option value="Produce Prep">Produce Prep</option>
+        <option value="Rice Usage">Rice Usage</option>
+        <option value="Naan/Roti Prep & Usage">Naan/Roti Prep & Usage</option>
+        <option value="Packing Log">Packing Log</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Date <span class="hint">(which day needs correcting?)</span></label>
+      <input type="date" id="reqDate">
+    </div>
+    <div class="form-group">
+      <label>Item / Field <span class="hint">(e.g. "Chicken Korma AM count")</span></label>
+      <input type="text" id="reqItem" placeholder="What needs to be changed?">
+    </div>
+    <div class="form-group">
+      <label>Correct Value <span class="hint">(what should it be?)</span></label>
+      <input type="text" id="reqValue" placeholder="e.g. 25">
+    </div>
+    <div class="form-group">
+      <label>Notes <span class="hint">(optional — any context or explanation)</span></label>
+      <textarea id="reqNotes" placeholder="Why does this need to be changed? Any additional details..."></textarea>
+    </div>
+    <div class="submit-bar">
+      <button class="btn btn-primary" onclick="submitRequest()">Submit Request</button>
+    </div>
+    <div id="submitStatus"></div>
+  </div>
+
+  <!-- My Past Requests -->
+  <div class="card my-requests">
+    <h2>My Requests</h2>
+    <div id="myRequestsList"><p style="color:var(--gray-400);font-size:.85rem">Loading...</p></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+// ==================== URL PARAMS ====================
+const urlParams = new URLSearchParams(window.location.search);
+const paramDate = urlParams.get('date');
+const paramPage = urlParams.get('page');
+
+// ==================== AUTH ====================
+function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const pw = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  auth.signInWithEmailAndPassword(email, pw).catch(err => {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  });
+}
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    await loadUserProfile();
+    // Pre-fill from URL params
+    if (paramDate) document.getElementById('reqDate').value = paramDate;
+    if (paramPage) {
+      const sel = document.getElementById('reqPage');
+      // Try to match the page title to an option
+      for (let i = 0; i < sel.options.length; i++) {
+        if (paramPage.toLowerCase().includes(sel.options[i].value.toLowerCase()) ||
+            sel.options[i].value.toLowerCase().includes(paramPage.split('—')[1]?.trim().split(' ')[0]?.toLowerCase() || '')) {
+          sel.selectedIndex = i; break;
+        }
+      }
+    }
+    loadMyRequests();
+  } else {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+  }
+});
+
+// ==================== SUBMIT ====================
+async function submitRequest() {
+  const page = document.getElementById('reqPage').value;
+  const date = document.getElementById('reqDate').value;
+  const item = document.getElementById('reqItem').value.trim();
+  const value = document.getElementById('reqValue').value.trim();
+  const notes = document.getElementById('reqNotes').value.trim();
+  const status = document.getElementById('submitStatus');
+
+  if (!page || !date || !item || !value) {
+    status.style.display = 'block'; status.style.color = 'var(--danger)';
+    status.textContent = 'Please fill in page, date, item, and correct value.';
+    return;
+  }
+
+  status.style.display = 'block'; status.style.color = 'var(--gray-500)';
+  status.textContent = 'Submitting...';
+
+  try {
+    await db.collection('edit-requests').add({
+      page,
+      date,
+      item,
+      correctValue: value,
+      notes: notes || '',
+      status: 'pending',
+      submittedBy: auth.currentUser.email,
+      submittedByUid: auth.currentUser.uid,
+      submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewNotes: ''
+    });
+
+    status.style.color = 'var(--success)';
+    status.textContent = 'Request submitted successfully!';
+
+    // Clear form
+    document.getElementById('reqItem').value = '';
+    document.getElementById('reqValue').value = '';
+    document.getElementById('reqNotes').value = '';
+
+    // Refresh list
+    loadMyRequests();
+
+    showToast('Edit request submitted');
+  } catch (err) {
+    status.style.color = 'var(--danger)';
+    status.textContent = 'Error: ' + err.message;
+  }
+}
+
+// ==================== MY REQUESTS ====================
+async function loadMyRequests() {
+  const container = document.getElementById('myRequestsList');
+  try {
+    const snap = await db.collection('edit-requests')
+      .where('submittedByUid', '==', auth.currentUser.uid)
+      .orderBy('submittedAt', 'desc')
+      .limit(20)
+      .get();
+
+    if (snap.empty) {
+      container.innerHTML = '<p style="color:var(--gray-400);font-size:.85rem">No requests yet.</p>';
+      return;
+    }
+
+    let html = '';
+    snap.forEach(doc => {
+      const d = doc.data();
+      const submitted = d.submittedAt?.toDate ? d.submittedAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...';
+      html += `<div class="request-item">
+        <div class="req-main">
+          <div class="req-page">${d.page} — ${d.date}</div>
+          <div class="req-detail"><strong>${d.item}</strong> → ${d.correctValue}</div>
+          ${d.notes ? `<div class="req-notes">${d.notes}</div>` : ''}
+          ${d.reviewNotes ? `<div class="req-notes" style="color:var(--primary)">Response: ${d.reviewNotes}</div>` : ''}
+        </div>
+        <div style="text-align:right">
+          <span class="badge ${d.status}">${d.status}</span>
+          <div class="req-date">${submitted}</div>
+        </div>
+      </div>`;
+    });
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<p style="color:var(--danger);font-size:.85rem">Error loading requests: ${err.message}</p>`;
+  }
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

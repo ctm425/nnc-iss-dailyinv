@@ -828,6 +828,31 @@ function showIssaquahDetail(container, loc, color) {
         </div>
       </div>
     </div>
+
+    <div class="section-title" style="margin-top:20px">Data Corrections <span class="badge">Edit Requests</span></div>
+    <div class="sheet-grid">
+      <div class="sheet-card" onclick="navigateTo('edit-request.html')">
+        <div class="accent-bar" style="background:#f59e0b"></div>
+        <div class="icon">📝</div>
+        <div class="name">Submit an Edit</div>
+        <div class="desc">Request a correction to historical data — date, item, and correct value</div>
+        <div class="meta">
+          <span class="tag freq">as needed</span>
+          <span class="tag" style="background:#fef3c7;color:#92400e">All Staff</span>
+        </div>
+      </div>
+      ${getEffectiveProfile()?.role === 'owner' || getEffectiveProfile()?.role === 'manager' ? `
+      <div class="sheet-card" onclick="navigateTo('edit-requests.html')">
+        <div class="accent-bar" style="background:#2563eb"></div>
+        <div class="icon">📋</div>
+        <div class="name">Review Edit Requests</div>
+        <div class="desc">View and approve/deny pending data correction requests from staff</div>
+        <div class="meta">
+          <span class="tag freq">as needed</span>
+          <span class="tag" style="background:#eff6ff;color:#1e3a5f">Owner/Manager</span>
+        </div>
+      </div>` : ''}
+    </div>
   `;
   container.classList.add('visible');
 }
@@ -846,6 +871,8 @@ function toggleUserMgmt() {
   const container = document.getElementById('userMgmt');
   if (userMgmtVisible) {
     container.style.display = 'block';
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--gray-500)">Loading users...</div>';
+    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
     renderUserMgmt();
   } else {
     container.style.display = 'none';
@@ -854,7 +881,17 @@ function toggleUserMgmt() {
 
 async function renderUserMgmt() {
   const container = document.getElementById('userMgmt');
-  const users = await getAllUsers();
+  let users;
+  try {
+    users = await getAllUsers();
+  } catch (err) {
+    container.innerHTML = `<div style="padding:24px;color:var(--danger);font-weight:600">Error loading users: ${err.message}. Check Firestore security rules — the 'users' collection may need read access for authenticated users.</div>`;
+    return;
+  }
+  if (!users || users.length === 0) {
+    container.innerHTML = '<div style="padding:24px;color:var(--gray-500)">No users found. Users will appear here after they sign in for the first time.</div>';
+    return;
+  }
 
   let html = `<div class="user-mgmt">
     <h3>User Management</h3>
@@ -894,8 +931,87 @@ async function renderUserMgmt() {
     </tr>`;
   });
 
-  html += `</tbody></table></div></div>`;
+  html += `</tbody></table></div>
+
+    <div style="margin-top:24px;padding:20px;background:var(--gray-50);border-radius:12px;border:1px solid var(--gray-200)">
+      <h4 style="margin-bottom:12px;font-size:.95rem">Invite New User</h4>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">Email</label>
+          <input type="email" id="inviteEmail" placeholder="staff@email.com" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;width:220px">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">Temp Password</label>
+          <input type="text" id="invitePassword" placeholder="Min 6 characters" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;width:160px">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">Role</label>
+          <select id="inviteRole" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem">
+            ${Object.keys(ROLES).filter(r=>r!=='owner').map(r=>`<option value="${r}"${r==='staff'?' selected':''}>${ROLES[r].label}</option>`).join('')}
+          </select>
+        </div>
+        <button onclick="inviteUser()" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer">Create Account</button>
+      </div>
+      <div id="inviteStatus" style="font-size:.82rem;margin-top:8px;display:none"></div>
+    </div>
+  </div>`;
   container.innerHTML = html;
+}
+
+async function inviteUser() {
+  const email = document.getElementById('inviteEmail').value.trim();
+  const password = document.getElementById('invitePassword').value;
+  const role = document.getElementById('inviteRole').value;
+  const status = document.getElementById('inviteStatus');
+
+  if (!email || !password) {
+    status.style.display = 'block'; status.style.color = 'var(--danger)';
+    status.textContent = 'Email and password are required.';
+    return;
+  }
+  if (password.length < 6) {
+    status.style.display = 'block'; status.style.color = 'var(--danger)';
+    status.textContent = 'Password must be at least 6 characters.';
+    return;
+  }
+
+  status.style.display = 'block'; status.style.color = 'var(--gray-500)';
+  status.textContent = 'Creating account...';
+
+  // Save current owner credentials so we can re-auth after
+  const ownerEmail = auth.currentUser.email;
+
+  try {
+    // Create the new user account
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    const newUid = cred.user.uid;
+
+    // Write their profile to Firestore with the selected role
+    await db.collection('users').doc(newUid).set({
+      email: email,
+      displayName: email.split('@')[0],
+      role: role,
+      restaurants: ['nnc-iss'],
+      createdAt: new Date(),
+      lastLogin: null,
+      invitedBy: ownerEmail
+    });
+
+    // Firebase auto-signs in as the new user — sign out and prompt owner to re-login
+    await auth.signOut();
+
+    status.style.color = 'var(--success)';
+    status.textContent = `Account created for ${email} (${ROLES[role]?.label}). You have been signed out — please sign back in.`;
+
+    // Show login overlay after a brief delay
+    setTimeout(() => {
+      document.getElementById('loginOverlay').classList.remove('hidden');
+    }, 1500);
+
+  } catch (err) {
+    status.style.color = 'var(--danger)';
+    status.textContent = 'Error: ' + err.message;
+  }
 }
 
 async function onRoleChange(uid, role) {
