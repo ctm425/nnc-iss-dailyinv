@@ -330,6 +330,7 @@ async function loadUserProfile() {
           restaurants: Object.keys(RESTAURANTS)
         });
       }
+      await loadRolePermissions();
       return currentUserProfile;
     }
     // First-time user — create default profile
@@ -345,6 +346,7 @@ async function loadUserProfile() {
     };
     await db.collection('users').doc(auth.currentUser.uid).set(defaultProfile);
     currentUserProfile = defaultProfile;
+    await loadRolePermissions();
     return currentUserProfile;
   } catch (err) {
     console.error('Error loading user profile:', err);
@@ -376,11 +378,49 @@ async function setUserRole(uid, role, restaurants) {
 }
 
 // ==================== ACCESS CONTROL ====================
+let rolePermissions = null; // loaded from Firestore, falls back to hardcoded allowedRoles
+
+async function loadRolePermissions() {
+  try {
+    const doc = await db.collection('config').doc('role-permissions').get();
+    if (doc.exists) {
+      rolePermissions = doc.data();
+    } else {
+      // First time: build from hardcoded defaults and save to Firestore
+      rolePermissions = {};
+      Object.keys(ROLES).forEach(role => {
+        if (role === 'owner') return; // owner always has full access
+        rolePermissions[role] = [];
+        Object.keys(SHEET_TYPES).forEach(sk => {
+          if (SHEET_TYPES[sk].allowedRoles && SHEET_TYPES[sk].allowedRoles.includes(role)) {
+            rolePermissions[role].push(sk);
+          }
+        });
+      });
+      await db.collection('config').doc('role-permissions').set(rolePermissions);
+    }
+  } catch (err) {
+    console.error('Error loading role permissions:', err);
+    rolePermissions = null;
+  }
+}
+
+async function saveRolePermissions() {
+  if (!rolePermissions) return;
+  try {
+    await db.collection('config').doc('role-permissions').set(rolePermissions);
+  } catch (err) { console.error('Error saving role permissions:', err); }
+}
+
 function canAccessSheet(sheetKey, profile) {
   if (!profile) return false;
   const sheet = SHEET_TYPES[sheetKey];
   if (!sheet) return false;
   if (profile.role === 'owner') return true;
+  // Use dynamic permissions if loaded, otherwise fall back to hardcoded
+  if (rolePermissions && rolePermissions[profile.role]) {
+    return rolePermissions[profile.role].includes(sheetKey);
+  }
   return sheet.allowedRoles.includes(profile.role);
 }
 

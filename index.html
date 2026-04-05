@@ -954,6 +954,35 @@ async function renderUserMgmt() {
       </div>
       <div id="inviteStatus" style="font-size:.82rem;margin-top:8px;display:none"></div>
     </div>
+
+    <div style="margin-top:24px;padding:20px;background:var(--gray-50);border-radius:12px;border:1px solid var(--gray-200)">
+      <h4 style="margin-bottom:4px;font-size:.95rem">Role Permissions</h4>
+      <p style="font-size:.78rem;color:var(--gray-400);margin-bottom:16px">Toggle which pages each role can access. Owner always has full access.</p>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr>
+          <th style="text-align:left;padding:8px 10px;background:var(--gray-100);border-bottom:1px solid var(--gray-200);min-width:180px">Page</th>
+          ${Object.keys(ROLES).filter(r=>r!=='owner').map(r=>
+            `<th style="text-align:center;padding:8px 6px;background:var(--gray-100);border-bottom:1px solid var(--gray-200);white-space:nowrap">${ROLES[r].label}</th>`
+          ).join('')}
+        </tr></thead>
+        <tbody>
+          ${Object.keys(SHEET_TYPES).filter(sk=>!SHEET_TYPES[sk].comingSoon).map(sk => {
+            const s = SHEET_TYPES[sk];
+            return `<tr>
+              <td style="padding:6px 10px;border-bottom:1px solid var(--gray-100);font-weight:600">${s.icon} ${s.name}</td>
+              ${Object.keys(ROLES).filter(r=>r!=='owner').map(r => {
+                const checked = rolePermissions && rolePermissions[r] ? rolePermissions[r].includes(sk) : (s.allowedRoles||[]).includes(r);
+                return `<td style="text-align:center;padding:6px;border-bottom:1px solid var(--gray-100)">
+                  <input type="checkbox" ${checked?'checked':''} onchange="toggleSheetRole('${sk}','${r}',this.checked)">
+                </td>`;
+              }).join('')}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>
   </div>`;
   container.innerHTML = html;
 }
@@ -1012,6 +1041,18 @@ async function inviteUser() {
     status.style.color = 'var(--danger)';
     status.textContent = 'Error: ' + err.message;
   }
+}
+
+async function toggleSheetRole(sheetKey, role, enabled) {
+  if (!rolePermissions) rolePermissions = {};
+  if (!rolePermissions[role]) rolePermissions[role] = [];
+  if (enabled && !rolePermissions[role].includes(sheetKey)) {
+    rolePermissions[role].push(sheetKey);
+  } else if (!enabled) {
+    rolePermissions[role] = rolePermissions[role].filter(sk => sk !== sheetKey);
+  }
+  await saveRolePermissions();
+  showToastShared(`${ROLES[role]?.label} access updated`);
 }
 
 async function onRoleChange(uid, role) {
