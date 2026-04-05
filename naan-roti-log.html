@@ -305,14 +305,14 @@ body.historical-mode input.auto-linked{background:#fefce8!important;border-color
         <input type="number" id="naan_pm" min="0" step="1" oninput="calcNaanUsage()">
       </div>
       <div class="form-row">
-        <label>Usage (trays):<span class="hint">AM + Made − PM</span></label>
+        <label>Usage (trays):<span class="hint">(AM + Made) − (PM + Waste)</span></label>
         <input type="number" id="naan_usage" class="auto" readonly>
       </div>
+      <hr class="divider">
       <div class="form-row">
         <label>Waste:<span class="hint">Trays thrown away</span></label>
         <input type="number" id="naan_waste" min="0" step="1" oninput="calcNaanUsage()">
       </div>
-      <hr class="divider">
       <div class="totals-row">
         <label style="color:var(--usage-accent);font-weight:800">Total Naan Usage:</label>
         <div class="total-val naan-usage" id="naan_total_usage">0</div>
@@ -401,14 +401,14 @@ body.historical-mode input.auto-linked{background:#fefce8!important;border-color
         <input type="number" id="roti_pm" min="0" step="1" oninput="calcRotiUsage()">
       </div>
       <div class="form-row">
-        <label>Usage (trays):<span class="hint">AM + Made − PM</span></label>
+        <label>Usage (trays):<span class="hint">(AM + Made) − (PM + Waste)</span></label>
         <input type="number" id="roti_usage" class="auto" readonly>
       </div>
+      <hr class="divider">
       <div class="form-row">
         <label>Waste:<span class="hint">Trays thrown away</span></label>
         <input type="number" id="roti_waste" min="0" step="1" oninput="calcRotiUsage()">
       </div>
-      <hr class="divider">
       <div class="totals-row">
         <label style="color:#be185d;font-weight:800">Total Roti Usage:</label>
         <div class="total-val roti-usage" id="roti_total_usage">0</div>
@@ -596,13 +596,11 @@ function histRecalcTotals() {
 
   // Naan usage total
   const naanUsage = num('naan_usage');
-  const naanWaste = num('naan_waste');
-  document.getElementById('naan_total_usage').textContent = naanUsage + naanWaste;
+  document.getElementById('naan_total_usage').textContent = naanUsage;
 
   // Roti usage total
   const rotiUsage = num('roti_usage');
-  const rotiWaste = num('roti_waste');
-  document.getElementById('roti_total_usage').textContent = rotiUsage + rotiWaste;
+  document.getElementById('roti_total_usage').textContent = rotiUsage;
 }
 
 // ==================== TAB SWITCHING ====================
@@ -716,17 +714,17 @@ function calcRotiPrep() {
 function calcNaanUsage() {
   if (isHistorical()) { histRecalcTotals(); return; }
   const am = num('naan_am'), made = num('naan_made'), pm = num('naan_pm'), waste = num('naan_waste');
-  const usage = am + made - pm;
+  const usage = (am + made) - (pm + waste);
   document.getElementById('naan_usage').value = usage;
-  document.getElementById('naan_total_usage').textContent = usage + waste;
+  document.getElementById('naan_total_usage').textContent = usage;
 }
 
 function calcRotiUsage() {
   if (isHistorical()) { histRecalcTotals(); return; }
   const am = num('roti_am'), made = num('roti_made'), pm = num('roti_pm'), waste = num('roti_waste');
-  const usage = am + made - pm;
+  const usage = (am + made) - (pm + waste);
   document.getElementById('roti_usage').value = usage;
-  document.getElementById('roti_total_usage').textContent = usage + waste;
+  document.getElementById('roti_total_usage').textContent = usage;
 }
 
 function num(id) { return parseFloat(document.getElementById(id).value) || 0; }
