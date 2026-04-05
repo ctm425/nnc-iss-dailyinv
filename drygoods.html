@@ -653,9 +653,10 @@ function loadData() {
   if (raw) {
     try {
       const d = JSON.parse(raw);
-      // Merge any new defaultItems that don't exist in cached data
+      // Merge any new defaultItems that don't exist in cached data (skip removed ones)
       const existingIds = new Set((d.items || []).map(i => i.id));
-      const newItems = (currentMode.defaultItems || []).filter(i => !existingIds.has(i.id));
+      const removed = new Set(d._removedDefaults || []);
+      const newItems = (currentMode.defaultItems || []).filter(i => !existingIds.has(i.id) && !removed.has(i.id));
       if (newItems.length > 0) {
         d.items = [...(d.items || []), ...newItems];
         localStorage.setItem(storageId(), JSON.stringify(d));
@@ -708,9 +709,15 @@ function loadMultiSourceData() {
     }
   });
 
-  // Merge any new defaults not in cached data
+  // Merge any new defaults not in cached data (skip removed ones)
   const existingIds = new Set(mergedItems.map(i => i.id));
-  const newDefaults = currentMode.defaultItems.filter(i => !existingIds.has(i.id));
+  // Collect all _removedDefaults from all sources
+  const allRemoved = new Set();
+  sources.forEach(src => {
+    const sd = loadSourceData(src.storageKey);
+    (sd._removedDefaults || []).forEach(id => allRemoved.add(id));
+  });
+  const newDefaults = currentMode.defaultItems.filter(i => !existingIds.has(i.id) && !allRemoved.has(i.id));
   mergedItems = [...mergedItems, ...newDefaults];
 
   return { items: mergedItems, weeks: mergedWeeks, emailjs, emails };
@@ -756,6 +763,7 @@ function saveMultiSourceData(d) {
 
     const sd = loadSourceData(src.storageKey);
     sd.items = cleanItems;
+    sd._removedDefaults = d._removedDefaults || sd._removedDefaults || [];
     // Preserve week data already in source
     const sid = storageIdFor(src.storageKey);
     localStorage.setItem(sid, JSON.stringify(sd));
@@ -764,6 +772,7 @@ function saveMultiSourceData(d) {
     if (auth.currentUser) {
       db.collection('inventory_config').doc(firestoreDocPath(src.storageKey)).set({
         items: cleanItems,
+        _removedDefaults: sd._removedDefaults,
         emailjs: sd.emailjs || {},
         emails: sd.emails || '',
         updatedAt: new Date(),
@@ -778,6 +787,7 @@ async function saveToFirestore(d) {
   try {
     await db.collection('inventory_config').doc(firestoreDocPath()).set({
       items: d.items,
+      _removedDefaults: d._removedDefaults || [],
       emailjs: d.emailjs || {},
       emails: d.emails || '',
       updatedAt: new Date(),
@@ -853,9 +863,11 @@ function setupFirestoreListener() {
       const d = loadData();
       if (config.items) {
         d.items = config.items;
-        // Merge any new defaultItems not yet in Firestore
+        d._removedDefaults = config._removedDefaults || d._removedDefaults || [];
+        // Merge any new defaultItems not yet in Firestore (skip intentionally removed ones)
         const existingIds = new Set(d.items.map(i => i.id));
-        const newItems = (currentMode.defaultItems || []).filter(i => !existingIds.has(i.id));
+        const removed = new Set(d._removedDefaults || []);
+        const newItems = (currentMode.defaultItems || []).filter(i => !existingIds.has(i.id) && !removed.has(i.id));
         if (newItems.length > 0) {
           d.items = [...d.items, ...newItems];
           // Push new items back to Firestore so they persist
@@ -902,16 +914,19 @@ function setupMultiSourceListeners() {
         const sd = loadSourceData(src.storageKey);
         if (config.items) {
           sd.items = config.items;
-          // Merge any new defaultItems not yet in Firestore for this source
+          sd._removedDefaults = config._removedDefaults || sd._removedDefaults || [];
+          // Merge any new defaultItems not yet in Firestore for this source (skip removed ones)
           if (srcMode && srcMode.defaultItems) {
             const existingIds = new Set(sd.items.map(i => i.id));
-            const newItems = srcMode.defaultItems.filter(i => !existingIds.has(i.id));
+            const removed = new Set(sd._removedDefaults || []);
+            const newItems = srcMode.defaultItems.filter(i => !existingIds.has(i.id) && !removed.has(i.id));
             if (newItems.length > 0) {
               sd.items = [...sd.items, ...newItems];
               // Push back to Firestore
               if (auth.currentUser) {
                 db.collection('inventory_config').doc(docPath).set({
-                  items: sd.items, updatedAt: new Date(), updatedBy: auth.currentUser.email
+                  items: sd.items, _removedDefaults: sd._removedDefaults,
+                  updatedAt: new Date(), updatedBy: auth.currentUser.email
                 }, { merge: true }).catch(err => console.error('Firestore merge error:', err));
               }
             }
@@ -1308,7 +1323,15 @@ function updateItem(idx, field, val) {
 function removeItem(idx) {
   if (!confirm('Remove this item? This cannot be undone.')) return;
   const d = loadData();
+  const removed = d.items[idx];
   d.items.splice(idx, 1);
+  // Track removed default items so the merge logic doesn't re-add them
+  if (removed && removed.id) {
+    if (!d._removedDefaults) d._removedDefaults = [];
+    if (!d._removedDefaults.includes(removed.id)) {
+      d._removedDefaults.push(removed.id);
+    }
+  }
   saveData(d);
   render();
 }
