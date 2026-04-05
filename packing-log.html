@@ -191,7 +191,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
     <div class="header-sub">Naan N Curry Issaquah</div>
   </div>
   <div class="header-right">
-    <button class="btn btn-ghost" onclick="goToDashboard()">← Dashboard</button>
+    <button class="btn btn-ghost" onclick="goToDashboard()">← Issaquah</button>
     <button class="btn btn-ghost" onclick="doLogout()">Logout</button>
   </div>
 </div>
@@ -929,7 +929,7 @@ auth.onAuthStateChanged(async user => {
   }
 });
 
-function goToDashboard() { window.location.href = 'index.html'; }
+function goToDashboard() { window.location.href = 'index.html?open=nnc-iss'; }
 
 function showToast(msg) {
   const t = document.getElementById('toast');

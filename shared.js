@@ -409,7 +409,7 @@ function getParam(key) {
 }
 
 function goToDashboard() {
-  navigateTo('index.html');
+  navigateTo('index.html?open=nnc-iss');
 }
 
 // ==================== SHARED UI HELPERS ====================
