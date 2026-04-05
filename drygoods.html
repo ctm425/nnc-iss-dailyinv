@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NNC Inventory — Dry Goods</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -146,6 +147,25 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
   .btn,.btn-sm{min-height:36px}
   .date-picker-input{font-size:16px}
 }
+
+/* Analytics */
+.analytics-panel{display:none;padding:24px}
+.analytics-panel.visible{display:block}
+.analytics-controls{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.analytics-controls select,.analytics-controls input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+.chart-container{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px;margin-bottom:20px;position:relative;height:400px}
+.pivot-table{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px;overflow-x:auto}
+.pivot-table table{min-width:auto}
+.pivot-table h3{font-size:1rem;font-weight:700;color:var(--gray-900)}
+.multi-select-wrap{position:relative;display:inline-block}
+.multi-select-dropdown{position:absolute;top:100%;left:0;z-index:50;background:#fff;border:1px solid var(--gray-300);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:300px;overflow-y:auto;min-width:260px;padding:8px}
+.multi-select-option{display:block;padding:4px 8px;font-size:.82rem;cursor:pointer;border-radius:4px}
+.multi-select-option:hover{background:var(--primary-bg)}
+.multi-select-option input{margin-right:6px}
+@media(max-width:768px){
+  .chart-container{height:300px}
+  .analytics-controls{gap:8px}
+}
 </style>
 </head>
 <body>
@@ -197,7 +217,7 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 </div>
 
 <!-- INVENTORY PERSON -->
-<div class="inventory-person-bar">
+<div class="inventory-person-bar" id="inventoryPersonBar">
   <label>Counted By:</label>
   <input type="text" id="inventoryPerson" placeholder="Enter your name" onchange="saveInventoryPerson(this.value)">
 </div>
@@ -205,11 +225,17 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 <!-- STATS BAR -->
 <div class="stats-bar" id="statsBar"></div>
 
-<!-- TAB BAR (sub-categories) -->
+<!-- MAIN TAB BAR (Inventory / Analytics) -->
+<div class="tab-bar" id="mainTabBar">
+  <div class="tab active" data-tab="inventory" onclick="setMainTab('inventory')">📦 Inventory</div>
+  <div class="tab" data-tab="analytics" onclick="setMainTab('analytics')">📈 Analytics</div>
+</div>
+
+<!-- SUB-CATEGORY TAB BAR -->
 <div class="tab-bar" id="tabBar"></div>
 
 <!-- FILTER -->
-<div class="filter-bar">
+<div class="filter-bar" id="filterBar">
   <input type="text" class="search-input" id="searchInput" placeholder="Search items..." oninput="render()">
 </div>
 
@@ -246,6 +272,9 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
   </div>
 </div>
 
+<!-- ANALYTICS PANEL -->
+<div class="analytics-panel" id="analyticsPanel"></div>
+
 <div id="toast"></div>
 
 <script src="shared.js"></script>
@@ -263,27 +292,7 @@ const SHEET_MODES = {
       other: { name: 'Other', icon: '📋', color: '#6b7280' }
     },
     defaultItems: [
-      // === SPICES ===
-      { id: 'chaat-masala-case', name: 'Chaat Masala (case)', subCategory: 'spices', unit: 'case', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'methi', name: 'Methi (5lb container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'cumin-ziploc', name: 'Cumin (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'green-cardamom-ziploc', name: 'Green Cardamom (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'black-cardamom-ziploc', name: 'Black Cardamom (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'garam-masala-ground', name: 'Garam Masala Ground (large nido)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'bay-leaf-ziploc', name: 'Bay Leaf (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'cinnamon-stick-ziploc', name: 'Cinnamon Stick (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'cloves-ziploc', name: 'Cloves (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'black-pepper-whole', name: 'Black Pepper - Whole (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'black-pepper-crush', name: 'Black Pepper Crush - Karahi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'coriander-crush', name: 'Coriander Crush - Karahi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'coriander-powder', name: 'Coriander Powder - Handi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'fennel-seed-crush', name: 'Fennel Seed Crush - Handi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'fennel-seed-whole', name: 'Fennel Seed Whole (5 lb container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'ground-almond', name: 'Ground Almond - Mughlai (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'ground-pistachio', name: 'Ground Pistachio (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'achaar-powder', name: 'Achaar Powder (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'anaar-dana', name: 'Anaar Dana (16 oz black container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
-      { id: 'rice-garam-masala', name: 'Rice Whole Garam Masala', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      // === SPICES (non-Main Kitchen vendors only; Main Kitchen spices moved to Weekly Main Kitchen Inventory) ===
       { id: 'chaat-masala-ingr', name: 'Chaat Masala', subCategory: 'spices', unit: 'case', par: 1, vendor: 'Reshmi' },
       { id: 'dry-red-chili', name: 'Dry Red Chili Whole', subCategory: 'spices', unit: 'bag', par: 1, vendor: 'Restaurant Depot' },
       { id: 'fennel-seeds-ingr', name: 'Fennel Seeds', subCategory: 'spices', unit: 'lb', par: 5, vendor: 'Reshmi' },
@@ -328,13 +337,14 @@ const SHEET_MODES = {
     ]
   },
   'nnc-frozen': {
-    title: 'Frozen Inventory',
-    icon: '🧊',
+    title: 'Weekly Main Kitchen Inventory',
+    icon: '🏭',
     storageKey: 'frozen',
     subCategories: {
       prepared: { name: 'Prepared Items (NNC Kitchen)', icon: '🍱', color: '#7c2d12' },
+      spices: { name: 'Spices from Main Kitchen', icon: '🌶️', color: '#dc2626' },
       container: { name: 'Container Frozen Inventory (Pakistan)', icon: '📦', color: '#4338ca' },
-      other: { name: 'Other Frozen', icon: '📋', color: '#6b7280' }
+      other: { name: 'Other', icon: '📋', color: '#6b7280' }
     },
     defaultItems: [
       // === PREPARED ITEMS (NNC Kitchen) ===
@@ -349,6 +359,27 @@ const SHEET_MODES = {
       { id: 'samosa', name: 'Samosa', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
       { id: 'haleem-chicken', name: 'Haleem (Chicken)', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
       { id: 'beef-seekh', name: 'Beef Seekh Kabab', subCategory: 'prepared', unit: 'each', par: 0, vendor: 'NNC Main Kitchen' },
+      // === SPICES FROM MAIN KITCHEN ===
+      { id: 'mk-chaat-masala-case', name: 'Chaat Masala (case)', subCategory: 'spices', unit: 'case', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-methi', name: 'Methi (5lb container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-cumin', name: 'Cumin (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-green-cardamom', name: 'Green Cardamom (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-black-cardamom', name: 'Black Cardamom (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-garam-masala-ground', name: 'Garam Masala Ground (large nido)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-bay-leaf', name: 'Bay Leaf (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-cinnamon-stick', name: 'Cinnamon Stick (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-cloves', name: 'Cloves (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-black-pepper-whole', name: 'Black Pepper - Whole (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-black-pepper-crush', name: 'Black Pepper Crush - Karahi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-coriander-crush', name: 'Coriander Crush - Karahi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-coriander-powder', name: 'Coriander Powder - Handi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-fennel-seed-crush', name: 'Fennel Seed Crush - Handi (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-fennel-seed-whole', name: 'Fennel Seed Whole (5 lb container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-ground-almond', name: 'Ground Almond - Mughlai (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-ground-pistachio', name: 'Ground Pistachio (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-achaar-powder', name: 'Achaar Powder (gallon ziploc)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-anaar-dana', name: 'Anaar Dana (16 oz black container)', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
+      { id: 'mk-rice-garam-masala', name: 'Rice Whole Garam Masala', subCategory: 'spices', unit: 'each', par: 1, vendor: 'NNC Main Kitchen' },
       // === CONTAINER FROZEN (Pakistan Imports) ===
       // MAZEDAAR - MULTI FOOD
       { id: 'iss-aloo-paratha', name: 'Aloo Paratha', subCategory: 'container', unit: 'cases', par: 0, vendor: 'MAZEDAAR - MULTI FOOD' },
@@ -477,6 +508,26 @@ const SHEET_MODES = {
   }
 };
 
+// Build combined "All Non-Frozen" mode dynamically from drygoods + supplies
+// isMultiSource: reads/writes go to the SAME Firestore docs as individual sheets
+SHEET_MODES['nnc-allnonfrozen'] = {
+  title: 'All Non-Frozen Inventory',
+  icon: '📋',
+  isMultiSource: true,
+  sources: [
+    { sheetKey: 'nnc-drygoods', storageKey: 'drygoods', label: 'Dry Goods' },
+    { sheetKey: 'nnc-supplies', storageKey: 'supplies', label: 'Supplies' }
+  ],
+  subCategories: {
+    ...Object.fromEntries(Object.entries(SHEET_MODES['nnc-drygoods'].subCategories).map(([k,v]) => ['dg-'+k, { ...v, name: 'Dry Goods — ' + v.name }])),
+    ...Object.fromEntries(Object.entries(SHEET_MODES['nnc-supplies'].subCategories).map(([k,v]) => ['sp-'+k, { ...v, name: 'Supplies — ' + v.name }]))
+  },
+  defaultItems: [
+    ...SHEET_MODES['nnc-drygoods'].defaultItems.map(i => ({ ...i, subCategory: 'dg-' + i.subCategory, _src: 'drygoods' })),
+    ...SHEET_MODES['nnc-supplies'].defaultItems.map(i => ({ ...i, subCategory: 'sp-' + i.subCategory, _src: 'supplies' }))
+  ]
+};
+
 const UNITS = ['each', 'case', 'bag', 'box', 'bottle', 'can', 'jar', 'lb', 'oz', 'gallon', 'pack', 'roll'];
 
 // ==================== STATE ====================
@@ -568,15 +619,36 @@ function getPreviousCountData() {
 }
 
 // ==================== DATA PERSISTENCE ====================
+// Helper: get storageId for a given storageKey
+function storageIdFor(storageKey) {
+  return `${storageKey}_${restaurantKey}`;
+}
+
 function storageId() {
+  // For multi-source modes, this shouldn't be called directly for writes.
+  // Used as a fallback / for single-source modes.
+  if (currentMode.isMultiSource) return `_combined_${restaurantKey}`;
   return `${currentMode.storageKey}_${restaurantKey}`;
 }
 
-function firestoreDocPath() {
-  return storageId();
+function firestoreDocPath(storageKey) {
+  return `${storageKey || currentMode.storageKey}_${restaurantKey}`;
+}
+
+// Load data for a single source storageKey
+function loadSourceData(storageKey) {
+  const sid = storageIdFor(storageKey);
+  const raw = localStorage.getItem(sid);
+  if (raw) {
+    try { return JSON.parse(raw); } catch (e) {}
+  }
+  return { items: [], weeks: {}, emailjs: {}, emails: '' };
 }
 
 function loadData() {
+  if (currentMode.isMultiSource) {
+    return loadMultiSourceData();
+  }
   const raw = localStorage.getItem(storageId());
   if (raw) {
     try {
@@ -594,10 +666,111 @@ function loadData() {
   return { items: [...currentMode.defaultItems], weeks: {}, emailjs: {}, emails: '' };
 }
 
+// Multi-source: merge data from all source storageKeys
+function loadMultiSourceData() {
+  const sources = currentMode.sources;
+  const sourceDefaults = {};
+  currentMode.defaultItems.forEach(item => { sourceDefaults[item.id] = item; });
+
+  let mergedItems = [];
+  let mergedWeeks = {};
+  let emailjs = {};
+  let emails = '';
+
+  sources.forEach(src => {
+    const sd = loadSourceData(src.storageKey);
+    const srcMode = SHEET_MODES[src.sheetKey];
+
+    // Get items: use Firestore/local items if they exist, fall back to defaults
+    let srcItems = sd.items && sd.items.length > 0 ? sd.items : [...(srcMode?.defaultItems || [])];
+    // Tag each item with _src and remap subCategory
+    const prefix = src.storageKey === 'drygoods' ? 'dg-' : 'sp-';
+    srcItems = srcItems.map(item => {
+      // Only remap if not already remapped (avoid double-prefixing)
+      const subCat = item.subCategory && !item.subCategory.startsWith(prefix)
+        ? prefix + item.subCategory : item.subCategory;
+      return { ...item, subCategory: subCat, _src: src.storageKey };
+    });
+    mergedItems = mergedItems.concat(srcItems);
+
+    // Merge week data
+    if (sd.weeks) {
+      Object.keys(sd.weeks).forEach(wk => {
+        if (!mergedWeeks[wk]) mergedWeeks[wk] = {};
+        Object.assign(mergedWeeks[wk], sd.weeks[wk]);
+      });
+    }
+
+    // Use first source's email settings
+    if (!emailjs.publicKey && sd.emailjs?.publicKey) {
+      emailjs = sd.emailjs;
+      emails = sd.emails || '';
+    }
+  });
+
+  // Merge any new defaults not in cached data
+  const existingIds = new Set(mergedItems.map(i => i.id));
+  const newDefaults = currentMode.defaultItems.filter(i => !existingIds.has(i.id));
+  mergedItems = [...mergedItems, ...newDefaults];
+
+  return { items: mergedItems, weeks: mergedWeeks, emailjs, emails };
+}
+
+// Find which source storageKey an item belongs to
+function getItemSource(itemId) {
+  if (!currentMode.isMultiSource) return currentMode.storageKey;
+  const d = loadData();
+  const item = (d.items || []).find(i => i.id === itemId);
+  if (item && item._src) return item._src;
+  // Fallback: check defaults
+  const def = currentMode.defaultItems.find(i => i.id === itemId);
+  if (def && def._src) return def._src;
+  // Last resort: first source
+  return currentMode.sources[0].storageKey;
+}
+
 function saveData(d) {
+  if (currentMode.isMultiSource) {
+    saveMultiSourceData(d);
+    return;
+  }
   localStorage.setItem(storageId(), JSON.stringify(d));
-  // Also save to Firestore
   saveToFirestore(d);
+}
+
+// Multi-source: split merged data back to individual sources and save each
+function saveMultiSourceData(d) {
+  const sources = currentMode.sources;
+  sources.forEach(src => {
+    const srcItems = (d.items || []).filter(i => i._src === src.storageKey);
+    // Strip _src and un-prefix subCategory for storage
+    const prefix = src.storageKey === 'drygoods' ? 'dg-' : 'sp-';
+    const cleanItems = srcItems.map(item => {
+      const clean = { ...item };
+      delete clean._src;
+      if (clean.subCategory && clean.subCategory.startsWith(prefix)) {
+        clean.subCategory = clean.subCategory.slice(prefix.length);
+      }
+      return clean;
+    });
+
+    const sd = loadSourceData(src.storageKey);
+    sd.items = cleanItems;
+    // Preserve week data already in source
+    const sid = storageIdFor(src.storageKey);
+    localStorage.setItem(sid, JSON.stringify(sd));
+
+    // Save config to Firestore
+    if (auth.currentUser) {
+      db.collection('inventory_config').doc(firestoreDocPath(src.storageKey)).set({
+        items: cleanItems,
+        emailjs: sd.emailjs || {},
+        emails: sd.emails || '',
+        updatedAt: new Date(),
+        updatedBy: auth.currentUser.email
+      }, { merge: true }).catch(err => console.error('Firestore config save error:', err));
+    }
+  });
 }
 
 async function saveToFirestore(d) {
@@ -613,10 +786,13 @@ async function saveToFirestore(d) {
   } catch (err) { console.error('Firestore config save error:', err); }
 }
 
-async function saveWeekData(wk, data) {
+async function saveWeekData(wk, data, storageKey) {
   if (!auth.currentUser) return;
+  const docPath = storageKey
+    ? `${storageKey}_${restaurantKey}_${wk}`
+    : `${firestoreDocPath()}_${wk}`;
   try {
-    await db.collection('inventory_weeks').doc(`${firestoreDocPath()}_${wk}`).set(data);
+    await db.collection('inventory_weeks').doc(docPath).set(data);
   } catch (err) { console.error('Firestore week save error:', err); }
 }
 
@@ -626,21 +802,46 @@ function getWeekData(wk) {
 }
 
 function setField(wk, itemId, field, val) {
+  if (currentMode.isMultiSource) {
+    setFieldMultiSource(wk, itemId, field, val);
+    return;
+  }
   const d = loadData();
   if (!d.weeks) d.weeks = {};
   if (!d.weeks[wk]) d.weeks[wk] = {};
   if (!d.weeks[wk][itemId]) d.weeks[wk][itemId] = {};
   d.weeks[wk][itemId][field] = val;
   saveData(d);
-  // Also save day data to Firestore
   saveWeekData(wk, d.weeks[wk]);
+}
+
+// Multi-source: write to the correct source's Firestore doc
+function setFieldMultiSource(wk, itemId, field, val) {
+  const srcKey = getItemSource(itemId);
+  const sid = storageIdFor(srcKey);
+  const sd = loadSourceData(srcKey);
+  if (!sd.weeks) sd.weeks = {};
+  if (!sd.weeks[wk]) sd.weeks[wk] = {};
+  if (!sd.weeks[wk][itemId]) sd.weeks[wk][itemId] = {};
+  sd.weeks[wk][itemId][field] = val;
+  localStorage.setItem(sid, JSON.stringify(sd));
+  // Save to Firestore under the source's doc path
+  saveWeekData(wk, sd.weeks[wk], srcKey);
 }
 
 // Listen for Firestore changes
 let unsubConfig = null;
 let unsubDate = null;
+// Multi-source: arrays of unsub functions
+let unsubConfigMulti = [];
+let unsubDateMulti = [];
 
 function setupFirestoreListener() {
+  if (currentMode.isMultiSource) {
+    setupMultiSourceListeners();
+    return;
+  }
+
   // Detach previous date listener when switching days
   if (unsubDate) { unsubDate(); unsubDate = null; }
 
@@ -650,7 +851,17 @@ function setupFirestoreListener() {
       if (!snap.exists) return;
       const config = snap.data();
       const d = loadData();
-      if (config.items) d.items = config.items;
+      if (config.items) {
+        d.items = config.items;
+        // Merge any new defaultItems not yet in Firestore
+        const existingIds = new Set(d.items.map(i => i.id));
+        const newItems = (currentMode.defaultItems || []).filter(i => !existingIds.has(i.id));
+        if (newItems.length > 0) {
+          d.items = [...d.items, ...newItems];
+          // Push new items back to Firestore so they persist
+          saveToFirestore(d);
+        }
+      }
       // Protect emailjs settings
       if (config.emailjs && config.emailjs.publicKey) {
         d.emailjs = config.emailjs;
@@ -659,7 +870,7 @@ function setupFirestoreListener() {
       }
       if (config.emails) d.emails = config.emails;
       localStorage.setItem(storageId(), JSON.stringify(d));
-      render();
+      if (mainTab !== 'analytics') render();
     });
   }
 
@@ -671,7 +882,67 @@ function setupFirestoreListener() {
     if (!d.weeks) d.weeks = {};
     d.weeks[dateKey()] = dayData;
     localStorage.setItem(storageId(), JSON.stringify(d));
-    render();
+    if (mainTab !== 'analytics') render();
+  });
+}
+
+function setupMultiSourceListeners() {
+  // Detach previous date listeners
+  unsubDateMulti.forEach(fn => fn());
+  unsubDateMulti = [];
+
+  // Config listeners (only set up once)
+  if (unsubConfigMulti.length === 0) {
+    currentMode.sources.forEach(src => {
+      const docPath = firestoreDocPath(src.storageKey);
+      const srcMode = SHEET_MODES[src.sheetKey];
+      const unsub = db.collection('inventory_config').doc(docPath).onSnapshot(snap => {
+        if (!snap.exists) return;
+        const config = snap.data();
+        const sd = loadSourceData(src.storageKey);
+        if (config.items) {
+          sd.items = config.items;
+          // Merge any new defaultItems not yet in Firestore for this source
+          if (srcMode && srcMode.defaultItems) {
+            const existingIds = new Set(sd.items.map(i => i.id));
+            const newItems = srcMode.defaultItems.filter(i => !existingIds.has(i.id));
+            if (newItems.length > 0) {
+              sd.items = [...sd.items, ...newItems];
+              // Push back to Firestore
+              if (auth.currentUser) {
+                db.collection('inventory_config').doc(docPath).set({
+                  items: sd.items, updatedAt: new Date(), updatedBy: auth.currentUser.email
+                }, { merge: true }).catch(err => console.error('Firestore merge error:', err));
+              }
+            }
+          }
+        }
+        if (config.emailjs && config.emailjs.publicKey) {
+          sd.emailjs = config.emailjs;
+        } else if (!sd.emailjs || !sd.emailjs.publicKey) {
+          sd.emailjs = config.emailjs || sd.emailjs || {};
+        }
+        if (config.emails) sd.emails = config.emails;
+        localStorage.setItem(storageIdFor(src.storageKey), JSON.stringify(sd));
+        if (mainTab !== 'analytics') render();
+      });
+      unsubConfigMulti.push(unsub);
+    });
+  }
+
+  // Date listeners for each source
+  currentMode.sources.forEach(src => {
+    const docPath = `${src.storageKey}_${restaurantKey}_${dateKey()}`;
+    const unsub = db.collection('inventory_weeks').doc(docPath).onSnapshot(snap => {
+      if (!snap.exists) return;
+      const dayData = snap.data();
+      const sd = loadSourceData(src.storageKey);
+      if (!sd.weeks) sd.weeks = {};
+      sd.weeks[dateKey()] = dayData;
+      localStorage.setItem(storageIdFor(src.storageKey), JSON.stringify(sd));
+      if (mainTab !== 'analytics') render();
+    });
+    unsubDateMulti.push(unsub);
   });
 }
 
@@ -1118,7 +1389,7 @@ function exportExcel() {
     { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 20 }
   ];
 
-  XLSX.writeFile(wb, `Inventory_${currentMode.storageKey}_${weekKey()}.xlsx`);
+  XLSX.writeFile(wb, `Inventory_${currentMode.storageKey || 'allnonfrozen'}_${weekKey()}.xlsx`);
   showToast('Excel exported');
 }
 
@@ -1192,7 +1463,7 @@ function exportPDF() {
     }
   });
 
-  doc.save(`Inventory_${currentMode.storageKey}_${weekKey()}.pdf`);
+  doc.save(`Inventory_${currentMode.storageKey || 'allnonfrozen'}_${weekKey()}.pdf`);
   showToast('PDF exported');
 }
 
@@ -1306,6 +1577,452 @@ async function sendEmailReport() {
     console.error('Email error:', err);
     showToast('Email failed: ' + (err.text || err.message || 'Unknown error'));
   }
+}
+
+// ==================== ANALYTICS ====================
+let mainTab = 'inventory';
+let analyticsChart = null;
+
+function setMainTab(tab) {
+  mainTab = tab;
+  // Update main tab visual
+  document.querySelectorAll('#mainTabBar .tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tab);
+  });
+
+  const inventoryEls = ['tabBar', 'filterBar', 'tableWrap', 'statsBar', 'prevCountBar', 'inventoryPersonBar', 'settingsPanel', 'incomingTransfersSection'];
+  const analyticsPanel = document.getElementById('analyticsPanel');
+
+  if (tab === 'analytics') {
+    // Hide inventory UI
+    inventoryEls.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    // Show analytics
+    analyticsPanel.classList.add('visible');
+    renderAnalyticsPanel();
+  } else {
+    // Show inventory UI
+    inventoryEls.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+    // Hide analytics
+    analyticsPanel.classList.remove('visible');
+    if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
+    analyticsPanel.innerHTML = '';
+    render();
+  }
+}
+
+function renderAnalyticsPanel() {
+  const d = loadData();
+  const items = d.items || [];
+
+  // Build item selector grouped by subCategory
+  let itemOptions = '';
+  const catOrder = Object.keys(currentMode.subCategories);
+  catOrder.forEach(catKey => {
+    const catItems = items.filter(i => i.subCategory === catKey);
+    if (catItems.length === 0) return;
+    const cat = currentMode.subCategories[catKey];
+    itemOptions += `<div style="border-top:1px solid var(--gray-200);margin:4px 0;padding-top:4px;font-size:.7rem;font-weight:700;color:var(--gray-400);text-transform:uppercase">${cat.icon} ${cat.name}</div>`;
+    catItems.forEach(item => {
+      itemOptions += `<label class="multi-select-option"><input type="checkbox" value="${item.id}" onchange="onAnalyticsItemChange(this)"> ${item.name}</label>`;
+    });
+  });
+
+  const panel = document.getElementById('analyticsPanel');
+  panel.innerHTML = `
+    <h3 style="font-size:1.1rem;font-weight:700;color:var(--primary);margin-bottom:16px">📈 Inventory Analytics — ${currentMode.title}</h3>
+    <div class="analytics-controls">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-weight:600">View:</label>
+        <select id="anaView" onchange="updateAnalyticsChart()">
+          <option value="stock">Stock Levels</option>
+          <option value="usage">Usage Trends</option>
+          <option value="orders">Order History</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-weight:600">Granularity:</label>
+        <select id="anaGranularity" onchange="updateAnalyticsChart()">
+          <option value="daily">Per Count</option>
+          <option value="weekly">Weekly Avg</option>
+          <option value="monthly">Monthly Avg</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-weight:600">Items:</label>
+        <div class="multi-select-wrap" id="anaItemWrap">
+          <button class="btn btn-sm btn-white" onclick="toggleAnaItemDropdown()" id="anaItemBtn" style="min-width:180px;text-align:left;justify-content:space-between">
+            All Items (Summary) <span style="font-size:.7rem;opacity:.6">▼</span>
+          </button>
+          <div class="multi-select-dropdown" id="anaItemDropdown" style="display:none">
+            <label class="multi-select-option"><input type="checkbox" value="__all__" checked onchange="onAnalyticsItemChange(this)"> <strong>All Items (Summary)</strong></label>
+            ${itemOptions}
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-weight:600;font-size:.85rem">From:</label>
+        <input type="date" id="anaFrom" style="font-size:.85rem">
+        <label style="font-weight:600;font-size:.85rem">To:</label>
+        <input type="date" id="anaTo" style="font-size:.85rem">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-sm btn-primary" onclick="updateAnalyticsChart()" style="font-weight:700;padding:8px 20px">Go</button>
+        <button class="btn btn-sm btn-white" onclick="clearAnalyticsFilters()">Clear</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-sm btn-primary" onclick="exportAnalyticsExcel()">📊 Export Excel</button>
+      </div>
+    </div>
+    <div class="chart-container"><canvas id="analyticsCanvas"></canvas></div>
+    <div class="pivot-table" id="pivotTable"></div>
+  `;
+
+  // Close dropdown on outside click
+  document.addEventListener('click', function anaClose(e) {
+    const wrap = document.getElementById('anaItemWrap');
+    if (wrap && !wrap.contains(e.target)) {
+      const dd = document.getElementById('anaItemDropdown');
+      if (dd) dd.style.display = 'none';
+    }
+  });
+
+  setTimeout(updateAnalyticsChart, 100);
+}
+
+function toggleAnaItemDropdown() {
+  const dd = document.getElementById('anaItemDropdown');
+  if (dd) dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function getAnaSelectedItems() {
+  const checkboxes = document.querySelectorAll('#anaItemDropdown input[type=checkbox]:checked');
+  return Array.from(checkboxes).map(cb => cb.value);
+}
+
+function onAnalyticsItemChange(cb) {
+  if (cb.value === '__all__') {
+    if (cb.checked) {
+      document.querySelectorAll('#anaItemDropdown input[type=checkbox]').forEach(c => { if (c.value !== '__all__') c.checked = false; });
+    }
+  } else {
+    const allCb = document.querySelector('#anaItemDropdown input[value="__all__"]');
+    if (allCb) allCb.checked = false;
+  }
+  const selected = getAnaSelectedItems();
+  const btn = document.getElementById('anaItemBtn');
+  if (btn) {
+    if (selected.includes('__all__')) btn.innerHTML = 'All Items (Summary) <span style="font-size:.7rem;opacity:.6">▼</span>';
+    else if (selected.length === 0) btn.innerHTML = 'Select items... <span style="font-size:.7rem;opacity:.6">▼</span>';
+    else if (selected.length === 1) {
+      const d = loadData();
+      const item = (d.items || []).find(i => i.id === selected[0]);
+      btn.innerHTML = (item ? item.name : '1 item') + ' <span style="font-size:.7rem;opacity:.6">▼</span>';
+    } else {
+      btn.innerHTML = selected.length + ' items <span style="font-size:.7rem;opacity:.6">▼</span>';
+    }
+  }
+}
+
+function clearAnalyticsFilters() {
+  const f = document.getElementById('anaFrom'); if (f) f.value = '';
+  const t = document.getElementById('anaTo'); if (t) t.value = '';
+  document.querySelectorAll('#anaItemDropdown input[type=checkbox]').forEach(c => { c.checked = c.value === '__all__'; });
+  const btn = document.getElementById('anaItemBtn');
+  if (btn) btn.innerHTML = 'All Items (Summary) <span style="font-size:.7rem;opacity:.6">▼</span>';
+  updateAnalyticsChart();
+}
+
+// Gather all historical count dates from local data
+function getHistoricalDates() {
+  const d = loadData();
+  if (!d.weeks) return [];
+  return Object.keys(d.weeks).filter(k => k !== '__meta').sort();
+}
+
+const ANA_COLORS = ['rgba(30,58,95,.7)','rgba(220,38,38,.7)','rgba(22,163,74,.7)','rgba(245,158,11,.7)','rgba(139,92,246,.7)','rgba(6,182,212,.7)','rgba(236,72,153,.7)','rgba(251,146,60,.7)','rgba(34,211,238,.7)','rgba(163,230,53,.7)'];
+
+function updateAnalyticsChart() {
+  const view = document.getElementById('anaView')?.value || 'stock';
+  const granularity = document.getElementById('anaGranularity')?.value || 'daily';
+  const fromVal = document.getElementById('anaFrom')?.value || '';
+  const toVal = document.getElementById('anaTo')?.value || '';
+  const selectedItems = getAnaSelectedItems();
+  const isAll = selectedItems.includes('__all__') || selectedItems.length === 0;
+
+  const d = loadData();
+  const items = d.items || [];
+  let dates = getHistoricalDates();
+  if (fromVal) dates = dates.filter(dk => dk >= fromVal);
+  if (toVal) dates = dates.filter(dk => dk <= toVal);
+
+  const canvas = document.getElementById('analyticsCanvas');
+  if (!canvas) return;
+  if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
+
+  // For "All Items (Summary)" we aggregate across all items
+  if (isAll) {
+    const dataPoints = [];
+    dates.forEach(dk => {
+      const wd = d.weeks[dk] || {};
+      let totalCount = 0, totalOrder = 0, totalUsage = 0, counted = 0;
+      items.forEach(item => {
+        const id = item.id;
+        const data = wd[id] || {};
+        if (data.count !== undefined && data.count !== '') {
+          totalCount += Number(data.count);
+          counted++;
+          const par = item.par || 0;
+          const autoOrder = Math.max(0, par - Number(data.count));
+          const order = data.manualOrder ? Number(data.orderQty || 0) : autoOrder;
+          totalOrder += order;
+        }
+      });
+      // Usage: find previous date and compute
+      const prevIdx = dates.indexOf(dk) - 1;
+      if (prevIdx >= 0) {
+        const prevDk = dates[prevIdx];
+        const prevWd = d.weeks[prevDk] || {};
+        let usageSum = 0, usageCount = 0;
+        items.forEach(item => {
+          const prevData = prevWd[item.id] || {};
+          const curData = wd[item.id] || {};
+          if (prevData.count !== undefined && prevData.count !== '' && curData.count !== undefined && curData.count !== '') {
+            const prevCount = Number(prevData.count);
+            const par = item.par || 0;
+            const prevAutoOrder = Math.max(0, par - prevCount);
+            const prevOrder = prevData.manualOrder ? Number(prevData.orderQty || 0) : prevAutoOrder;
+            const usage = (prevCount + prevOrder) - Number(curData.count);
+            usageSum += usage;
+            usageCount++;
+          }
+        });
+        totalUsage = usageSum;
+      }
+      dataPoints.push({ date: dk, count: totalCount, order: totalOrder, usage: totalUsage, counted });
+    });
+
+    const aggData = aggregateAnalytics(dataPoints, granularity);
+    let chartData, chartLabel, yLabel;
+    if (view === 'stock') {
+      chartData = aggData.map(p => p.count);
+      chartLabel = 'Total Stock';
+      yLabel = 'Stock Level (total units)';
+    } else if (view === 'usage') {
+      chartData = aggData.map(p => p.usage);
+      chartLabel = 'Total Usage';
+      yLabel = 'Usage (units)';
+    } else {
+      chartData = aggData.map(p => p.order);
+      chartLabel = 'Total Orders';
+      yLabel = 'Order Qty (units)';
+    }
+    const labels = aggData.map(p => p.label);
+
+    analyticsChart = new Chart(canvas, {
+      type: view === 'stock' ? 'line' : 'bar',
+      data: { labels, datasets: [{ label: chartLabel, data: chartData, backgroundColor: 'rgba(30,58,95,.6)', borderColor: '#1e3a5f', borderWidth: 2, fill: view === 'stock', tension: .3 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: yLabel } }, x: { title: { display: true, text: 'Count Date' } } } }
+    });
+
+    // Summary table
+    renderAnalyticsPivotAll(aggData, view);
+
+  } else {
+    // Per-item comparison
+    const targetItems = items.filter(i => selectedItems.includes(i.id));
+    const allLabelsSet = new Set();
+    const perItemAgg = {};
+
+    targetItems.forEach(item => {
+      const dataPoints = [];
+      dates.forEach((dk, idx) => {
+        const wd = d.weeks[dk] || {};
+        const data = wd[item.id] || {};
+        const count = (data.count !== undefined && data.count !== '') ? Number(data.count) : null;
+        const par = item.par || 0;
+        const autoOrder = count !== null ? Math.max(0, par - count) : 0;
+        const order = data.manualOrder ? Number(data.orderQty || 0) : autoOrder;
+        // Usage
+        let usage = 0;
+        if (idx > 0) {
+          const prevDk = dates[idx - 1];
+          const prevWd = d.weeks[prevDk] || {};
+          const prevData = prevWd[item.id] || {};
+          if (prevData.count !== undefined && prevData.count !== '' && count !== null) {
+            const prevCount = Number(prevData.count);
+            const prevAutoOrder = Math.max(0, par - prevCount);
+            const prevOrder = prevData.manualOrder ? Number(prevData.orderQty || 0) : prevAutoOrder;
+            usage = (prevCount + prevOrder) - count;
+          }
+        }
+        if (count !== null) {
+          dataPoints.push({ date: dk, count, order, usage });
+        }
+      });
+      const agg = aggregateAnalytics(dataPoints, granularity);
+      perItemAgg[item.id] = agg;
+      agg.forEach(p => allLabelsSet.add(p.label));
+    });
+
+    const allLabels = Array.from(allLabelsSet).sort();
+    const datasets = targetItems.map((item, idx) => {
+      const agg = perItemAgg[item.id];
+      const labelMap = {};
+      agg.forEach(p => {
+        if (view === 'stock') labelMap[p.label] = p.count;
+        else if (view === 'usage') labelMap[p.label] = p.usage;
+        else labelMap[p.label] = p.order;
+      });
+      const data = allLabels.map(l => labelMap[l] || 0);
+      const color = ANA_COLORS[idx % ANA_COLORS.length];
+      return { label: item.name, data, backgroundColor: color, borderColor: color.replace(/[\d.]+\)$/, '1)'), borderWidth: 2, fill: false, tension: .3 };
+    });
+
+    analyticsChart = new Chart(canvas, {
+      type: view === 'stock' ? 'line' : 'bar',
+      data: { labels: allLabels, datasets },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: true, title: { display: true, text: view === 'stock' ? 'Stock Level' : view === 'usage' ? 'Usage' : 'Order Qty' } }, x: { title: { display: true, text: 'Count Date' } } } }
+    });
+
+    renderAnalyticsPivotMulti(allLabels, targetItems, perItemAgg, view);
+  }
+}
+
+function aggregateAnalytics(dataPoints, granularity) {
+  if (granularity === 'daily') {
+    return dataPoints.map(p => ({ ...p, label: p.date.slice(5) }));
+  }
+  const buckets = {};
+  dataPoints.forEach(p => {
+    let key;
+    if (granularity === 'weekly') {
+      const dt = new Date(p.date + 'T12:00:00');
+      const ws = new Date(dt); ws.setDate(dt.getDate() - dt.getDay());
+      key = `${ws.getFullYear()}-${String(ws.getMonth()+1).padStart(2,'0')}-${String(ws.getDate()).padStart(2,'0')}`;
+    } else {
+      key = p.date.slice(0, 7);
+    }
+    if (!buckets[key]) buckets[key] = { count: 0, order: 0, usage: 0, n: 0 };
+    buckets[key].count += p.count;
+    buckets[key].order += p.order;
+    buckets[key].usage += p.usage;
+    buckets[key].n++;
+  });
+  return Object.keys(buckets).sort().map(key => ({
+    label: key.slice(5),
+    date: key,
+    count: Math.round(buckets[key].count / buckets[key].n),
+    order: Math.round(buckets[key].order / buckets[key].n),
+    usage: Math.round(buckets[key].usage / buckets[key].n)
+  }));
+}
+
+function renderAnalyticsPivotAll(aggData, view) {
+  let html = '<h3 style="margin-bottom:12px">Summary Table</h3>';
+  const metric = view === 'stock' ? 'count' : view === 'usage' ? 'usage' : 'order';
+  const metricLabel = view === 'stock' ? 'Stock Level' : view === 'usage' ? 'Usage' : 'Order Qty';
+  html += '<table><thead><tr><th>Period</th><th style="text-align:center">' + metricLabel + '</th></tr></thead><tbody>';
+  if (aggData.length) {
+    let total = 0;
+    aggData.forEach(p => {
+      const val = p[metric];
+      total += val;
+      html += `<tr><td>${p.label}</td><td style="text-align:center;font-weight:600">${val}</td></tr>`;
+    });
+    const avg = (total / aggData.length).toFixed(1);
+    html += `<tr style="font-weight:700;background:var(--gray-100)"><td>Avg</td><td style="text-align:center">${avg}</td></tr>`;
+  } else {
+    html += '<tr><td colspan="2" style="text-align:center;color:var(--gray-400);padding:20px">No data available for selected filters.</td></tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('pivotTable').innerHTML = html;
+}
+
+function renderAnalyticsPivotMulti(allLabels, targetItems, perItemAgg, view) {
+  const metric = view === 'stock' ? 'count' : view === 'usage' ? 'usage' : 'order';
+  let html = '<h3 style="margin-bottom:12px">Comparison Table</h3><table><thead><tr><th>Period</th>';
+  targetItems.forEach(item => { html += `<th style="text-align:center">${item.name}</th>`; });
+  html += '</tr></thead><tbody>';
+  if (allLabels.length) {
+    const totals = targetItems.map(() => 0);
+    allLabels.forEach(l => {
+      html += `<tr><td>${l}</td>`;
+      targetItems.forEach((item, idx) => {
+        const agg = perItemAgg[item.id];
+        const match = agg.find(p => p.label === l);
+        const val = match ? match[metric] : 0;
+        totals[idx] += val;
+        html += `<td style="text-align:center;font-weight:600">${val}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '<tr style="font-weight:700;background:var(--gray-100)"><td>Avg</td>';
+    totals.forEach(t => { html += `<td style="text-align:center">${(t / allLabels.length).toFixed(1)}</td>`; });
+    html += '</tr>';
+  } else {
+    html += `<tr><td colspan="${targetItems.length + 1}" style="text-align:center;color:var(--gray-400);padding:20px">No data available.</td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('pivotTable').innerHTML = html;
+}
+
+function exportAnalyticsExcel() {
+  const d = loadData();
+  const items = d.items || [];
+  const dates = getHistoricalDates();
+  const rest = RESTAURANTS[restaurantKey];
+
+  // Sheet 1: Stock history per item per date
+  const rows = [['Item', 'Category', 'Vendor', 'Unit', 'Par', ...dates]];
+  items.forEach(item => {
+    const row = [item.name, currentMode.subCategories[item.subCategory]?.name || item.subCategory, item.vendor || '', item.unit, item.par || 0];
+    dates.forEach(dk => {
+      const wd = d.weeks[dk] || {};
+      const data = wd[item.id] || {};
+      row.push(data.count !== undefined ? Number(data.count) : '');
+    });
+    rows.push(row);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Stock History');
+
+  // Sheet 2: Usage per item per date
+  const usageRows = [['Item', 'Category', ...dates]];
+  items.forEach(item => {
+    const row = [item.name, currentMode.subCategories[item.subCategory]?.name || item.subCategory];
+    dates.forEach((dk, idx) => {
+      if (idx === 0) { row.push(''); return; }
+      const prevDk = dates[idx - 1];
+      const wd = d.weeks[dk] || {};
+      const prevWd = d.weeks[prevDk] || {};
+      const data = wd[item.id] || {};
+      const prevData = prevWd[item.id] || {};
+      if (prevData.count !== undefined && prevData.count !== '' && data.count !== undefined && data.count !== '') {
+        const prevCount = Number(prevData.count);
+        const par = item.par || 0;
+        const prevAutoOrder = Math.max(0, par - prevCount);
+        const prevOrder = prevData.manualOrder ? Number(prevData.orderQty || 0) : prevAutoOrder;
+        row.push((prevCount + prevOrder) - Number(data.count));
+      } else {
+        row.push('');
+      }
+    });
+    usageRows.push(row);
+  });
+
+  const ws2 = XLSX.utils.aoa_to_sheet(usageRows);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Usage History');
+
+  XLSX.writeFile(wb, `${rest?.shortName || 'NNC'}_${currentMode.storageKey || 'allnonfrozen'}_Analytics_${dateKey()}.xlsx`);
+  showToast('Analytics Excel exported');
 }
 
 // ==================== TOAST ====================
