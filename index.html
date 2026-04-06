@@ -671,200 +671,98 @@ function showWarehouseDetail(container, loc, color) {
 }
 
 function showIssaquahDetail(container, loc, color) {
+  const profile = getEffectiveProfile();
+  const can = (sk) => canAccessSheet(sk, profile);
+
+  // Helper: build a tile, returns empty string if no access
+  function tile(sheetKey, accentColor, icon, name, desc, freq, extraClick) {
+    if (!can(sheetKey)) return '';
+    const click = extraClick || `openSheet('${sheetKey}')`;
+    return `<div class="sheet-card" onclick="${click}">
+      <div class="accent-bar" style="background:${accentColor}"></div>
+      <div class="icon">${icon}</div>
+      <div class="name">${name}</div>
+      <div class="desc">${desc}</div>
+      <div class="meta">
+        <span class="tag freq">${freq}</span>
+        <span class="tag status-ok">Active</span>
+      </div>
+    </div>`;
+  }
+
+  // Helper: render a section only if it has visible tiles
+  function section(title, badge, tiles, marginTop) {
+    const content = tiles.join('');
+    if (!content) return '';
+    return `<div class="section-title"${marginTop ? ` style="margin-top:20px"` : ''}>${title} <span class="badge">${badge}</span></div>
+    <div class="sheet-grid">${content}</div>`;
+  }
+
+  // Build all sections
+  const dailyOps = section('Daily Operations', 'AM/PM Tracking', [
+    tile('nnc-daily-kitchen', color, '👨‍🍳', 'Kitchen Daily Order', 'Cooked foods from Renton Main Kitchen — AM/PM counts & ordering', 'daily'),
+    tile('nnc-daily-produce', '#059669', '🥬', 'Produce Daily Order', 'Fresh produce inventory — AM/PM counts & ordering', 'daily')
+  ], false);
+
+  const usagePrep = section('Issaquah Daily Usage &amp; Prep Log', 'Daily Tracking', [
+    tile('nnc-naan-roti-log', '#1e3a5f', '🫓', 'Naan/Roti Prep & Usage', 'Daily Naan & Roti tracking — prep (batches, trays, doughballs) and usage (AM/PM counts, waste)', 'daily'),
+    tile('nnc-rice-usage', '#065f46', '🍚', 'Rice Usage Log', 'Daily rice tracking — made, leftover, usage, waste', 'daily'),
+    tile('nnc-chicken-prep', '#92400e', '🍗', 'Raw Chicken Processing', 'Cases, bags, weight, fat, water content tracking', 'daily'),
+    tile('nnc-tikka-prep', '#dc2626', '🍢', 'Tikka (CTM) Processing', 'Raw, cooked, and cutting stages — dark/white meat tracking', 'daily'),
+    tile('nnc-produce-prep', '#15803d', '🧅', 'Produce Prep', 'Onion, potato, paneer processing', 'daily')
+  ], true);
+
+  const otherKitchen = section('Other Kitchen Functions', 'Weekly', [
+    tile('nnc-frozen', '#7c2d12', '🏭', 'Weekly Main Kitchen Inventory', 'Frozen prepared items & spices from NNC Main Kitchen — counted weekly', 'weekly'),
+    tile('nnc-packing-log', '#4338ca', '📦', 'Packing Log', 'Haleem, Keema, Seekh Kabab, Karela, Nehari Sauce', 'daily')
+  ], true);
+
+  const inventoryMain = section('Inventory', 'Main Sections', [
+    tile('nnc-allnonfrozen', '#059669', '📋', 'All Non-Frozen Inventory', 'Combined view — all supplies, dry goods & spices in one place', '2x weekly')
+  ], true);
+
+  const inventoryQuick = section('Inventory Quick Jump', 'By Type', [
+    tile('nnc-supplies', '#059669', '🧴', 'Supplies', 'To-go containers, cleaning, kitchen, office & general supplies', '2x weekly'),
+    tile('nnc-drygoods', '#dc2626', '🌶️', 'Dry Goods & Spices', 'Spices, ingredients, beverages — counted twice per week', '2x weekly'),
+    tile('nnc-storage', '#4338ca', '📦', 'Storage Unit', 'Off-site storage unit — backup supplies, bulk items, overflow stock', 'weekly')
+  ], true);
+
+  const vendors = section('Deliveries / Invoices', 'Vendors', [
+    tile('nnc-vendors', color, '🧾', 'Vendor Info / Invoices', 'Vendor invoices, receipts & images — pulled live from Google Sheets', 'ongoing')
+  ], true);
+
+  // Data corrections — always show "Submit an Edit", "Review" only for owner/manager
+  let dataCorrectionTiles = `<div class="sheet-card" onclick="navigateTo('edit-request.html')">
+    <div class="accent-bar" style="background:#f59e0b"></div>
+    <div class="icon">📝</div>
+    <div class="name">Submit an Edit</div>
+    <div class="desc">Request a correction to historical data — date, item, and correct value</div>
+    <div class="meta">
+      <span class="tag freq">as needed</span>
+      <span class="tag" style="background:#fef3c7;color:#92400e">All Staff</span>
+    </div>
+  </div>`;
+  if (profile?.role === 'owner' || profile?.role === 'manager') {
+    dataCorrectionTiles += `<div class="sheet-card" onclick="navigateTo('edit-requests.html')">
+      <div class="accent-bar" style="background:#2563eb"></div>
+      <div class="icon">📋</div>
+      <div class="name">Review Edit Requests</div>
+      <div class="desc">View and approve/deny pending data correction requests from staff</div>
+      <div class="meta">
+        <span class="tag freq">as needed</span>
+        <span class="tag" style="background:#eff6ff;color:#1e3a5f">Owner/Manager</span>
+      </div>
+    </div>`;
+  }
+  const dataCorrections = `<div class="section-title" style="margin-top:20px">Data Corrections <span class="badge">Edit Requests</span></div>
+    <div class="sheet-grid">${dataCorrectionTiles}</div>`;
+
   container.innerHTML = `
     <div class="detail-header">
       <h2><span style="font-size:1.5rem">${loc.icon}</span> ${loc.shortName}</h2>
       <button class="back-btn" onclick="showLocationsView()">← Back to All Locations</button>
     </div>
-
-    <div class="section-title">Daily Operations <span class="badge">AM/PM Tracking</span></div>
-    <div class="sheet-grid">
-      <div class="sheet-card" onclick="openSheet('nnc-daily-kitchen')">
-        <div class="accent-bar" style="background:${color}"></div>
-        <div class="icon">👨‍🍳</div>
-        <div class="name">Kitchen Daily Order</div>
-        <div class="desc">Cooked foods from Renton Main Kitchen — AM/PM counts & ordering</div>
-        <div class="meta">
-          <span class="tag freq">daily</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-      <div class="sheet-card" onclick="openSheet('nnc-daily-produce')">
-        <div class="accent-bar" style="background:#059669"></div>
-        <div class="icon">🥬</div>
-        <div class="name">Produce Daily Order</div>
-        <div class="desc">Fresh produce inventory — AM/PM counts & ordering</div>
-        <div class="meta">
-          <span class="tag freq">daily</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title" style="margin-top:20px">Issaquah Daily Usage &amp; Prep Log <span class="badge">Daily Tracking</span></div>
-    <div class="sheet-grid">
-      <div class="sheet-card" onclick="openSheet('nnc-naan-roti-log')">
-        <div class="accent-bar" style="background:#1e3a5f"></div>
-        <div class="icon">🫓</div>
-        <div class="name">Naan/Roti Prep & Usage</div>
-        <div class="desc">Daily Naan & Roti tracking — prep (batches, trays, doughballs) and usage (AM/PM counts, waste)</div>
-        <div class="meta">
-          <span class="tag freq">daily</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-      <div class="sheet-card" onclick="openSheet('nnc-rice-usage')">
-        <div class="accent-bar" style="background:#065f46"></div>
-        <div class="icon">🍚</div>
-        <div class="name">Rice Usage Log</div>
-        <div class="desc">Daily rice tracking — made, leftover, usage, waste</div>
-        <div class="meta">
-          <span class="tag freq">daily</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-      <div class="sheet-card" onclick="openSheet('nnc-chicken-prep')">
-        <div class="accent-bar" style="background:#92400e"></div>
-        <div class="icon">🍗</div>
-        <div class="name">Raw Chicken Processing</div>
-        <div class="desc">Cases, bags, weight, fat, water content tracking</div>
-        <div class="meta">
-          <span class="tag freq">daily</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-      <div class="sheet-card" onclick="openSheet('nnc-tikka-prep')">
-        <div class="accent-bar" style="background:#dc2626"></div>
-        <div class="icon">🍢</div>
-        <div class="name">Tikka (CTM) Processing</div>
-        <div class="desc">Raw, cooked, and cutting stages — dark/white meat tracking</div>
-        <div class="meta">
-          <span class="tag freq">daily</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-      <div class="sheet-card" onclick="openSheet('nnc-produce-prep')">
-        <div class="accent-bar" style="background:#15803d"></div>
-        <div class="icon">🧅</div>
-        <div class="name">Produce Prep</div>
-        <div class="desc">Onion, potato, paneer processing</div>
-        <div class="meta">
-          <span class="tag freq">daily</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title" style="margin-top:20px">Other Kitchen Functions <span class="badge">Weekly</span></div>
-    <div class="sheet-grid">
-      <div class="sheet-card" onclick="openSheet('nnc-frozen')">
-        <div class="accent-bar" style="background:#7c2d12"></div>
-        <div class="icon">🏭</div>
-        <div class="name">Weekly Main Kitchen Inventory</div>
-        <div class="desc">Frozen prepared items & spices from NNC Main Kitchen — counted weekly</div>
-        <div class="meta">
-          <span class="tag freq">weekly</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-      <div class="sheet-card" onclick="openSheet('nnc-packing-log')">
-        <div class="accent-bar" style="background:#4338ca"></div>
-        <div class="icon">📦</div>
-        <div class="name">Packing Log</div>
-        <div class="desc">Haleem, Keema, Seekh Kabab, Karela, Nehari Sauce</div>
-        <div class="meta">
-          <span class="tag freq">daily</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title" style="margin-top:20px">Inventory <span class="badge">Main Sections</span></div>
-    <div class="sheet-grid">
-      <div class="sheet-card" onclick="openSheet('nnc-allnonfrozen')">
-        <div class="accent-bar" style="background:#059669"></div>
-        <div class="icon">📋</div>
-        <div class="name">All Non-Frozen Inventory</div>
-        <div class="desc">Combined view — all supplies, dry goods & spices in one place</div>
-        <div class="meta">
-          <span class="tag freq">2x weekly</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title" style="margin-top:20px">Inventory Quick Jump <span class="badge">By Type</span></div>
-    <div class="sheet-grid">
-      <div class="sheet-card" onclick="openSheet('nnc-supplies')">
-        <div class="accent-bar" style="background:#059669"></div>
-        <div class="icon">🧴</div>
-        <div class="name">Supplies</div>
-        <div class="desc">To-go containers, cleaning, kitchen, office & general supplies</div>
-        <div class="meta">
-          <span class="tag freq">2x weekly</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-      <div class="sheet-card" onclick="openSheet('nnc-drygoods')">
-        <div class="accent-bar" style="background:#dc2626"></div>
-        <div class="icon">🌶️</div>
-        <div class="name">Dry Goods & Spices</div>
-        <div class="desc">Spices, ingredients, beverages — counted twice per week</div>
-        <div class="meta">
-          <span class="tag freq">2x weekly</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-      <div class="sheet-card" onclick="openSheet('nnc-storage')">
-        <div class="accent-bar" style="background:#4338ca"></div>
-        <div class="icon">📦</div>
-        <div class="name">Storage Unit</div>
-        <div class="desc">Off-site storage unit — backup supplies, bulk items, overflow stock</div>
-        <div class="meta">
-          <span class="tag freq">weekly</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title" style="margin-top:20px">Deliveries / Invoices <span class="badge">Vendors</span></div>
-    <div class="sheet-grid">
-      <div class="sheet-card" onclick="openSheet('nnc-vendors')">
-        <div class="accent-bar" style="background:${color}"></div>
-        <div class="icon">🧾</div>
-        <div class="name">Vendor Info / Invoices</div>
-        <div class="desc">Vendor invoices, receipts & images — pulled live from Google Sheets</div>
-        <div class="meta">
-          <span class="tag freq">ongoing</span>
-          <span class="tag status-ok">Active</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title" style="margin-top:20px">Data Corrections <span class="badge">Edit Requests</span></div>
-    <div class="sheet-grid">
-      <div class="sheet-card" onclick="navigateTo('edit-request.html')">
-        <div class="accent-bar" style="background:#f59e0b"></div>
-        <div class="icon">📝</div>
-        <div class="name">Submit an Edit</div>
-        <div class="desc">Request a correction to historical data — date, item, and correct value</div>
-        <div class="meta">
-          <span class="tag freq">as needed</span>
-          <span class="tag" style="background:#fef3c7;color:#92400e">All Staff</span>
-        </div>
-      </div>
-      ${getEffectiveProfile()?.role === 'owner' || getEffectiveProfile()?.role === 'manager' ? `
-      <div class="sheet-card" onclick="navigateTo('edit-requests.html')">
-        <div class="accent-bar" style="background:#2563eb"></div>
-        <div class="icon">📋</div>
-        <div class="name">Review Edit Requests</div>
-        <div class="desc">View and approve/deny pending data correction requests from staff</div>
-        <div class="meta">
-          <span class="tag freq">as needed</span>
-          <span class="tag" style="background:#eff6ff;color:#1e3a5f">Owner/Manager</span>
-        </div>
-      </div>` : ''}
-    </div>
+    ${dailyOps}${usagePrep}${otherKitchen}${inventoryMain}${inventoryQuick}${vendors}${dataCorrections}
   `;
   container.classList.add('visible');
 }
