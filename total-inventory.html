@@ -150,10 +150,9 @@
     }
 
     .card.warehouse { border-left-color: #4338ca; }
-    .card.ondemand { border-left-color: #9333ea; }
     .card.nnc-iss { border-left-color: #1e3a5f; }
-    .card.nnc-renton { border-left-color: #0f766e; }
-    .card.babas { border-left-color: #7c2d12; }
+    .card.storage { border-left-color: #6d28d9; }
+    .card.ondemand { border-left-color: #9333ea; }
 
     /* Filters */
     .filters {
@@ -238,27 +237,38 @@
 
     tbody tr {
       border-bottom: 1px solid #e5e7eb;
-      transition: background 0.2s;
+      transition: background 0.15s;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f9fafb;
     }
 
     tbody tr:hover {
-      background: #f9fafb;
+      background: #eef2ff;
     }
 
     tbody tr.totals {
       background: #f3f4f6;
       font-weight: 600;
-      border-top: 2px solid #e5e7eb;
+      border-top: 2px solid #d1d5db;
     }
 
     tbody td {
-      padding: 1rem;
+      padding: 0.75rem 1rem;
       font-size: 0.875rem;
     }
 
-    /* Category column */
-    .category-cell {
-      font-weight: 500;
+    /* Category badge */
+    .cat-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      white-space: nowrap;
     }
 
     /* Quantity cells */
@@ -270,21 +280,6 @@
     .qty-cell.zero {
       color: #9ca3af;
     }
-
-    .qty-cell.warehouse { color: #4338ca; }
-    .qty-cell.warehouse.nonzero { font-weight: 600; }
-
-    .qty-cell.ondemand { color: #9333ea; }
-    .qty-cell.ondemand.nonzero { font-weight: 600; }
-
-    .qty-cell.nnc-iss { color: #1e3a5f; }
-    .qty-cell.nnc-iss.nonzero { font-weight: 600; }
-
-    .qty-cell.nnc-renton { color: #0f766e; }
-    .qty-cell.nnc-renton.nonzero { font-weight: 600; }
-
-    .qty-cell.babas { color: #7c2d12; }
-    .qty-cell.babas.nonzero { font-weight: 600; }
 
     .qty-cell.total {
       color: #1f2937;
@@ -362,13 +357,13 @@
   <header>
     <h1>📊 Total Operational Inventory</h1>
     <div class="header-actions">
-      <a href="index.html" class="btn-back">← Dashboard</a>
       <button id="signOutBtn">Sign Out</button>
     </div>
   </header>
 
   <!-- Main Content -->
   <main>
+    <a href="index.html" style="display:inline-flex;align-items:center;gap:6px;background:#059669;color:white;font-size:.85rem;font-weight:600;text-decoration:none;padding:8px 16px;border-radius:8px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.12)">← Back to Dashboard</a>
     <!-- Summary Cards -->
     <div class="summary-cards" id="summaryCards"></div>
 
@@ -382,11 +377,6 @@
         <label for="categoryFilter">Category</label>
         <select id="categoryFilter">
           <option value="">All Categories</option>
-          <option value="frozen">Frozen</option>
-          <option value="togo">Togo/Packaging</option>
-          <option value="supplies">Supplies</option>
-          <option value="ingredients">Ingredients</option>
-          <option value="catering">Catering</option>
         </select>
       </div>
       <div class="filter-group">
@@ -394,10 +384,9 @@
         <select id="locationFilter">
           <option value="">All Locations</option>
           <option value="renton-wh">Warehouse</option>
-          <option value="ondemand-renton">On Demand</option>
           <option value="nnc-iss">Issaquah</option>
-          <option value="nnc-renton">Renton</option>
-          <option value="babas-bel">Baba's</option>
+          <option value="nnc-iss-storage">Issaquah Storage</option>
+          <option value="ondemand-renton">On Demand Renton</option>
         </select>
       </div>
       <div class="filter-group">
@@ -427,51 +416,60 @@
 
   <!-- Main Script -->
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAvOFC9jqt-nSk26uN6CVXoDr6O-JnXz3k",
-      authDomain: "nnc-inventory.firebaseapp.com",
-      projectId: "nnc-inventory",
-      storageBucket: "nnc-inventory.firebasestorage.app",
-      messagingSenderId: "315174538558",
-      appId: "1:315174538558:web:2c34c11ea6e99bfbb3706f"
+    // Firebase already initialized by shared.js — reuse firebaseConfig, db, and auth
+
+    // ==================== LOCATION CONFIG ====================
+    const LOC_KEYS = ['renton-wh', 'nnc-iss', 'nnc-iss-storage', 'ondemand-renton'];
+    const LOC_LABELS = {
+      'renton-wh':       { name: 'Warehouse',       icon: '🏭', color: '#4338ca', css: 'warehouse' },
+      'nnc-iss':         { name: 'Issaquah',         icon: '🍛', color: '#1e3a5f', css: 'nnc-iss' },
+      'nnc-iss-storage': { name: 'Issaquah Storage', icon: '📦', color: '#6d28d9', css: 'storage' },
+      'ondemand-renton': { name: 'On Demand Renton', icon: '⚡', color: '#9333ea', css: 'ondemand' }
     };
 
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
+    // Future locations — shown as empty columns
+    const FUTURE_LOCS = ['nnc-renton', 'babas-bel'];
 
-    const db = firebase.firestore();
-    const auth = firebase.auth();
-
-    const LOC_KEYS = ['renton-wh', 'ondemand-renton', 'nnc-iss', 'nnc-renton', 'babas-bel'];
-    const LOC_LABELS = {
-      'renton-wh': { name: 'Warehouse', icon: '🏭', color: '#4338ca' },
-      'ondemand-renton': { name: 'On Demand', icon: '⚡', color: '#9333ea' },
-      'nnc-iss': { name: 'Issaquah', icon: '🍛', color: '#1e3a5f' },
-      'nnc-renton': { name: 'Renton', icon: '🍛', color: '#0f766e' },
-      'babas-bel': { name: "Baba's", icon: '🥘', color: '#7c2d12' }
+    // ==================== CATEGORY CONFIG ====================
+    const CATEGORY_LABELS = {
+      // Warehouse sections
+      frozen: 'Frozen', togo: 'Togo/Packaging', supplies: 'Supplies',
+      ingredients: 'Ingredients', catering: 'Catering',
+      // Drygoods sub-categories
+      spices: 'Spices', beverages: 'Beverages',
+      // Storage categories
+      diningware: 'Diningware', paper: 'Paper Goods', cleaning: 'Cleaning',
+      equipment: 'Equipment',
+      // Frozen sub-categories
+      prepared: 'Prepared Items', container: 'Container/Frozen',
+      // General
+      general: 'General', other: 'Other', drygoods: 'Dry Goods',
+      kitchen: 'Kitchen Daily', produce: 'Produce Daily',
+      office: 'Office Supplies', togo_supplies: 'Togo/Supplies'
     };
 
     const CATEGORY_EMOJI = {
-      frozen: '🧊',
-      togo: '📦',
-      supplies: '🔧',
-      ingredients: '🥘',
-      catering: '🍽️'
+      frozen: '🧊', togo: '📦', supplies: '🔧', ingredients: '🥘', catering: '🍽️',
+      spices: '🌶️', beverages: '🥤', diningware: '🍽️', paper: '📄', cleaning: '🧹',
+      equipment: '⚙️', prepared: '🍱', container: '📦', general: '📦', other: '📋',
+      drygoods: '🌶️', kitchen: '🍳', produce: '🥬', togo_supplies: '📦', office: '🖊️'
     };
 
-    const CATEGORY_LABELS = {
-      frozen: 'Frozen',
-      togo: 'Togo',
-      supplies: 'Supplies',
-      ingredients: 'Ingredients',
-      catering: 'Catering'
+    // Color for category badges
+    const CATEGORY_COLORS = {
+      frozen: '#3b82f6', togo: '#7c2d12', supplies: '#0891b2', ingredients: '#b45309',
+      catering: '#7c3aed', spices: '#dc2626', beverages: '#2563eb', diningware: '#6d28d9',
+      paper: '#64748b', cleaning: '#0d9488', equipment: '#475569', prepared: '#92400e',
+      container: '#4338ca', general: '#059669', other: '#6b7280', drygoods: '#b45309',
+      kitchen: '#ea580c', produce: '#16a34a', office: '#4338ca', togo_supplies: '#7c2d12'
     };
 
+    // ==================== STATE ====================
+    // items: { itemId: { name, category, unit, source } }
+    let allItems = {};
+    // inventory: { locKey: { itemId: quantity } }
     let inventory = {};
-    let items = {};
-    let transfers = [];
-    let interTransfers = [];
+    let dataLoaded = false;
     let userLoggedIn = false;
 
     const loginOverlay = document.getElementById('loginOverlay');
@@ -484,12 +482,38 @@
     const tableContainer = document.getElementById('tableContainer');
     const summaryCards = document.getElementById('summaryCards');
 
-    // Auth State
+    // ==================== HELPERS ====================
+    function today() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function getWeekStart() {
+      const d = new Date();
+      d.setHours(0,0,0,0);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+      d.setDate(diff);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function registerItem(id, name, category, unit, source) {
+      if (!allItems[id]) {
+        allItems[id] = { name: name || id, category: category || 'other', unit: unit || '', source };
+      }
+    }
+
+    function addQty(loc, itemId, qty) {
+      if (!inventory[loc]) inventory[loc] = {};
+      inventory[loc][itemId] = (inventory[loc][itemId] || 0) + Number(qty || 0);
+    }
+
+    // ==================== AUTH ====================
     auth.onAuthStateChanged((user) => {
       if (user) {
         userLoggedIn = true;
         loginOverlay.classList.add('hidden');
-        loadData();
+        loadAllData();
       } else {
         userLoggedIn = false;
         loginOverlay.classList.remove('hidden');
@@ -513,30 +537,32 @@
       }
     }
 
-    signOutBtn.addEventListener('click', () => {
-      auth.signOut();
-    });
+    signOutBtn.addEventListener('click', () => { auth.signOut(); });
 
-    async function loadData() {
-      tableContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading inventory...</p></div>';
+    // ==================== MAIN DATA LOADER ====================
+    async function loadAllData() {
+      tableContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading inventory from all locations...</p></div>';
+
+      // Reset state
+      allItems = {};
+      inventory = {};
+      LOC_KEYS.forEach(loc => { inventory[loc] = {}; });
+
+      const ds = today();
+      const wk = getWeekStart();
 
       try {
-        // Load warehouse config and items
-        await loadWarehouseConfig();
+        await Promise.all([
+          loadWarehouse(ds),
+          loadIssaquahDrygoods(ds),
+          loadIssaquahSupplies(ds),
+          loadIssaquahFrozen(ds),
+          loadIssaquahStorage(wk),
+          loadOnDemandRenton(ds)
+        ]);
 
-        // Load warehouse weeks data
-        await loadWarehouseWeeks();
-
-        // Load restaurant configs
-        await loadRestaurantConfigs();
-
-        // Subscribe to transfers
-        subscribeToTransfers();
-
-        // Subscribe to inter-transfers
-        subscribeToInterTransfers();
-
-        // Render initial state
+        dataLoaded = true;
+        populateCategoryFilter();
         render();
       } catch (error) {
         console.error('Error loading data:', error);
@@ -544,280 +570,242 @@
       }
     }
 
-    async function loadWarehouseConfig() {
+    // ==================== WAREHOUSE (renton-wh) ====================
+    async function loadWarehouse(ds) {
+      const WH_SECTIONS = ['frozen', 'togo', 'supplies', 'ingredients', 'catering'];
+
+      // 1. Load items from config
       try {
-        const doc = await db.collection('warehouse_config').doc('warehouse_renton-wh').get();
-        if (doc.exists) {
-          const data = doc.data();
+        const configDoc = await db.collection('warehouse_config').doc('warehouse_renton-wh').get();
+        if (configDoc.exists) {
+          const data = configDoc.data();
           if (data.items) {
-            // Index items by category
-            ['frozen', 'togo', 'supplies', 'ingredients', 'catering'].forEach(cat => {
-              if (data.items[cat]) {
-                items[cat] = data.items[cat];
+            WH_SECTIONS.forEach(cat => {
+              if (data.items[cat] && Array.isArray(data.items[cat])) {
+                data.items[cat].forEach(item => {
+                  registerItem(item.id, item.name, cat, item.unit, 'Warehouse');
+                });
               }
             });
           }
         }
-      } catch (error) {
-        console.error('Error loading warehouse config:', error);
+      } catch(e) { console.error('Warehouse config error:', e); }
+
+      // 2. Load quantities — try today's date first, fall back to most recent
+      for (const section of WH_SECTIONS) {
+        try {
+          // Try today's doc first
+          const todayDoc = await db.collection('warehouse_weeks').doc(`warehouse_renton-wh_${ds}_${section}`).get();
+          if (todayDoc.exists) {
+            extractWarehouseQty(todayDoc.data(), section);
+          } else {
+            // Fall back: query most recent doc for this section
+            const snap = await db.collection('warehouse_weeks')
+              .where('__name__', '>=', `warehouse_renton-wh_2025`)
+              .where('__name__', '<=', `warehouse_renton-wh_${ds}_${section}\uf8ff`)
+              .orderBy('__name__', 'desc')
+              .limit(20)
+              .get();
+            for (const doc of snap.docs) {
+              if (doc.id.endsWith('_' + section)) {
+                extractWarehouseQty(doc.data(), section);
+                break;
+              }
+            }
+          }
+        } catch(e) { console.error(`Warehouse ${section} error:`, e); }
       }
     }
 
-    async function loadWarehouseWeeks() {
-      try {
-        const snapshot = await db.collection('warehouse_weeks')
-          .where('__name__', '>=', 'warehouse_renton-wh_2026')
-          .orderBy('__name__', 'desc')
-          .limit(100)
-          .get();
-
-        if (!snapshot.empty) {
-          const docs = snapshot.docs;
-          const categories = ['frozen', 'togo', 'supplies', 'ingredients', 'catering'];
-
-          // Find most recent doc for each category
-          const latestByCat = {};
-          docs.forEach(doc => {
-            const docId = doc.id;
-            categories.forEach(cat => {
-              if (docId.includes('_' + cat) && !latestByCat[cat]) {
-                latestByCat[cat] = doc.data();
-              }
+    function extractWarehouseQty(data, section) {
+      // warehouse_weeks docs store counts in a nested weeks object or flat counts
+      if (data.counts) {
+        Object.entries(data.counts).forEach(([itemId, qty]) => {
+          addQty('renton-wh', itemId, qty);
+        });
+      }
+      // Also check for weeks-style data: weeks[key][itemId].count
+      if (data.weeks) {
+        Object.values(data.weeks).forEach(weekData => {
+          if (typeof weekData === 'object') {
+            Object.entries(weekData).forEach(([itemId, val]) => {
+              if (itemId.startsWith('__')) return;
+              const count = typeof val === 'object' ? (val.count || 0) : Number(val || 0);
+              if (count) addQty('renton-wh', itemId, count);
             });
-          });
-
-          // Initialize inventory from warehouse weeks
-          LOC_KEYS.forEach(loc => {
-            inventory[loc] = inventory[loc] || {};
-          });
-
-          categories.forEach(cat => {
-            if (latestByCat[cat]) {
-              const counts = latestByCat[cat].counts || {};
-              Object.entries(counts).forEach(([itemId, qty]) => {
-                inventory['renton-wh'] = inventory['renton-wh'] || {};
-                inventory['renton-wh'][itemId] = (inventory['renton-wh'][itemId] || 0) + qty;
-              });
-            }
-          });
-        }
-      } catch (error) {
-        console.error('Error loading warehouse weeks:', error);
+          }
+        });
       }
     }
 
-    async function loadRestaurantConfigs() {
+    // ==================== ISSAQUAH DRYGOODS (nnc-iss) ====================
+    async function loadIssaquahDrygoods(ds) {
+      await loadInventorySource('drygoods', 'nnc-iss', ds, 'Issaquah Dry Goods');
+    }
+
+    // ==================== ISSAQUAH SUPPLIES (nnc-iss) ====================
+    async function loadIssaquahSupplies(ds) {
+      await loadInventorySource('supplies', 'nnc-iss', ds, 'Issaquah Supplies');
+    }
+
+    // ==================== ISSAQUAH FROZEN (nnc-iss) ====================
+    async function loadIssaquahFrozen(ds) {
+      await loadInventorySource('frozen', 'nnc-iss', ds, 'Issaquah Frozen');
+    }
+
+    // ==================== ON DEMAND RENTON ====================
+    async function loadOnDemandRenton(ds) {
+      // On Demand can use drygoods and/or supplies storage keys
+      await loadInventorySource('drygoods', 'ondemand-renton', ds, 'On Demand');
+      await loadInventorySource('supplies', 'ondemand-renton', ds, 'On Demand');
+    }
+
+    // ==================== GENERIC: inventory_config + inventory_weeks loader ====================
+    async function loadInventorySource(storageKey, restaurantKey, ds, sourceName) {
+      const configPath = `${storageKey}_${restaurantKey}`;
+      const loc = restaurantKey === 'ondemand-renton' ? 'ondemand-renton' : 'nnc-iss';
+
+      // 1. Load item definitions from config
       try {
-        const restaurants = ['nnc-iss', 'nnc-renton', 'babas-bel'];
-        for (const rest of restaurants) {
-          try {
-            const doc = await db.collection('inventory_config').doc(rest).get();
-            if (doc.exists) {
-              const data = doc.data();
-              if (data.items) {
-                Object.assign(items, data.items);
-              }
-            }
-          } catch (e) {
-            console.log(`No config for ${rest}`);
+        const configDoc = await db.collection('inventory_config').doc(configPath).get();
+        if (configDoc.exists) {
+          const data = configDoc.data();
+          const itemList = data.items || [];
+          if (Array.isArray(itemList)) {
+            itemList.forEach(item => {
+              registerItem(item.id, item.name, item.subCategory || storageKey, item.unit, sourceName);
+            });
           }
         }
-      } catch (error) {
-        console.error('Error loading restaurant configs:', error);
-      }
-    }
+      } catch(e) { console.error(`Config ${configPath} error:`, e); }
 
-    function subscribeToTransfers() {
-      db.collection('warehouse_transfers')
-        .orderBy('timestamp', 'desc')
-        .limit(500)
-        .onSnapshot(snapshot => {
-          transfers = [];
-          snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.status !== 'rejected') {
-              transfers.push(data);
-            }
-          });
-          processTransfers();
-          render();
-        }, error => console.error('Transfer subscription error:', error));
-    }
-
-    function subscribeToInterTransfers() {
-      db.collection('inter_transfers')
-        .orderBy('timestamp', 'desc')
-        .limit(300)
-        .onSnapshot(snapshot => {
-          interTransfers = [];
-          snapshot.forEach(doc => {
-            interTransfers.push(doc.data());
-          });
-          processInterTransfers();
-          render();
-        }, error => console.error('Inter-transfer subscription error:', error));
-    }
-
-    function processTransfers() {
-      // Reset transfer-based quantities
-      LOC_KEYS.forEach(loc => {
-        inventory[loc] = inventory[loc] || {};
-      });
-
-      transfers.forEach(t => {
-        if (t.from && t.to && t.items) {
-          Object.entries(t.items).forEach(([itemId, qty]) => {
-            // From location loses qty
-            inventory[t.from] = inventory[t.from] || {};
-            inventory[t.from][itemId] = (inventory[t.from][itemId] || 0) - qty;
-
-            // To location gains qty
-            inventory[t.to] = inventory[t.to] || {};
-            inventory[t.to][itemId] = (inventory[t.to][itemId] || 0) + qty;
+      // 2. Load quantities for today
+      try {
+        const weekDocPath = `${storageKey}_${restaurantKey}_${ds}`;
+        const weekDoc = await db.collection('inventory_weeks').doc(weekDocPath).get();
+        if (weekDoc.exists) {
+          const data = weekDoc.data();
+          Object.entries(data).forEach(([itemId, val]) => {
+            if (itemId.startsWith('__') || itemId === 'updatedAt' || itemId === 'updatedBy') return;
+            const count = typeof val === 'object' ? (val.count || 0) : Number(val || 0);
+            if (count) addQty(loc, itemId, count);
           });
         }
-      });
+      } catch(e) { console.error(`Weeks ${storageKey}_${restaurantKey} error:`, e); }
     }
 
-    function processInterTransfers() {
-      interTransfers.forEach(t => {
-        if (t.from && t.to && t.items) {
-          Object.entries(t.items).forEach(([itemId, qty]) => {
-            inventory[t.from] = inventory[t.from] || {};
-            inventory[t.to] = inventory[t.to] || {};
-            inventory[t.from][itemId] = (inventory[t.from][itemId] || 0) - qty;
-            inventory[t.to][itemId] = (inventory[t.to][itemId] || 0) + qty;
-          });
-        }
-      });
-    }
+    // ==================== ISSAQUAH STORAGE (nnc-iss-storage) ====================
+    async function loadIssaquahStorage(wk) {
+      const STORAGE_CATS = ['togo', 'supplies', 'ingredients', 'diningware', 'catering'];
 
-    function getItemCategory(itemId) {
-      for (const [cat, itemList] of Object.entries(items)) {
-        if (itemList && Array.isArray(itemList)) {
-          if (itemList.find(i => i.id === itemId)) {
-            return cat;
+      // 1. Load item definitions
+      try {
+        const configDoc = await db.collection('storage_config').doc('storage_nnc-iss').get();
+        if (configDoc.exists) {
+          const data = configDoc.data();
+          const itemList = data.items || [];
+          if (Array.isArray(itemList)) {
+            itemList.forEach(item => {
+              registerItem(item.id, item.name, item.category || 'other', item.unit, 'Issaquah Storage');
+            });
           }
         }
+      } catch(e) { console.error('Storage config error:', e); }
+
+      // 2. Load quantities for current week, per category
+      for (const cat of STORAGE_CATS) {
+        try {
+          const docPath = `storage_nnc-iss_${wk}_${cat}`;
+          const weekDoc = await db.collection('storage_weeks').doc(docPath).get();
+          if (weekDoc.exists) {
+            const data = weekDoc.data();
+            Object.entries(data).forEach(([itemId, val]) => {
+              if (itemId.startsWith('__') || itemId === 'updatedAt' || itemId === 'updatedBy') return;
+              const count = typeof val === 'object' ? (val.count || 0) : Number(val || 0);
+              if (count) addQty('nnc-iss-storage', itemId, count);
+            });
+          }
+        } catch(e) { console.error(`Storage ${cat} error:`, e); }
       }
-      return null;
     }
 
-    function getItemName(itemId) {
-      for (const [cat, itemList] of Object.entries(items)) {
-        if (itemList && Array.isArray(itemList)) {
-          const item = itemList.find(i => i.id === itemId);
-          if (item) return item.name || itemId;
-        }
-      }
-      return itemId;
+    // ==================== DYNAMIC CATEGORY FILTER ====================
+    function populateCategoryFilter() {
+      const cats = new Set();
+      Object.values(allItems).forEach(item => {
+        if (item.category) cats.add(item.category);
+      });
+
+      const select = categoryFilter;
+      // Keep "All" option
+      select.innerHTML = '<option value="">All Categories</option>';
+      Array.from(cats).sort().forEach(cat => {
+        const label = CATEGORY_LABELS[cat] || cat;
+        const emoji = CATEGORY_EMOJI[cat] || '';
+        select.innerHTML += `<option value="${cat}">${emoji} ${label}</option>`;
+      });
     }
 
-    function getItemUnit(itemId) {
-      for (const [cat, itemList] of Object.entries(items)) {
-        if (itemList && Array.isArray(itemList)) {
-          const item = itemList.find(i => i.id === itemId);
-          if (item) return item.unit || '';
-        }
-      }
-      return '';
-    }
-
+    // ==================== FILTERING & SORTING ====================
     function getFilteredItems() {
       const searchTerm = searchInput.value.toLowerCase();
       const catFilter = categoryFilter.value;
       const locFilter = locationFilter.value;
 
-      const allItemIds = new Set();
-
-      // Collect all unique item IDs
-      ['frozen', 'togo', 'supplies', 'ingredients', 'catering'].forEach(cat => {
-        if (items[cat] && Array.isArray(items[cat])) {
-          items[cat].forEach(item => allItemIds.add(item.id));
-        }
-      });
-
-      LOC_KEYS.forEach(loc => {
-        if (inventory[loc]) {
-          Object.keys(inventory[loc]).forEach(itemId => allItemIds.add(itemId));
-        }
-      });
-
-      let filtered = Array.from(allItemIds).map(itemId => {
-        const cat = getItemCategory(itemId);
-        const name = getItemName(itemId);
-        const unit = getItemUnit(itemId);
+      let filtered = Object.entries(allItems).map(([itemId, meta]) => {
         const quantities = {};
         let total = 0;
-
         LOC_KEYS.forEach(loc => {
           const qty = Math.max(0, inventory[loc]?.[itemId] || 0);
           quantities[loc] = qty;
           total += qty;
         });
-
-        return { itemId, name, cat, unit, quantities, total };
+        return { itemId, name: meta.name, cat: meta.category, unit: meta.unit, source: meta.source, quantities, total };
       });
 
-      // Apply filters
       if (searchTerm) {
         filtered = filtered.filter(i => i.name.toLowerCase().includes(searchTerm));
       }
-
       if (catFilter) {
         filtered = filtered.filter(i => i.cat === catFilter);
       }
-
       if (locFilter) {
-        filtered = filtered.filter(i => i.quantities[locFilter] > 0);
+        filtered = filtered.filter(i => (i.quantities[locFilter] || 0) > 0);
       }
 
       return filtered;
     }
 
-    function getSortedItems(items) {
+    function getSortedItems(list) {
       const sortType = sortFilter.value;
-      const sorted = [...items];
-
-      if (sortType === 'name-asc') {
-        sorted.sort((a, b) => a.name.localeCompare(b.name));
-      } else if (sortType === 'name-desc') {
-        sorted.sort((a, b) => b.name.localeCompare(a.name));
-      } else if (sortType === 'total-desc') {
-        sorted.sort((a, b) => b.total - a.total);
-      } else if (sortType === 'total-asc') {
-        sorted.sort((a, b) => a.total - b.total);
-      }
-
+      const sorted = [...list];
+      if (sortType === 'name-asc') sorted.sort((a, b) => a.name.localeCompare(b.name));
+      else if (sortType === 'name-desc') sorted.sort((a, b) => b.name.localeCompare(a.name));
+      else if (sortType === 'total-desc') sorted.sort((a, b) => b.total - a.total);
+      else if (sortType === 'total-asc') sorted.sort((a, b) => a.total - b.total);
       return sorted;
     }
 
+    // ==================== RENDER ====================
     function renderSummaryCards() {
-      const cards = [];
-      const totals = {};
-
-      LOC_KEYS.forEach(loc => {
-        totals[loc] = 0;
-        if (inventory[loc]) {
-          Object.values(inventory[loc]).forEach(qty => {
-            totals[loc] += Math.max(0, qty);
-          });
-        }
-      });
-
+      summaryCards.innerHTML = '';
       LOC_KEYS.forEach(loc => {
         const label = LOC_LABELS[loc];
+        let total = 0;
+        if (inventory[loc]) {
+          Object.values(inventory[loc]).forEach(qty => { total += Math.max(0, qty); });
+        }
+        const uniqueItems = inventory[loc] ? Object.keys(inventory[loc]).filter(k => inventory[loc][k] > 0).length : 0;
         const card = document.createElement('div');
-        card.className = `card ${loc}`;
+        card.className = `card ${label.css}`;
+        card.style.borderLeftColor = label.color;
         card.innerHTML = `
           <h3>${label.icon} ${label.name}</h3>
-          <div class="total">${Math.round(totals[loc])}</div>
+          <div class="total">${Math.round(total)}</div>
+          <div style="font-size:.75rem;color:#6b7280;margin-top:4px">${uniqueItems} items</div>
         `;
-        cards.push(card);
+        summaryCards.appendChild(card);
       });
-
-      summaryCards.innerHTML = '';
-      cards.forEach(card => summaryCards.appendChild(card));
     }
 
     function renderTable() {
@@ -825,7 +813,7 @@
       const sortedItems = getSortedItems(filteredItems);
 
       if (sortedItems.length === 0) {
-        tableContainer.innerHTML = '<div class="empty-state"><p>No items found.</p></div>';
+        tableContainer.innerHTML = '<div class="empty-state"><p>No items found matching your filters.</p></div>';
         return;
       }
 
@@ -835,62 +823,62 @@
             <tr>
               <th>Category</th>
               <th class="sortable" data-sort="name">Item</th>
-              <th class="qty-cell">Warehouse</th>
-              <th class="qty-cell">On Demand</th>
-              <th class="qty-cell">Issaquah</th>
-              <th class="qty-cell">Renton</th>
-              <th class="qty-cell">Baba's</th>
-              <th class="qty-cell sortable" data-sort="total">Total</th>
+              <th>Unit</th>`;
+
+      LOC_KEYS.forEach(loc => {
+        const label = LOC_LABELS[loc];
+        html += `<th class="qty-cell" style="color:${label.color}">${label.icon} ${label.name}</th>`;
+      });
+
+      html += `<th class="qty-cell sortable" data-sort="total">Total</th>
             </tr>
           </thead>
-          <tbody>
-      `;
+          <tbody>`;
 
-      let grandTotal = {};
+      const grandTotal = {};
       LOC_KEYS.forEach(loc => { grandTotal[loc] = 0; });
+      let grandSum = 0;
 
       sortedItems.forEach(item => {
-        const catEmoji = CATEGORY_EMOJI[item.cat] || '❓';
-        const catLabel = CATEGORY_LABELS[item.cat] || item.cat || 'Unknown';
+        const catEmoji = CATEGORY_EMOJI[item.cat] || '📋';
+        const catLabel = CATEGORY_LABELS[item.cat] || item.cat || 'Other';
+        const catColor = CATEGORY_COLORS[item.cat] || '#6b7280';
 
-        html += `
-          <tr>
-            <td class="category-cell">${catEmoji} ${catLabel}</td>
-            <td>${item.name}</td>
-        `;
+        html += `<tr>
+          <td><span class="cat-badge" style="background:${catColor}15;color:${catColor};border:1px solid ${catColor}30">${catEmoji} ${catLabel}</span></td>
+          <td style="font-weight:500">${item.name}</td>
+          <td style="color:#9ca3af;font-size:.8rem">${item.unit}</td>`;
 
         LOC_KEYS.forEach(loc => {
           const qty = item.quantities[loc];
           const isZero = qty === 0;
-          const cls = isZero ? 'zero' : `nonzero ${loc}`;
+          const color = LOC_LABELS[loc].color;
           const display = isZero ? '—' : Math.round(qty);
-          html += `<td class="qty-cell ${cls}">${display}</td>`;
+          const style = isZero ? 'color:#d1d5db' : `color:${color};font-weight:600`;
+          html += `<td class="qty-cell" style="${style}">${display}</td>`;
           grandTotal[loc] += qty;
         });
 
+        grandSum += item.total;
         html += `<td class="qty-cell total">${Math.round(item.total)}</td></tr>`;
       });
 
-      // Totals row
-      html += `<tr class="totals"><td colspan="2">TOTAL</td>`;
+      // Grand totals row
+      html += `<tr class="totals"><td colspan="3">TOTAL (${sortedItems.length} items)</td>`;
       LOC_KEYS.forEach(loc => {
         html += `<td class="qty-cell total">${Math.round(grandTotal[loc])}</td>`;
       });
-      const grandSum = Object.values(grandTotal).reduce((a, b) => a + b, 0);
       html += `<td class="qty-cell total">${Math.round(grandSum)}</td></tr>`;
 
       html += `</tbody></table>`;
       tableContainer.innerHTML = html;
 
-      // Attach sort listeners
+      // Clickable sort headers
       document.querySelectorAll('thead th.sortable').forEach(th => {
         th.addEventListener('click', () => {
-          const sortType = th.getAttribute('data-sort');
-          if (sortType === 'name') {
-            sortFilter.value = sortFilter.value === 'name-asc' ? 'name-desc' : 'name-asc';
-          } else if (sortType === 'total') {
-            sortFilter.value = sortFilter.value === 'total-desc' ? 'total-asc' : 'total-desc';
-          }
+          const s = th.getAttribute('data-sort');
+          if (s === 'name') sortFilter.value = sortFilter.value === 'name-asc' ? 'name-desc' : 'name-asc';
+          else if (s === 'total') sortFilter.value = sortFilter.value === 'total-desc' ? 'total-asc' : 'total-desc';
           render();
         });
       });
@@ -901,7 +889,7 @@
       renderTable();
     }
 
-    // Event listeners
+    // ==================== EVENT LISTENERS ====================
     searchInput.addEventListener('input', render);
     categoryFilter.addEventListener('change', render);
     locationFilter.addEventListener('change', render);
