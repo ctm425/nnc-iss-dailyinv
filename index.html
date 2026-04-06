@@ -417,23 +417,33 @@ function buildLocationCard(key, profile) {
 function renderLocationCards() {
   const container = document.getElementById('locationsGrid');
   const profile = getEffectiveProfile();
+  const isOwner = profile?.role === 'owner';
 
   const restaurantKeys = ['nnc-iss', 'nnc-renton', 'babas-bel'];
   const warehouseKeys = ['renton-wh', 'ondemand-renton'];
 
+  // Filter: show locations user has access to, plus placeholders for owners
+  const canSee = (key) => {
+    if (!RESTAURANTS[key]) return false;
+    if (RESTAURANTS[key].status === 'placeholder') return isOwner; // only owners see coming-soon
+    return canAccessRestaurant(key, profile);
+  };
+
   let html = '';
 
-  // Restaurants section
-  html += `<div style="grid-column:1/-1;margin-bottom:-8px"><div class="section-title" style="font-size:1rem;margin-bottom:0">🍛 Restaurants</div></div>`;
-  restaurantKeys.forEach(key => {
-    if (RESTAURANTS[key]) html += buildLocationCard(key, profile);
-  });
+  // Restaurants section — only show header if there are visible cards
+  const visibleRestaurants = restaurantKeys.filter(canSee);
+  if (visibleRestaurants.length) {
+    html += `<div style="grid-column:1/-1;margin-bottom:-8px"><div class="section-title" style="font-size:1rem;margin-bottom:0">🍛 Restaurants</div></div>`;
+    visibleRestaurants.forEach(key => { html += buildLocationCard(key, profile); });
+  }
 
   // Warehouse & Distribution section
-  html += `<div style="grid-column:1/-1;margin-top:12px;margin-bottom:-8px"><div class="section-title" style="font-size:1rem;margin-bottom:0">🏭 Warehouse & Distribution</div></div>`;
-  warehouseKeys.forEach(key => {
-    if (RESTAURANTS[key]) html += buildLocationCard(key, profile);
-  });
+  const visibleWarehouses = warehouseKeys.filter(canSee);
+  if (visibleWarehouses.length) {
+    html += `<div style="grid-column:1/-1;margin-top:12px;margin-bottom:-8px"><div class="section-title" style="font-size:1rem;margin-bottom:0">🏭 Warehouse & Distribution</div></div>`;
+    visibleWarehouses.forEach(key => { html += buildLocationCard(key, profile); });
+  }
 
   container.innerHTML = html;
   renderPrepSection();
