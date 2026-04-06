@@ -562,6 +562,15 @@
         ]);
 
         dataLoaded = true;
+
+        // Log summary to console for debugging
+        console.log('=== Total Inventory Load Summary ===');
+        console.log('Items registered:', Object.keys(allItems).length);
+        LOC_KEYS.forEach(loc => {
+          const count = inventory[loc] ? Object.keys(inventory[loc]).filter(k => inventory[loc][k] > 0).length : 0;
+          console.log(`  ${LOC_LABELS[loc].name}: ${count} items with stock`);
+        });
+
         populateCategoryFilter();
         render();
       } catch (error) {
@@ -577,6 +586,7 @@
       // 1. Load items from config
       try {
         const configDoc = await db.collection('warehouse_config').doc('warehouse_renton-wh').get();
+        console.log('Warehouse config exists:', configDoc.exists);
         if (configDoc.exists) {
           const data = configDoc.data();
           if (data.items) {
@@ -591,51 +601,36 @@
         }
       } catch(e) { console.error('Warehouse config error:', e); }
 
-      // 2. Load quantities — try today's date first, fall back to most recent
+      // 2. Load quantities — try today's doc, then walk back up to 14 days
       for (const section of WH_SECTIONS) {
         try {
-          // Try today's doc first
-          const todayDoc = await db.collection('warehouse_weeks').doc(`warehouse_renton-wh_${ds}_${section}`).get();
-          if (todayDoc.exists) {
-            extractWarehouseQty(todayDoc.data(), section);
-          } else {
-            // Fall back: query most recent doc for this section
-            const snap = await db.collection('warehouse_weeks')
-              .where('__name__', '>=', `warehouse_renton-wh_2025`)
-              .where('__name__', '<=', `warehouse_renton-wh_${ds}_${section}\uf8ff`)
-              .orderBy('__name__', 'desc')
-              .limit(20)
-              .get();
-            for (const doc of snap.docs) {
-              if (doc.id.endsWith('_' + section)) {
-                extractWarehouseQty(doc.data(), section);
-                break;
-              }
+          let found = false;
+          // Try today and recent dates
+          for (let offset = 0; offset <= 14 && !found; offset++) {
+            const d = new Date();
+            d.setDate(d.getDate() - offset);
+            const tryDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const docId = `warehouse_renton-wh_${tryDate}_${section}`;
+            const doc = await db.collection('warehouse_weeks').doc(docId).get();
+            if (doc.exists) {
+              extractQty(doc.data(), 'renton-wh');
+              found = true;
             }
           }
         } catch(e) { console.error(`Warehouse ${section} error:`, e); }
       }
     }
 
-    function extractWarehouseQty(data, section) {
-      // warehouse_weeks docs store counts in a nested weeks object or flat counts
-      if (data.counts) {
-        Object.entries(data.counts).forEach(([itemId, qty]) => {
-          addQty('renton-wh', itemId, qty);
-        });
-      }
-      // Also check for weeks-style data: weeks[key][itemId].count
-      if (data.weeks) {
-        Object.values(data.weeks).forEach(weekData => {
-          if (typeof weekData === 'object') {
-            Object.entries(weekData).forEach(([itemId, val]) => {
-              if (itemId.startsWith('__')) return;
-              const count = typeof val === 'object' ? (val.count || 0) : Number(val || 0);
-              if (count) addQty('renton-wh', itemId, count);
-            });
-          }
-        });
-      }
+    // Universal quantity extractor — all pages store { itemId: { count: N, ... }, ... }
+    function extractQty(data, loc) {
+      Object.entries(data).forEach(([key, val]) => {
+        // Skip metadata fields
+        if (key.startsWith('__') || key === 'updatedAt' || key === 'updatedBy' || key === 'timestamp') return;
+        if (typeof val === 'object' && val !== null) {
+          const count = Number(val.count || 0);
+          if (count) addQty(loc, key, count);
+        }
+      });
     }
 
     // ==================== ISSAQUAH DRYGOODS (nnc-iss) ====================
@@ -668,6 +663,7 @@
       // 1. Load item definitions from config
       try {
         const configDoc = await db.collection('inventory_config').doc(configPath).get();
+        console.log(`Config ${configPath} exists:`, configDoc.exists);
         if (configDoc.exists) {
           const data = configDoc.data();
           const itemList = data.items || [];
@@ -679,17 +675,19 @@
         }
       } catch(e) { console.error(`Config ${configPath} error:`, e); }
 
-      // 2. Load quantities for today
+      // 2. Load quantities — try today, walk back up to 14 days
       try {
-        const weekDocPath = `${storageKey}_${restaurantKey}_${ds}`;
-        const weekDoc = await db.collection('inventory_weeks').doc(weekDocPath).get();
-        if (weekDoc.exists) {
-          const data = weekDoc.data();
-          Object.entries(data).forEach(([itemId, val]) => {
-            if (itemId.startsWith('__') || itemId === 'updatedAt' || itemId === 'updatedBy') return;
-            const count = typeof val === 'object' ? (val.count || 0) : Number(val || 0);
-            if (count) addQty(loc, itemId, count);
-          });
+        let found = false;
+        for (let offset = 0; offset <= 14 && !found; offset++) {
+          const d = new Date();
+          d.setDate(d.getDate() - offset);
+          const tryDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          const docPath = `${storageKey}_${restaurantKey}_${tryDate}`;
+          const weekDoc = await db.collection('inventory_weeks').doc(docPath).get();
+          if (weekDoc.exists) {
+            extractQty(weekDoc.data(), loc);
+            found = true;
+          }
         }
       } catch(e) { console.error(`Weeks ${storageKey}_${restaurantKey} error:`, e); }
     }
@@ -701,6 +699,7 @@
       // 1. Load item definitions
       try {
         const configDoc = await db.collection('storage_config').doc('storage_nnc-iss').get();
+        console.log('Storage config exists:', configDoc.exists);
         if (configDoc.exists) {
           const data = configDoc.data();
           const itemList = data.items || [];
@@ -712,18 +711,24 @@
         }
       } catch(e) { console.error('Storage config error:', e); }
 
-      // 2. Load quantities for current week, per category
+      // 2. Load quantities — try current week, walk back up to 4 weeks
       for (const cat of STORAGE_CATS) {
         try {
-          const docPath = `storage_nnc-iss_${wk}_${cat}`;
-          const weekDoc = await db.collection('storage_weeks').doc(docPath).get();
-          if (weekDoc.exists) {
-            const data = weekDoc.data();
-            Object.entries(data).forEach(([itemId, val]) => {
-              if (itemId.startsWith('__') || itemId === 'updatedAt' || itemId === 'updatedBy') return;
-              const count = typeof val === 'object' ? (val.count || 0) : Number(val || 0);
-              if (count) addQty('nnc-iss-storage', itemId, count);
-            });
+          let found = false;
+          for (let weekOffset = 0; weekOffset <= 4 && !found; weekOffset++) {
+            const d = new Date();
+            d.setDate(d.getDate() - (weekOffset * 7));
+            d.setHours(0,0,0,0);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            d.setDate(diff);
+            const tryWk = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const docPath = `storage_nnc-iss_${tryWk}_${cat}`;
+            const weekDoc = await db.collection('storage_weeks').doc(docPath).get();
+            if (weekDoc.exists) {
+              extractQty(weekDoc.data(), 'nnc-iss-storage');
+              found = true;
+            }
           }
         } catch(e) { console.error(`Storage ${cat} error:`, e); }
       }
