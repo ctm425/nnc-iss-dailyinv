@@ -205,9 +205,9 @@ body.historical-mode input.auto-linked{background:#fefce8!important;border-color
   <div>
     <h1>🫓 Naan / Roti — Prep &amp; Usage Log</h1>
     <div class="header-sub">Naan N Curry Issaquah</div>
+    <a onclick="goToDashboard()" style="display:inline-block;margin-top:6px;color:rgba(255,255,255,.85);font-size:.8rem;font-weight:600;cursor:pointer;text-decoration:none;background:rgba(255,255,255,.12);padding:4px 12px;border-radius:6px">← Back to Issaquah Dashboard</a>
   </div>
   <div class="header-right">
-    <button class="btn btn-ghost" onclick="goToDashboard()">← Issaquah</button>
     <button class="btn btn-ghost" onclick="doLogout()">Logout</button>
   </div>
 </div>
@@ -220,7 +220,7 @@ body.historical-mode input.auto-linked{background:#fefce8!important;border-color
     <div class="day-name" id="dayName"></div>
   </div>
   <button onclick="changeDate(1)">Next ▶</button>
-  <button class="btn btn-primary" onclick="goToToday()" style="margin-left:8px">Today</button>
+  <button class="btn btn-primary" onclick="goToToday()" style="background:#4338ca;color:#fff;font-weight:800;padding:8px 18px;font-size:.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(67,56,202,.3);margin-left:8px">📅 Today</button>
 </div>
 
 <!-- Historical mode banner -->
@@ -645,7 +645,7 @@ function switchTab(tab) {
 }
 
 // ==================== DATE HELPERS ====================
-function formatDate(d) { return d.toISOString().split('T')[0]; }
+function formatDate(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function getDayName(d) { return d.toLocaleDateString('en-US', { weekday: 'long' }); }
 
 function getWeekStart(d) {

@@ -178,9 +178,9 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
   <div>
     <h1 id="pageTitle">📦 Issaquah Storage Unit</h1>
     <div class="header-sub" id="pageSubtitle">Storage Unit Inventory Management</div>
+    <a onclick="window.location.href='index.html?open=nnc-iss'" style="display:inline-block;margin-top:6px;color:rgba(255,255,255,.85);font-size:.8rem;font-weight:600;cursor:pointer;text-decoration:none;background:rgba(255,255,255,.12);padding:4px 12px;border-radius:6px">← Back to Issaquah Dashboard</a>
   </div>
   <div class="header-right">
-    <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html?open=nnc-iss'">← Issaquah</button>
     <button class="btn btn-ghost btn-sm" id="settingsBtn" onclick="toggleSettings()" style="display:none">⚙️ Settings</button>
     <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📊 Excel</button>
     <button class="btn btn-ghost btn-sm" onclick="exportPDF()">📄 PDF</button>
@@ -222,6 +222,10 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 
 <!-- TABLE / CONTENT AREA -->
 <div class="table-wrap" id="tableWrap"></div>
+
+<div style="text-align:center;padding:20px 0">
+  <button class="btn btn-success" onclick="saveData(loadData());showToast('All data saved!')" style="min-width:220px;font-size:1rem;padding:12px 24px">💾 Save All Data</button>
+</div>
 
 <!-- TRANSFER MODAL -->
 <div class="modal-overlay" id="transferModal">
