@@ -265,7 +265,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html?open=nnc-iss'" title="Back to Issaquah">← Issaquah</button>
     <span id="userEmail" style="color:#fff;font-size:.85rem;margin-right:12px"></span>
     <button class="btn btn-ghost" onclick="sendProduceReport()" title="Email today's produce order" style="background:rgba(5,150,105,.4);border:1px solid rgba(255,255,255,.5)">Send Produce Order</button>
-    <button class="btn btn-ghost" onclick="promptSettings()">Settings</button>
+    <button class="btn btn-ghost" id="settingsBtn" onclick="promptSettings()" style="display:none">Settings</button>
     <button class="btn btn-ghost logout-btn" onclick="handleLogout()" title="Sign out">Logout</button>
   </div>
 </div>
@@ -750,6 +750,12 @@ auth.onAuthStateChanged(async(user)=>{
     firebaseReady=true;
     loginOverlay.classList.add('hidden');
     userEmailEl.textContent=user.email;
+
+    // Load user profile and show settings for owners only
+    const profile = await loadUserProfile();
+    if (profile?.role === 'owner') {
+      document.getElementById('settingsBtn').style.display = '';
+    }
 
     // Try to load data from Firestore
     const fsData=await loadDataFromFirestore();
@@ -1787,6 +1793,10 @@ function toggleFilter(el,f){el.classList.toggle('active');activeFilters.has(f)?a
 
 // ==================== SETTINGS / PASSWORD ====================
 function promptSettings(){
+  if (currentUserProfile?.role !== 'owner') {
+    showToast('Only owners can access settings');
+    return;
+  }
   document.getElementById('pwInput').value='';
   document.getElementById('pwError').style.display='none';
   document.getElementById('pwOverlay').classList.add('show');

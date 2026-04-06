@@ -442,7 +442,7 @@ function canAccessRestaurant(restaurantKey, profile) {
 
 function canManageUsers(profile) {
   if (!profile) return false;
-  return profile.role === 'owner' || profile.role === 'manager';
+  return profile.role === 'owner';
 }
 
 // ==================== NAVIGATION ====================

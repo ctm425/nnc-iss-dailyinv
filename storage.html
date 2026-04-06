@@ -181,7 +181,7 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
   </div>
   <div class="header-right">
     <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html?open=nnc-iss'">← Issaquah</button>
-    <button class="btn btn-ghost btn-sm" id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
+    <button class="btn btn-ghost btn-sm" id="settingsBtn" onclick="toggleSettings()" style="display:none">⚙️ Settings</button>
     <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📊 Excel</button>
     <button class="btn btn-ghost btn-sm" onclick="exportPDF()">📄 PDF</button>
     <button class="btn btn-success btn-sm" onclick="sendEmailReport()">📧 Email</button>
@@ -533,6 +533,10 @@ auth.onAuthStateChanged(async user => {
     else if (urlSheet === 'storage-paper') activeCategory = 'paper';
     else if (urlSheet === 'storage-cleaning') activeCategory = 'cleaning';
     else if (urlSheet === 'storage-equipment') activeCategory = 'equipment';
+    // Show settings only for owners
+    if (profile?.role === 'owner') {
+      document.getElementById('settingsBtn').style.display = '';
+    }
     setupFirestoreListener();
     render();
   } else {
@@ -850,6 +854,10 @@ function renderTransfersTab() {
 
 // ==================== SETTINGS ====================
 function toggleSettings() {
+  if (currentUserProfile?.role !== 'owner') {
+    showToast('Only owners can access settings');
+    return;
+  }
   settingsVisible = !settingsVisible;
   document.getElementById('settingsPanel').classList.toggle('visible', settingsVisible);
   if (settingsVisible) renderSettings();

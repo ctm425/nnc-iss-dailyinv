@@ -190,7 +190,7 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
   </div>
   <div class="header-right">
     <button class="btn btn-ghost btn-sm" onclick="window.location.href='index.html?open=nnc-iss'">← Issaquah</button>
-    <button class="btn btn-ghost btn-sm" id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
+    <button class="btn btn-ghost btn-sm" id="settingsBtn" onclick="toggleSettings()" style="display:none">⚙️ Settings</button>
     <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📊 Excel</button>
     <button class="btn btn-ghost btn-sm" onclick="exportPDF()">📄 PDF</button>
     <button class="btn btn-success btn-sm" onclick="sendEmailReport()">📧 Email</button>
@@ -998,6 +998,10 @@ auth.onAuthStateChanged(async (user) => {
     const rest = RESTAURANTS[restaurantKey];
     document.getElementById('pageTitle').textContent = `${currentMode.icon} ${rest?.shortName || 'NNC'} — ${currentMode.title}`;
     document.getElementById('pageSubtitle').textContent = `${currentMode.title} — Inventory Count (2x Weekly)`;
+    // Show settings button only for owners
+    if (profile?.role === 'owner') {
+      document.getElementById('settingsBtn').style.display = '';
+    }
     setupFirestoreListener();
     setupTransferListener();
     render();
@@ -1270,6 +1274,11 @@ function saveInventoryPerson(name) {
 
 // ==================== SETTINGS ====================
 function toggleSettings() {
+  // Only owners can access settings
+  if (currentUserProfile?.role !== 'owner') {
+    showToast('Only owners can access settings');
+    return;
+  }
   settingsVisible = !settingsVisible;
   const panel = document.getElementById('settingsPanel');
   panel.classList.toggle('visible', settingsVisible);
