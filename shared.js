@@ -62,12 +62,13 @@ const RESTAURANTS = {
 
 // ==================== ROLES ====================
 const ROLES = {
-  owner: { label: 'Owner', level: 100, description: 'Full access to everything across all restaurants' },
-  manager: { label: 'Manager', level: 80, description: 'Full access to assigned restaurant(s)' },
-  kitchen: { label: 'Kitchen Staff', level: 40, description: 'Access to kitchen & produce daily sheets' },
-  boh: { label: 'Back of House', level: 40, description: 'Access to dry goods, supplies, inventory counts' },
-  staff: { label: 'General Staff', level: 20, description: 'View-only access to assigned sheets' }
+  owner: { label: 'Owner', level: 100, description: 'Full access — settings, user management, all locations' },
+  manager: { label: 'Manager', level: 80, description: 'View all assigned sheets, send orders/emails, analytics — no settings or user management' },
+  staff: { label: 'Staff', level: 20, description: 'View and fill in assigned sheets only' }
 };
+
+// Map legacy roles to new ones (for migration)
+const LEGACY_ROLE_MAP = { kitchen: 'staff', boh: 'staff' };
 
 // ==================== INVENTORY SHEET DEFINITIONS ====================
 const SHEET_TYPES = {
@@ -78,7 +79,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🍛',
     description: 'All cooked food coming from Renton Main Kitchen.\nToda la comida cocinada proveniente de la cocina principal de Renton.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'daily.html',
     restaurants: ['nnc-iss']
   },
@@ -88,7 +89,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🥬',
     description: 'Daily produce count and orders.\nConteo diario de productos y pedidos.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'produce-daily.html',
     restaurants: ['nnc-iss']
   },
@@ -98,7 +99,7 @@ const SHEET_TYPES = {
     frequency: '2x weekly',
     icon: '🌶️',
     description: 'Spices, ingredients, beverages — counted twice per week',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'drygoods.html',
     restaurants: ['nnc-iss']
   },
@@ -108,7 +109,7 @@ const SHEET_TYPES = {
     frequency: 'weekly',
     icon: '🏭',
     description: 'Frozen prepared items & spices from NNC Main Kitchen — counted weekly',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'drygoods.html',
     restaurants: ['nnc-iss']
   },
@@ -118,7 +119,7 @@ const SHEET_TYPES = {
     frequency: '2x weekly',
     icon: '🧴',
     description: 'To-go containers, cleaning, kitchen, office & general supplies — counted twice per week',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'drygoods.html',
     restaurants: ['nnc-iss']
   },
@@ -128,7 +129,7 @@ const SHEET_TYPES = {
     frequency: '2x weekly',
     icon: '📋',
     description: 'Combined view — all supplies, dry goods & spices in one place',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'drygoods.html',
     restaurants: ['nnc-iss']
   },
@@ -140,7 +141,7 @@ const SHEET_TYPES = {
     frequency: 'ongoing',
     icon: '🧾',
     description: 'Vendor invoices, receipts & images — pulled live from Google Sheets',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'vendors.html',
     restaurants: ['nnc-iss']
   },
@@ -152,7 +153,7 @@ const SHEET_TYPES = {
     frequency: 'weekly',
     icon: '📦',
     description: 'Off-site storage unit — backup supplies, bulk items, overflow stock.\nUnidad de almacenamiento externa — suministros de respaldo, artículos a granel.',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'storage.html',
     restaurants: ['nnc-iss']
   },
@@ -164,7 +165,7 @@ const SHEET_TYPES = {
     frequency: 'weekly',
     icon: '🧊',
     description: 'Bulk frozen meats, vegetables, breads, prepared items',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'warehouse.html',
     restaurants: ['renton-wh']
   },
@@ -174,7 +175,7 @@ const SHEET_TYPES = {
     frequency: 'weekly',
     icon: '📦',
     description: 'To-go containers, bags, foil, wrap, labels — bulk storage',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'warehouse.html',
     restaurants: ['renton-wh']
   },
@@ -184,7 +185,7 @@ const SHEET_TYPES = {
     frequency: 'biweekly',
     icon: '🧹',
     description: 'Cleaning products, paper goods, safety equipment, smallwares',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'warehouse.html',
     restaurants: ['renton-wh']
   },
@@ -194,7 +195,7 @@ const SHEET_TYPES = {
     frequency: 'weekly',
     icon: '🍽️',
     description: 'Restaurant-specific items for distribution — spices, dry goods, oils',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'warehouse.html',
     restaurants: ['renton-wh']
   },
@@ -206,7 +207,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🫓',
     description: 'Daily Naan & Roti tracking — prep (batches, trays, doughballs) and usage (AM/PM counts, waste).\nRegistro diario de preparación y uso de Naan y Roti.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'naan-roti-log.html',
     restaurants: ['nnc-iss']
   },
@@ -216,7 +217,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🍚',
     description: 'Daily rice tracking — made, leftover, usage, waste.\nRegistro diario de arroz — producción, sobrante, uso, desperdicio.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'rice-usage-log.html',
     restaurants: ['nnc-iss']
   },
@@ -226,7 +227,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🍗',
     description: 'Daily raw chicken processing — cases, bags, weight, fat, water content.\nProcesamiento diario de pollo crudo — cajas, bolsas, peso, grasa, contenido de agua.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'chicken-prep-log.html',
     restaurants: ['nnc-iss']
   },
@@ -236,7 +237,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🍢',
     description: 'Tikka processing — raw, cooked, and cutting stages with dark/white meat tracking.\nProcesamiento de Tikka — etapas crudo, cocido y corte con seguimiento de carne oscura/blanca.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'tikka-prep-log.html',
     restaurants: ['nnc-iss']
   },
@@ -246,7 +247,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🧅',
     description: 'Daily produce prep — onion, potato, paneer processing.\nPreparación diaria de productos — procesamiento de cebolla, papa, paneer.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'produce-prep-log.html',
     restaurants: ['nnc-iss']
   },
@@ -256,7 +257,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '📦',
     description: 'Daily packing — Haleem, Keema, Seekh Kabab, Karela, Nehari Sauce.\nEmpaque diario — Haleem, Keema, Seekh Kabab, Karela, Salsa Nehari.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: 'packing-log.html',
     restaurants: ['nnc-iss']
   },
@@ -268,7 +269,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🥩',
     description: 'Meat cutting & prep tracking — weight, fat, water content, wastage.\nRegistro de corte y preparación de carne — peso, grasa, contenido de agua, desperdicio.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: null,
     restaurants: ['nnc-iss'],
     comingSoon: true
@@ -279,7 +280,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🥩',
     description: 'Meat cutting & prep tracking — weight, fat, water content, wastage.\nRegistro de corte y preparación de carne — peso, grasa, contenido de agua, desperdicio.',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: null,
     restaurants: ['nnc-renton'],
     comingSoon: true
@@ -292,7 +293,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🥘',
     description: 'Daily perishable items — coming soon',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: null,
     restaurants: ['babas-bel'],
     comingSoon: true
@@ -303,7 +304,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🥬',
     description: 'Daily produce items — coming soon',
-    allowedRoles: ['owner', 'manager', 'kitchen'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: null,
     restaurants: ['babas-bel'],
     comingSoon: true
@@ -314,7 +315,7 @@ const SHEET_TYPES = {
     frequency: 'weekly',
     icon: '🌶️',
     description: 'Spices, grains, canned goods — coming soon',
-    allowedRoles: ['owner', 'manager', 'boh'],
+    allowedRoles: ['owner', 'manager', 'staff'],
     page: null,
     restaurants: ['babas-bel'],
     comingSoon: true
@@ -339,6 +340,12 @@ async function loadUserProfile() {
           role: 'owner',
           restaurants: Object.keys(RESTAURANTS)
         });
+      }
+      // Migrate legacy roles (kitchen, boh) to new system
+      if (LEGACY_ROLE_MAP[currentUserProfile.role]) {
+        const newRole = LEGACY_ROLE_MAP[currentUserProfile.role];
+        currentUserProfile.role = newRole;
+        await db.collection('users').doc(auth.currentUser.uid).update({ role: newRole });
       }
       await loadRolePermissions();
       return currentUserProfile;
@@ -395,6 +402,24 @@ async function loadRolePermissions() {
     const doc = await db.collection('config').doc('role-permissions').get();
     if (doc.exists) {
       rolePermissions = doc.data();
+      // Migrate legacy role keys: merge kitchen/boh permissions into staff
+      let migrated = false;
+      Object.keys(LEGACY_ROLE_MAP).forEach(oldRole => {
+        if (rolePermissions[oldRole]) {
+          const newRole = LEGACY_ROLE_MAP[oldRole];
+          if (!rolePermissions[newRole]) rolePermissions[newRole] = [];
+          rolePermissions[oldRole].forEach(sk => {
+            if (!rolePermissions[newRole].includes(sk)) rolePermissions[newRole].push(sk);
+          });
+          delete rolePermissions[oldRole];
+          migrated = true;
+        }
+      });
+      // Remove any role keys that no longer exist
+      Object.keys(rolePermissions).forEach(r => {
+        if (!ROLES[r] && r !== '_migrated') { delete rolePermissions[r]; migrated = true; }
+      });
+      if (migrated) await db.collection('config').doc('role-permissions').set(rolePermissions);
     } else {
       // First time: build from hardcoded defaults and save to Firestore
       rolePermissions = {};
