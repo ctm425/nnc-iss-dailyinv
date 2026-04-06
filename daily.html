@@ -529,6 +529,7 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 let currentUser = null;
+let currentUserProfile = null;
 let firebaseReady = false;
 
 // ==================== PERSISTENCE ====================
@@ -778,9 +779,12 @@ auth.onAuthStateChanged(async(user)=>{
     loginOverlay.classList.add('hidden');
     userEmailEl.textContent=user.email;
 
-    // Load user profile and show settings for owners only
-    const profile = await loadUserProfile();
-    if (profile?.role === 'owner') {
+    // Load user profile from Firestore and show settings for owners only
+    try {
+      const profileDoc = await db.collection('users').doc(user.uid).get();
+      if (profileDoc.exists) currentUserProfile = profileDoc.data();
+    } catch(e) { console.error('Error loading profile:', e); }
+    if (currentUserProfile?.role === 'owner') {
       document.getElementById('settingsBtn').style.display = '';
     }
 
