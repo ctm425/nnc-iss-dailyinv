@@ -282,6 +282,7 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 <div id="toast"></div>
 
 <script src="shared.js?v=20260405"></script>
+<script src="variance.js?v=20260406"></script>
 <script>
 // ==================== SHEET MODE DEFINITIONS ====================
 const SHEET_MODES = {
@@ -1232,7 +1233,7 @@ function renderTable() {
 }
 
 // ==================== FIELD HANDLERS ====================
-function onCountChange(wk, itemId, val) {
+async function onCountChange(wk, itemId, val) {
   if (val === '') {
     const d = loadData();
     if (d.weeks && d.weeks[wk] && d.weeks[wk][itemId]) {
@@ -1240,7 +1241,33 @@ function onCountChange(wk, itemId, val) {
       saveData(d);
     }
   } else {
-    setField(wk, itemId, 'count', Number(val));
+    const numVal = Number(val);
+
+    // Variance check: count should not exceed prevCount + prevOrder
+    const prev = getPreviousCountData();
+    if (prev.date) {
+      const prevItemData = prev.data[itemId] || {};
+      const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : null;
+      if (prevCount !== null) {
+        const d = loadData();
+        const item = (d.items || []).find(i => i.id === itemId);
+        const par = item ? (item.par || 0) : 0;
+        const prevOrderAuto = Math.max(0, par - prevCount);
+        const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+        const maxExpected = prevCount + prevOrder;
+
+        if (numVal > maxExpected) {
+          const itemName = item ? item.name : itemId;
+          const accepted = await checkVariance({
+            itemName, newValue: numVal, maxExpected,
+            page: 'drygoods', itemId, dateKey: wk, field: 'count'
+          });
+          if (!accepted) { render(); return; }
+        }
+      }
+    }
+
+    setField(wk, itemId, 'count', numVal);
   }
   render();
 }

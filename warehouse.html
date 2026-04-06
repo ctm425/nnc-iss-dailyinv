@@ -326,6 +326,7 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 <div id="toast"></div>
 
 <script src="shared.js?v=20260405"></script>
+<script src="variance.js?v=20260406"></script>
 <script>
 // ==================== WAREHOUSE SECTIONS & SUB-CATEGORIES ====================
 const SECTIONS = {
@@ -1100,7 +1101,7 @@ function renderLocationBreakdown() {
 }
 
 // ==================== FIELD HANDLERS ====================
-function onCountChange(itemId, val) {
+async function onCountChange(itemId, val) {
   const wk = dateKey();
   if (val === '') {
     const d = loadData();
@@ -1110,7 +1111,37 @@ function onCountChange(itemId, val) {
       saveData(d);
     }
   } else {
-    setField(wk, activeSection, itemId, 'count', Number(val));
+    const numVal = Number(val);
+
+    // Variance check: find most recent prior date's count for this item/section
+    const d = loadData();
+    if (d.weeks) {
+      const suffix = '_' + activeSection;
+      const currentKey = `${wk}${suffix}`;
+      const priorKeys = Object.keys(d.weeks)
+        .filter(k => k.endsWith(suffix) && k < currentKey)
+        .sort().reverse();
+      let prevCount = null;
+      for (const pk of priorKeys) {
+        const pd = d.weeks[pk]?.[itemId];
+        if (pd && pd.count !== undefined && pd.count !== '') {
+          prevCount = Number(pd.count);
+          break;
+        }
+      }
+      if (prevCount !== null && numVal > prevCount) {
+        const sectionItems = (d.items && d.items[activeSection]) || [];
+        const item = sectionItems.find(i => i.id === itemId);
+        const itemName = item ? item.name : itemId;
+        const accepted = await checkVariance({
+          itemName, newValue: numVal, maxExpected: prevCount,
+          page: 'warehouse', itemId, dateKey: wk, field: 'count'
+        });
+        if (!accepted) { render(); return; }
+      }
+    }
+
+    setField(wk, activeSection, itemId, 'count', numVal);
   }
   render();
 }
