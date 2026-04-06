@@ -699,6 +699,10 @@ function showIssaquahDetail(container, loc, color) {
   }
 
   // Build all sections
+  const ownerReport = section('Owner Reports', 'Daily Recap', [
+    tile('nnc-daily-report', '#0f766e', '📊', 'Daily Kitchen Report', 'All daily operations summarized — totals, usage, exceptions', 'daily')
+  ], false);
+
   const dailyOps = section('Daily Operations', 'AM/PM Tracking', [
     tile('nnc-daily-kitchen', color, '👨‍🍳', 'Kitchen Daily Order', 'Cooked foods from Renton Main Kitchen — AM/PM counts & ordering', 'daily'),
     tile('nnc-daily-produce', '#059669', '🥬', 'Produce Daily Order', 'Fresh produce inventory — AM/PM counts & ordering', 'daily')
@@ -762,7 +766,7 @@ function showIssaquahDetail(container, loc, color) {
       <h2><span style="font-size:1.5rem">${loc.icon}</span> ${loc.shortName}</h2>
       <button class="back-btn" onclick="showLocationsView()">← Back to All Locations</button>
     </div>
-    ${dailyOps}${usagePrep}${otherKitchen}${inventoryMain}${inventoryQuick}${vendors}${dataCorrections}
+    ${ownerReport}${dailyOps}${usagePrep}${otherKitchen}${inventoryMain}${inventoryQuick}${vendors}${dataCorrections}
   `;
   container.classList.add('visible');
 }

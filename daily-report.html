@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>NNC Daily Kitchen Report</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="shared.js?v=20260405"></script>
+<style>
+:root { --primary:#1e3a5f; --success:#059669; --danger:#dc2626; --warning:#f59e0b; --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb; --gray-300:#d1d5db; --gray-400:#9ca3af; --gray-500:#6b7280; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--gray-50); color:#1a1a2e; }
+
+.header { background:linear-gradient(135deg,#1e3a5f 0%,#0f766e 100%); color:#fff; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+.header h1 { font-size:1.2rem; font-weight:700; }
+.header-sub { font-size:.82rem; opacity:.8; }
+.header-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.btn { padding:8px 16px; border:none; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; transition:all .15s; }
+.btn-ghost { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.3); }
+.btn-ghost:hover { background:rgba(255,255,255,.25); }
+.btn-success { background:#059669; color:#fff; }
+.btn-success:hover { background:#047857; }
+.btn-primary { background:var(--primary); color:#fff; }
+
+.container { max-width:900px; margin:0 auto; padding:20px; }
+
+.date-bar { display:flex; align-items:center; gap:12px; margin-bottom:20px; background:#fff; padding:14px 20px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.date-bar input[type=date] { padding:8px 12px; border:1px solid var(--gray-300); border-radius:8px; font-size:.9rem; }
+.date-bar .day-name { font-weight:700; font-size:1rem; color:var(--primary); }
+
+.report-card { background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.06); margin-bottom:16px; overflow:hidden; }
+.report-card .card-header { padding:14px 20px; font-weight:700; font-size:.95rem; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--gray-100); }
+.report-card .card-header .icon { font-size:1.2rem; }
+.report-card .card-body { padding:16px 20px; }
+
+.stat-row { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:10px; }
+.stat-pill { background:var(--gray-50); border:1px solid var(--gray-200); border-radius:8px; padding:8px 14px; font-size:.82rem; }
+.stat-pill .label { color:var(--gray-500); font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; margin-bottom:2px; }
+.stat-pill .value { font-weight:700; font-size:1rem; color:var(--primary); }
+
+.exceptions { margin-top:10px; }
+.exception-item { padding:6px 12px; margin:4px 0; border-left:3px solid var(--warning); background:#fffbeb; border-radius:0 6px 6px 0; font-size:.82rem; color:#92400e; }
+.exception-item.danger { border-left-color:var(--danger); background:#fef2f2; color:#991b1b; }
+
+.no-data { color:var(--gray-400); font-style:italic; font-size:.85rem; padding:8px 0; }
+
+.email-config { background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.06); padding:20px; margin-bottom:16px; }
+.email-config h3 { font-size:.9rem; margin-bottom:12px; color:var(--primary); }
+.email-config input { padding:8px 12px; border:1px solid var(--gray-300); border-radius:8px; font-size:.85rem; width:100%; margin-bottom:8px; }
+
+#loginOverlay { position:fixed; inset:0; background:linear-gradient(135deg,#1e3a5f,#0f766e); display:flex; align-items:center; justify-content:center; z-index:1000; }
+#loginOverlay.hidden { display:none; }
+.login-box { background:#fff; padding:32px; border-radius:16px; width:340px; }
+.login-box h2 { margin-bottom:16px; color:var(--primary); }
+.login-box input { width:100%; padding:10px 14px; margin-bottom:10px; border:1px solid var(--gray-300); border-radius:8px; font-size:.9rem; }
+.login-box button { width:100%; padding:12px; background:var(--primary); color:#fff; border:none; border-radius:8px; font-size:.95rem; font-weight:600; cursor:pointer; }
+
+#toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:12px 24px; border-radius:8px; font-size:.9rem; z-index:1000; opacity:0; transition:opacity .3s; pointer-events:none; }
+
+.loading { text-align:center; padding:40px; color:var(--gray-400); }
+.loading .spinner { display:inline-block; width:28px; height:28px; border:3px solid var(--gray-200); border-top-color:var(--primary); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media(max-width:600px) {
+  .stat-row { gap:8px; }
+  .stat-pill { padding:6px 10px; flex:1; min-width:100px; }
+}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay">
+  <div class="login-box">
+    <h2>📊 Daily Report</h2>
+    <div id="loginError" style="display:none;color:var(--danger);margin-bottom:10px;font-size:.85rem"></div>
+    <input type="email" id="loginEmail" placeholder="Email">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<div class="header">
+  <div>
+    <h1>📊 NNC Issaquah — Daily Kitchen Report</h1>
+    <div class="header-sub">Summary with exceptions — all daily operations at a glance</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost" onclick="window.location.href='index.html?open=nnc-iss'">← Dashboard</button>
+    <button class="btn btn-success" onclick="sendReport()" id="sendBtn">📧 Email Report</button>
+    <button class="btn btn-ghost" onclick="auth.signOut()">Sign Out</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="date-bar">
+    <span class="day-name" id="dayName">Today</span>
+    <input type="date" id="datePicker" onchange="onDateChange(this.value)">
+    <button class="btn btn-ghost" style="background:var(--primary);color:#fff;padding:6px 14px;font-size:.8rem" onclick="goToday()">Today</button>
+  </div>
+
+  <div id="reportContent">
+    <div class="loading"><div class="spinner"></div><br>Loading report data...</div>
+  </div>
+
+  <div class="email-config" id="emailConfig" style="margin-top:20px">
+    <h3>📧 Report Email Settings</h3>
+    <label style="font-size:.75rem;font-weight:600;color:var(--gray-500)">Recipients (comma-separated)</label>
+    <input type="text" id="reportRecipients" placeholder="owner@example.com, manager@example.com" onchange="saveReportConfig()">
+    <label style="font-size:.75rem;font-weight:600;color:var(--gray-500)">EmailJS Public Key</label>
+    <input type="text" id="reportEjsKey" placeholder="EmailJS Public Key" onchange="saveReportConfig()">
+    <label style="font-size:.75rem;font-weight:600;color:var(--gray-500)">EmailJS Service ID</label>
+    <input type="text" id="reportEjsService" placeholder="EmailJS Service ID" onchange="saveReportConfig()">
+    <label style="font-size:.75rem;font-weight:600;color:var(--gray-500)">EmailJS Template ID</label>
+    <input type="text" id="reportEjsTemplate" placeholder="EmailJS Template ID" onchange="saveReportConfig()">
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ==================== STATE ====================
+let currentDate = new Date();
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function dk(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function n(v) { return Number(v) || 0; }
+
+// ==================== DATE NAV ====================
+function updateDateBar() {
+  document.getElementById('datePicker').value = dk(currentDate);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const isToday = currentDate.toDateString() === today.toDateString();
+  document.getElementById('dayName').textContent = DAY_NAMES[currentDate.getDay()] + (isToday ? ' (Today)' : '');
+}
+function onDateChange(val) {
+  currentDate = new Date(val + 'T00:00:00');
+  updateDateBar();
+  loadReport();
+}
+function goToday() {
+  currentDate = new Date(); currentDate.setHours(0,0,0,0);
+  updateDateBar();
+  loadReport();
+}
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  errorEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  try { await auth.signInWithEmailAndPassword(email, password); }
+  catch (err) { errorEl.textContent = err.message; errorEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+
+auth.onAuthStateChanged(async (user) => {
+  const overlay = document.getElementById('loginOverlay');
+  if (user) {
+    overlay.classList.add('hidden');
+    const profile = await loadUserProfile();
+    // Owner-only page
+    if (profile?.role !== 'owner') {
+      document.getElementById('reportContent').innerHTML = '<div style="padding:40px;text-align:center;color:var(--danger);font-weight:600">This report is only available to owners.</div>';
+      document.getElementById('emailConfig').style.display = 'none';
+      document.getElementById('sendBtn').style.display = 'none';
+      return;
+    }
+    loadReportConfig();
+    updateDateBar();
+    loadReport();
+  } else {
+    overlay.classList.remove('hidden');
+  }
+});
+
+// ==================== REPORT CONFIG ====================
+async function loadReportConfig() {
+  try {
+    const doc = await db.collection('config').doc('daily-report').get();
+    if (doc.exists) {
+      const c = doc.data();
+      document.getElementById('reportRecipients').value = c.recipients || '';
+      document.getElementById('reportEjsKey').value = c.ejsKey || '';
+      document.getElementById('reportEjsService').value = c.ejsService || '';
+      document.getElementById('reportEjsTemplate').value = c.ejsTemplate || '';
+    }
+  } catch(e) { console.error('Error loading report config:', e); }
+}
+
+async function saveReportConfig() {
+  try {
+    await db.collection('config').doc('daily-report').set({
+      recipients: document.getElementById('reportRecipients').value.trim(),
+      ejsKey: document.getElementById('reportEjsKey').value.trim(),
+      ejsService: document.getElementById('reportEjsService').value.trim(),
+      ejsTemplate: document.getElementById('reportEjsTemplate').value.trim()
+    });
+    showToast('Report settings saved');
+  } catch(e) { console.error('Error saving config:', e); showToast('Error saving settings'); }
+}
+
+// ==================== DATA LOADING ====================
+async function loadReport() {
+  const container = document.getElementById('reportContent');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading report data...</div>';
+
+  const ds = dk(currentDate);
+
+  try {
+    // Load all 7 sources in parallel
+    const [dailyConfig, dailyDay, naanPrep, naanUsage, rice, chicken, tikka, producePrep] = await Promise.all([
+      db.collection('config').doc('settings').get(),
+      db.collection('days').doc(ds).get(),
+      db.doc(`naan-roti-prep/nnc-iss/records/${ds}`).get(),
+      db.doc(`naan-roti-usage/nnc-iss/records/${ds}`).get(),
+      db.doc(`rice-usage/nnc-iss/records/${ds}`).get(),
+      db.doc(`chicken-prep/nnc-iss/records/${ds}`).get(),
+      db.doc(`tikka-prep/nnc-iss/records/${ds}`).get(),
+      db.doc(`produce-prep/nnc-iss/records/${ds}`).get(),
+    ]);
+
+    const config = dailyConfig.exists ? dailyConfig.data() : {};
+    const items = config.items || [];
+    const dayData = dailyDay.exists ? dailyDay.data() : {};
+    const naanPrepData = naanPrep.exists ? naanPrep.data() : null;
+    const naanUsageData = naanUsage.exists ? naanUsage.data() : null;
+    const riceData = rice.exists ? rice.data() : null;
+    const chickenData = chicken.exists ? chicken.data() : null;
+    const tikkaData = tikka.exists ? tikka.data() : null;
+    const producePrepData = producePrep.exists ? producePrep.data() : null;
+
+    // Build each section
+    let html = '';
+    html += buildKitchenSection(items, dayData);
+    html += buildProduceSection(items, dayData);
+    html += buildNaanRotiSection(naanPrepData, naanUsageData);
+    html += buildRiceSection(riceData);
+    html += buildChickenSection(chickenData);
+    html += buildTikkaSection(tikkaData);
+    html += buildProducePrepSection(producePrepData);
+
+    container.innerHTML = html;
+  } catch(err) {
+    console.error('Error loading report:', err);
+    container.innerHTML = `<div style="padding:20px;color:var(--danger)">Error loading report: ${err.message}</div>`;
+  }
+}
+
+// ==================== SECTION BUILDERS ====================
+
+function buildKitchenSection(items, dayData) {
+  const kitchenItems = items.filter(i => i.category === 'kitchen');
+  if (!kitchenItems.length) return buildNoDataCard('👨‍🍳', 'Kitchen Daily Order');
+
+  const dayKey = dk(currentDate).split('-');
+  const dayAbbr = ['sun','mon','tue','wed','thu','fri','sat'][currentDate.getDay()];
+
+  let totalOrdered = 0, itemsWithData = 0, exceptions = [];
+
+  kitchenItems.forEach(item => {
+    const d = dayData[item.id];
+    if (!d) return;
+    itemsWithData++;
+    const order = n(d.normalOrder) + n(d.extraOrder);
+    totalOrdered += order;
+    const par = item.par ? n(item.par[dayAbbr]) : 0;
+
+    // Exceptions
+    if (n(d.pm) === 0 && par > 0) exceptions.push({ text: `${item.name}: PM count is 0 (par: ${par})`, level: 'danger' });
+    if (n(d.extraOrder) > 0) exceptions.push({ text: `${item.name}: Extra order of ${d.extraOrder} ${item.unit} — ${d.reason || 'no reason'}`, level: 'warning' });
+    if (order === 0 && par > 0) exceptions.push({ text: `${item.name}: Zero ordered (par: ${par})`, level: 'warning' });
+  });
+
+  let body = `<div class="stat-row">
+    <div class="stat-pill"><div class="label">Items Tracked</div><div class="value">${itemsWithData} / ${kitchenItems.length}</div></div>
+    <div class="stat-pill"><div class="label">Total Units Ordered</div><div class="value">${totalOrdered}</div></div>
+  </div>`;
+  body += buildExceptions(exceptions);
+  if (itemsWithData === 0) body = '<div class="no-data">No data entered for this date</div>';
+
+  return buildCard('👨‍🍳', 'Kitchen Daily Order', body);
+}
+
+function buildProduceSection(items, dayData) {
+  const produceItems = items.filter(i => i.category === 'produce');
+  if (!produceItems.length) return buildNoDataCard('🥬', 'Produce Daily Order');
+
+  const dayAbbr = ['sun','mon','tue','wed','thu','fri','sat'][currentDate.getDay()];
+  let totalOrdered = 0, itemsWithData = 0, exceptions = [];
+
+  produceItems.forEach(item => {
+    const d = dayData[item.id];
+    if (!d) return;
+    itemsWithData++;
+    const order = n(d.normalOrder) + n(d.extraOrder);
+    totalOrdered += order;
+    const par = item.par ? n(item.par[dayAbbr]) : 0;
+
+    if (n(d.pm) === 0 && par > 0) exceptions.push({ text: `${item.name}: PM count is 0`, level: 'danger' });
+    if (n(d.extraOrder) > 0) exceptions.push({ text: `${item.name}: Extra order of ${d.extraOrder} ${item.unit}`, level: 'warning' });
+  });
+
+  let body = `<div class="stat-row">
+    <div class="stat-pill"><div class="label">Items Tracked</div><div class="value">${itemsWithData} / ${produceItems.length}</div></div>
+    <div class="stat-pill"><div class="label">Total Units Ordered</div><div class="value">${totalOrdered}</div></div>
+  </div>`;
+  body += buildExceptions(exceptions);
+  if (itemsWithData === 0) body = '<div class="no-data">No data entered for this date</div>';
+
+  return buildCard('🥬', 'Produce Daily Order', body);
+}
+
+function buildNaanRotiSection(prep, usage) {
+  if (!prep && !usage) return buildNoDataCard('🫓', 'Naan/Roti Prep & Usage');
+
+  let body = '<div class="stat-row">';
+  if (prep) {
+    body += `<div class="stat-pill"><div class="label">Naan Batches</div><div class="value">${n(prep.naan_batches)}</div></div>`;
+    body += `<div class="stat-pill"><div class="label">Naan Doughballs</div><div class="value">${n(prep.naan_total_doughballs)}</div></div>`;
+    body += `<div class="stat-pill"><div class="label">Roti Flour</div><div class="value">${n(prep.roti_flour)} lbs</div></div>`;
+    body += `<div class="stat-pill"><div class="label">Roti Doughballs</div><div class="value">${n(prep.roti_total_doughballs)}</div></div>`;
+  }
+  body += '</div>';
+
+  if (usage) {
+    body += '<div class="stat-row" style="margin-top:8px">';
+    body += `<div class="stat-pill"><div class="label">Naan Used</div><div class="value">${n(usage.naan_usage)} trays</div></div>`;
+    body += `<div class="stat-pill"><div class="label">Naan Waste</div><div class="value">${n(usage.naan_waste)} trays</div></div>`;
+    body += `<div class="stat-pill"><div class="label">Roti Used</div><div class="value">${n(usage.roti_usage)} trays</div></div>`;
+    body += `<div class="stat-pill"><div class="label">Roti Waste</div><div class="value">${n(usage.roti_waste)} trays</div></div>`;
+    body += '</div>';
+  }
+
+  let exceptions = [];
+  if (usage && n(usage.naan_waste) > 2) exceptions.push({ text: `Naan waste: ${usage.naan_waste} trays — above typical`, level: 'warning' });
+  if (usage && n(usage.roti_waste) > 1) exceptions.push({ text: `Roti waste: ${usage.roti_waste} trays — above typical`, level: 'warning' });
+  if (prep && n(prep.naan_batches) === 0) exceptions.push({ text: 'No naan batches prepped', level: 'danger' });
+  body += buildExceptions(exceptions);
+
+  return buildCard('🫓', 'Naan/Roti Prep & Usage', body);
+}
+
+function buildRiceSection(data) {
+  if (!data) return buildNoDataCard('🍚', 'Rice Usage Log');
+
+  const made = n(data.rice_made);
+  const pm = n(data.rice_pm);
+  const usage = made - pm;
+  const waste = pm;
+
+  let body = `<div class="stat-row">
+    <div class="stat-pill"><div class="label">Rice Made</div><div class="value">${made} pots</div></div>
+    <div class="stat-pill"><div class="label">Usage</div><div class="value">${usage} pots</div></div>
+    <div class="stat-pill"><div class="label">Leftover</div><div class="value">${waste} pots</div></div>
+  </div>`;
+
+  let exceptions = [];
+  if (made === 0) exceptions.push({ text: 'No rice made today', level: 'danger' });
+  if (waste > 2) exceptions.push({ text: `${waste} pots leftover — higher than usual`, level: 'warning' });
+  body += buildExceptions(exceptions);
+
+  return buildCard('🍚', 'Rice Usage Log', body);
+}
+
+function buildChickenSection(data) {
+  if (!data) return buildNoDataCard('🍗', 'Raw Chicken Processing');
+
+  const cases = n(data.cases_opened);
+  const bags15 = n(data.bags_15lb);
+  const totalWeight = n(data.total_chicken_weight) || (cases * 40);
+  const fat = n(data.weight_fat);
+  const water = n(data.total_water);
+
+  let body = `<div class="stat-row">
+    <div class="stat-pill"><div class="label">Cases Opened</div><div class="value">${cases}</div></div>
+    <div class="stat-pill"><div class="label">15lb Bags</div><div class="value">${bags15}</div></div>
+    <div class="stat-pill"><div class="label">Total Weight</div><div class="value">${totalWeight} lbs</div></div>
+    <div class="stat-pill"><div class="label">Fat</div><div class="value">${fat} lbs</div></div>
+    <div class="stat-pill"><div class="label">Water Loss</div><div class="value">${water} lbs</div></div>
+  </div>`;
+
+  let exceptions = [];
+  if (cases === 0) exceptions.push({ text: 'No chicken cases processed', level: 'danger' });
+  if (fat > 0 && totalWeight > 0 && (fat / totalWeight) > 0.15) exceptions.push({ text: `Fat ratio ${(fat/totalWeight*100).toFixed(1)}% — above 15% threshold`, level: 'warning' });
+  body += buildExceptions(exceptions);
+
+  return buildCard('🍗', 'Raw Chicken Processing', body);
+}
+
+function buildTikkaSection(data) {
+  if (!data) return buildNoDataCard('🍢', 'Tikka (CTM) Processing');
+
+  const totalRaw = n(data.total_raw);
+  const totalCooked = n(data.total_cooked);
+  const totalCut = n(data.total_cut);
+  const darkWaste = n(data.dark_wastage_oz);
+  const whiteWaste = n(data.white_wastage_oz);
+
+  let body = `<div class="stat-row">
+    <div class="stat-pill"><div class="label">Total Raw</div><div class="value">${totalRaw} lbs</div></div>
+    <div class="stat-pill"><div class="label">Total Cooked</div><div class="value">${totalCooked} lbs</div></div>
+    <div class="stat-pill"><div class="label">Total Cut</div><div class="value">${totalCut} lbs</div></div>
+    <div class="stat-pill"><div class="label">Waste (Dark)</div><div class="value">${darkWaste} oz</div></div>
+    <div class="stat-pill"><div class="label">Waste (White)</div><div class="value">${whiteWaste} oz</div></div>
+  </div>`;
+
+  let exceptions = [];
+  if (totalRaw === 0) exceptions.push({ text: 'No tikka raw processed', level: 'danger' });
+  if (darkWaste + whiteWaste > 32) exceptions.push({ text: `Total wastage ${darkWaste + whiteWaste} oz — over 2 lbs`, level: 'warning' });
+  body += buildExceptions(exceptions);
+
+  return buildCard('🍢', 'Tikka (CTM) Processing', body);
+}
+
+function buildProducePrepSection(data) {
+  if (!data) return buildNoDataCard('🧅', 'Produce Prep');
+
+  const onionBags = n(data.onion_bags);
+  const potatoLbs = n(data.potato_pounds);
+  const potatoBags = n(data.potato_bags) || (potatoLbs / 37).toFixed(1);
+  const paneerLg = n(data.paneer_large);
+  const paneerSm = n(data.paneer_small);
+
+  let body = `<div class="stat-row">
+    <div class="stat-pill"><div class="label">Onion Bags</div><div class="value">${onionBags}</div></div>
+    <div class="stat-pill"><div class="label">Potato</div><div class="value">${potatoLbs} lbs (${potatoBags} bags)</div></div>
+    <div class="stat-pill"><div class="label">Paneer Large</div><div class="value">${paneerLg}</div></div>
+    <div class="stat-pill"><div class="label">Paneer Small</div><div class="value">${paneerSm}</div></div>
+  </div>`;
+
+  let exceptions = [];
+  if (onionBags === 0) exceptions.push({ text: 'No onions prepped', level: 'warning' });
+  if (potatoLbs === 0) exceptions.push({ text: 'No potatoes prepped', level: 'warning' });
+  body += buildExceptions(exceptions);
+
+  return buildCard('🧅', 'Produce Prep', body);
+}
+
+// ==================== HELPERS ====================
+function buildCard(icon, title, bodyHtml) {
+  return `<div class="report-card">
+    <div class="card-header"><span class="icon">${icon}</span> ${title}</div>
+    <div class="card-body">${bodyHtml}</div>
+  </div>`;
+}
+
+function buildNoDataCard(icon, title) {
+  return buildCard(icon, title, '<div class="no-data">No data entered for this date</div>');
+}
+
+function buildExceptions(exceptions) {
+  if (!exceptions.length) return '';
+  let html = '<div class="exceptions">';
+  exceptions.forEach(e => {
+    html += `<div class="exception-item ${e.level === 'danger' ? 'danger' : ''}">${e.level === 'danger' ? '🔴' : '⚠️'} ${e.text}</div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+// ==================== EMAIL ====================
+async function sendReport() {
+  const ejsKey = document.getElementById('reportEjsKey').value.trim();
+  const ejsService = document.getElementById('reportEjsService').value.trim();
+  const ejsTemplate = document.getElementById('reportEjsTemplate').value.trim();
+  const recipients = document.getElementById('reportRecipients').value.trim();
+
+  if (!ejsKey || !ejsService || !ejsTemplate) { showToast('Configure EmailJS settings first'); return; }
+  if (!recipients) { showToast('Add email recipients'); return; }
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+
+  try {
+    emailjs.init(ejsKey);
+
+    const ds = dk(currentDate);
+    const dayName = DAY_NAMES[currentDate.getDay()];
+    const dateStr = `${currentDate.getMonth()+1}/${currentDate.getDate()}/${currentDate.getFullYear()}`;
+
+    // Build plain-text email body from current report
+    const body = buildEmailBody(ds, dateStr, dayName);
+
+    await emailjs.send(ejsService, ejsTemplate, {
+      to_email: recipients,
+      subject: `NNC Issaquah Daily Report — ${dayName} ${dateStr}`,
+      message: body,
+      date: dateStr,
+      day: dayName
+    });
+
+    showToast('Report emailed successfully!');
+  } catch(err) {
+    console.error('Email error:', err);
+    showToast('Error sending email: ' + (err.text || err.message || err));
+  } finally {
+    btn.disabled = false; btn.textContent = '📧 Email Report';
+  }
+}
+
+function buildEmailBody(ds, dateStr, dayName) {
+  // Scrape the rendered report for a text version
+  const cards = document.querySelectorAll('.report-card');
+  let text = `NNC ISSAQUAH — DAILY KITCHEN REPORT\n${dayName}, ${dateStr}\n${'═'.repeat(50)}\n\n`;
+
+  cards.forEach(card => {
+    const title = card.querySelector('.card-header')?.textContent?.trim() || '';
+    text += `▸ ${title}\n`;
+
+    const pills = card.querySelectorAll('.stat-pill');
+    pills.forEach(pill => {
+      const label = pill.querySelector('.label')?.textContent?.trim() || '';
+      const value = pill.querySelector('.value')?.textContent?.trim() || '';
+      text += `  ${label}: ${value}\n`;
+    });
+
+    const exceptions = card.querySelectorAll('.exception-item');
+    if (exceptions.length) {
+      text += '  Flags:\n';
+      exceptions.forEach(ex => {
+        text += `    ${ex.textContent.trim()}\n`;
+      });
+    }
+
+    const noData = card.querySelector('.no-data');
+    if (noData) text += `  ${noData.textContent.trim()}\n`;
+
+    text += '\n';
+  });
+
+  text += `${'─'.repeat(50)}\nGenerated from NNC Inventory System`;
+  return text;
+}
+
+// ==================== UI ====================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+</script>
+</body>
+</html>

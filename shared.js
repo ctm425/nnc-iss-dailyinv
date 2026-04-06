@@ -262,6 +262,18 @@ const SHEET_TYPES = {
     restaurants: ['nnc-iss']
   },
 
+  // ---- NNC ISSAQUAH DAILY REPORT ----
+  'nnc-daily-report': {
+    name: 'Daily Kitchen Report',
+    category: 'reports',
+    frequency: 'daily',
+    icon: '📊',
+    description: 'Owner daily recap — kitchen, produce, prep logs, usage & exceptions summary',
+    allowedRoles: ['owner'],
+    page: 'daily-report.html',
+    restaurants: ['nnc-iss']
+  },
+
   // ---- PREP DATA (cross-location) ----
   'prep-iss': {
     name: 'Issaquah Prep Log',
