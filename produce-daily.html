@@ -579,9 +579,11 @@ function saveData(d){
 }
 async function syncDataToFirestore(d){
   if(!currentUser)return;
-  try{
-    // Save config/settings
-    await db.collection('config').doc('settings').set({
+  // Save config/settings — owner-only under firestore.rules. Wrap separately and
+  // do NOT await so a permission-denied here cannot block the day writes below.
+  // Non-owners skip the config write entirely; day writes still go through.
+  if(isOwner()){
+    db.collection('config').doc('settings').set({
       items:d.items,
       password:d.password,
       emails:d.emails||[],
@@ -592,16 +594,17 @@ async function syncDataToFirestore(d){
       inventoryPerson:d.inventoryPerson||'',
       parVersion:d.parVersion||PAR_VERSION,
       lastSync:new Date()
-    },{merge:true});
-    // Save each day's data
-    if(d.days){
-      Object.keys(d.days).forEach(dateKey=>{
-        if(dateKey!=='__meta'){
-          db.collection('days').doc(dateKey).set(d.days[dateKey],{merge:true}).catch(err=>console.error('Error saving day data:',err));
-        }
-      });
-    }
-  }catch(err){console.error('Firestore sync error:',err)}
+    },{merge:true}).catch(err=>console.error('Firestore config sync error (non-fatal):',err));
+  }
+  // Save each day's data — all signed-in users are allowed
+  if(d.days){
+    Object.keys(d.days).forEach(dateKey=>{
+      if(dateKey!=='__meta'){
+        db.collection('days').doc(dateKey).set(d.days[dateKey],{merge:true})
+          .catch(err=>console.error('Error saving day data:',err));
+      }
+    });
+  }
 }
 async function loadDataFromFirestore(){
   if(!currentUser)return null;
