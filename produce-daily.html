@@ -812,6 +812,9 @@ function setupRealtimeListeners(){
       if(config.emailjs&&config.emailjs.publicKey){d.emailjs=config.emailjs}
       else if(!d.emailjs||!d.emailjs.publicKey){d.emailjs=config.emailjs||d.emailjs||{}}
       d.produceTemplateId=config.produceTemplateId||d.produceTemplateId;
+      // Sync produce distribution lists so non-owners get live updates
+      if(Array.isArray(config.produceEmails))d.produceEmails=config.produceEmails;
+      if(Array.isArray(config.produceReplyTo))d.produceReplyTo=config.produceReplyTo;
       d.inventoryPerson=config.inventoryPerson||d.inventoryPerson;
       items=d.items;
       // Update local cache
@@ -821,7 +824,12 @@ function setupRealtimeListeners(){
       // Refresh EmailJS config on settings page if visible
       if(typeof loadEmailJSConfig==='function')try{loadEmailJSConfig()}catch(e){}
     }
-  },err=>console.error('Config listener error:',err));
+  },err=>{
+    console.error('Config listener error:',err);
+    if(err&&err.code==='permission-denied'){
+      showToast('Permission denied reading settings. Ask the owner to update Firestore rules.');
+    }
+  });
 
   // Listen to days collection changes
   db.collection('days').onSnapshot(snap=>{
@@ -2404,29 +2412,36 @@ function sendProduceReport(){
   </div>`;
 
   const produceTemplateId=d.produceTemplateId;
-  if(d.emailjs&&d.emailjs.publicKey&&produceTemplateId&&emails.length){
-    emailjs.init(d.emailjs.publicKey);
-    const params={
-      to_email:emails.join(','),
-      from_name:'Naan N Curry Issaquah Produce',
-      subject:'REPLY ALL TO CONFIRM - Naan N Curry Issaquah Produce Order - '+nextDayDisplay,
-      reply_to:ccAddresses.length?ccAddresses[0]:'',
-      order_summary:emailBody
-    };
-    if(ccAddresses.length)params.cc=ccAddresses.join(',');
-    emailjs.send(d.emailjs.serviceId,produceTemplateId,params).then(()=>{
-      showToast('Produce order emailed to '+emails.length+' recipient(s)'+(ccAddresses.length?' + '+ccAddresses.length+' CC':'')+' — '+orderCount+' items');
-    }).catch(err=>{
-      console.error('EmailJS error:',err);
-      showToast('Produce email failed. Check EmailJS config.');
-    });
-  }else if(!produceTemplateId){
-    showToast('Set up the Produce Template ID in Settings before sending.');
-  }else if(emails.length){
-    showToast('Set up EmailJS in Settings to send produce reports directly.');
-  }else{
-    showToast('Add produce emails in Settings to send produce reports.');
+  // Diagnose exactly what is missing so managers see an actionable error
+  const missing=[];
+  if(!d.emailjs||!d.emailjs.publicKey)missing.push('EmailJS Public Key');
+  if(!d.emailjs||!d.emailjs.serviceId)missing.push('EmailJS Service ID');
+  if(!produceTemplateId)missing.push('Produce Template ID');
+  if(!emails.length)missing.push('Produce recipient emails');
+  if(missing.length){
+    const msg='Cannot send: missing '+missing.join(', ')+'. Owner must configure in Settings. If owner already configured it, manager likely lacks Firestore read access — update security rules.';
+    console.error('sendProduceReport blocked:',{missing,hasEmailjs:!!d.emailjs,emailjs:d.emailjs,produceTemplateId,emailsCount:emails.length});
+    alert(msg);
+    showToast('Produce send blocked — see alert for details.');
+    return;
   }
+  emailjs.init(d.emailjs.publicKey);
+  const params={
+    to_email:emails.join(','),
+    from_name:'Naan N Curry Issaquah Produce',
+    subject:'REPLY ALL TO CONFIRM - Naan N Curry Issaquah Produce Order - '+nextDayDisplay,
+    reply_to:ccAddresses.length?ccAddresses[0]:'',
+    order_summary:emailBody
+  };
+  if(ccAddresses.length)params.cc=ccAddresses.join(',');
+  emailjs.send(d.emailjs.serviceId,produceTemplateId,params).then(()=>{
+    showToast('Produce order emailed to '+emails.length+' recipient(s)'+(ccAddresses.length?' + '+ccAddresses.length+' CC':'')+' — '+orderCount+' items');
+  }).catch(err=>{
+    console.error('EmailJS error:',err);
+    const detail=(err&&(err.text||err.message))||'unknown error';
+    alert('Produce email failed.\n\nDetails: '+detail+'\n\nOpen the browser console for more info.');
+    showToast('Produce email failed — see alert.');
+  });
 }
 
 // ==================== INIT ====================

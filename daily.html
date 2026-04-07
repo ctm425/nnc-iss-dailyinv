@@ -833,7 +833,7 @@ function setupRealtimeListeners(){
       const config=doc.data();
       const d=loadData();
       d.items=config.items||d.items;
-      d.emails=config.emails||d.emails;
+      if(Array.isArray(config.emails))d.emails=config.emails;
       d.password=config.password||d.password;
       // Preserve emailjs: use Firestore value if it has a publicKey, otherwise keep local
       if(config.emailjs&&config.emailjs.publicKey){d.emailjs=config.emailjs}
@@ -847,7 +847,12 @@ function setupRealtimeListeners(){
       // Refresh EmailJS config on settings page if visible
       if(typeof loadEmailJSConfig==='function')try{loadEmailJSConfig()}catch(e){}
     }
-  },err=>console.error('Config listener error:',err));
+  },err=>{
+    console.error('Config listener error:',err);
+    if(err&&err.code==='permission-denied'){
+      if(typeof showToast==='function')showToast('Permission denied reading settings. Ask the owner to update Firestore rules.');
+    }
+  });
 
   // Listen to days collection changes
   db.collection('days').onSnapshot(snap=>{
@@ -2407,28 +2412,36 @@ function sendReport(){
   </table>`;
 
   // If EmailJS is configured, send directly
-  if(d.emailjs&&d.emailjs.publicKey&&emails.length){
-    emailjs.init(d.emailjs.publicKey);
-    emailjs.send(d.emailjs.serviceId,d.emailjs.templateId,{
-      to_email:emails.join(','),
-      from_name:'NNC Inventory System',
-      subject:dateDisplay+' - Issaquah Kitchen Order',
-      date:dateDisplay,
-      day:dayStr,
-      inventory_by:person,
-      order_summary:htmlTable,
-      message:'NNC Main Kitchen - Daily Inventory Report'
-    }).then(()=>{
-      showToast('Report emailed to '+emails.length+' recipient(s)');
-    }).catch(err=>{
-      console.error('EmailJS error:',err);
-      showToast('Email failed. Check EmailJS config.');
-    });
-  }else if(emails.length){
-    showToast('Set up EmailJS in Settings to send reports directly.');
-  }else{
-    showToast('Add emails in Settings to send reports.');
+  const missing=[];
+  if(!d.emailjs||!d.emailjs.publicKey)missing.push('EmailJS Public Key');
+  if(!d.emailjs||!d.emailjs.serviceId)missing.push('EmailJS Service ID');
+  if(!d.emailjs||!d.emailjs.templateId)missing.push('EmailJS Template ID');
+  if(!emails.length)missing.push('Recipient emails');
+  if(missing.length){
+    const msg='Cannot send: missing '+missing.join(', ')+'. Owner must configure in Settings. If owner already configured it, non-owner users likely lack Firestore read access — update security rules.';
+    console.error('sendReport blocked:',{missing,emailjs:d.emailjs,emailsCount:emails.length});
+    alert(msg);
+    showToast('Send blocked — see alert.');
+    return;
   }
+  emailjs.init(d.emailjs.publicKey);
+  emailjs.send(d.emailjs.serviceId,d.emailjs.templateId,{
+    to_email:emails.join(','),
+    from_name:'NNC Inventory System',
+    subject:dateDisplay+' - Issaquah Kitchen Order',
+    date:dateDisplay,
+    day:dayStr,
+    inventory_by:person,
+    order_summary:htmlTable,
+    message:'NNC Main Kitchen - Daily Inventory Report'
+  }).then(()=>{
+    showToast('Report emailed to '+emails.length+' recipient(s)');
+  }).catch(err=>{
+    console.error('EmailJS error:',err);
+    const detail=(err&&(err.text||err.message))||'unknown error';
+    alert('Email failed.\n\nDetails: '+detail);
+    showToast('Email failed — see alert.');
+  });
 }
 
 // ==================== PRODUCE REPORT ====================
