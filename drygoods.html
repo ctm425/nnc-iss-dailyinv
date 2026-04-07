@@ -552,6 +552,22 @@ let cachedStorageTransfers = [];     // from storage unit
 let unsubTransfers = null;
 let unsubStorageTransfers = null;
 
+// ==================== NUMBER HELPERS ====================
+// Round to nearest 0.5 increment (so 1.7333 -> 1.5, 1.8 -> 2.0)
+function roundHalf(v) {
+  if (v === '' || v === null || v === undefined) return v;
+  const n = Number(v);
+  if (isNaN(n)) return v;
+  return Math.round(n * 2) / 2;
+}
+// Format a quantity for display: snap to nearest 0.5 and show with 1 decimal place
+function fmtQty(v) {
+  if (v === '' || v === null || v === undefined) return v;
+  const n = Number(v);
+  if (isNaN(n)) return v;
+  return (Math.round(n * 2) / 2).toFixed(1);
+}
+
 // ==================== DATE HELPERS ====================
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -1203,16 +1219,16 @@ function renderTable() {
         <td>${item.name}${transferBadge}</td>
         <td style="font-size:.78rem;color:var(--gray-500)">${item.vendor || ''}</td>
         <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
-        <td style="text-align:center;font-weight:600">${par}</td>
-        <td style="text-align:center;color:var(--gray-400);font-size:.82rem">${prevCount !== '' ? prevCount : '—'}</td>
-        <td><input type="number" value="${count}" min="0" step="0.5"
+        <td style="text-align:center;font-weight:600">${fmtQty(par)}</td>
+        <td style="text-align:center;color:var(--gray-400);font-size:.82rem">${prevCount !== '' ? fmtQty(prevCount) : '—'}</td>
+        <td><input type="number" value="${count !== '' ? fmtQty(count) : ''}" min="0" step="0.5"
           onchange="onCountChange('${wk}','${item.id}',this.value)"
           style="background:${count===''?'#fffbeb':'#fff'}"></td>
-        <td class="${usageClass}" style="text-align:center">${usage !== '' ? usage : '—'}</td>
+        <td class="${usageClass}" style="text-align:center">${usage !== '' ? fmtQty(usage) : '—'}</td>
         <td class="${statusClass}">${status}</td>
-        <td style="text-align:center;${orderQty!==''&&orderQty>0?'font-weight:700;color:var(--amber)':''}">${orderQty !== '' ? orderQty : '—'}</td>
+        <td style="text-align:center;${orderQty!==''&&orderQty>0?'font-weight:700;color:var(--amber)':''}">${orderQty !== '' ? fmtQty(orderQty) : '—'}</td>
         <td>
-          <input type="number" value="${isManual ? orderQty : ''}" min="0" step="0.5"
+          <input type="number" value="${isManual ? fmtQty(orderQty) : ''}" min="0" step="0.5"
             placeholder="auto"
             style="width:55px;${isManual?'border-color:var(--amber);background:#fffbeb':''}"
             onchange="onOrderOverride('${wk}','${item.id}',this.value)">
@@ -1241,7 +1257,7 @@ async function onCountChange(wk, itemId, val) {
       saveData(d);
     }
   } else {
-    const numVal = Number(val);
+    const numVal = roundHalf(Number(val));
 
     // Variance check: count should not exceed prevCount + prevOrder
     const prev = getPreviousCountData();
@@ -1282,7 +1298,7 @@ function onOrderOverride(wk, itemId, val) {
       saveData(d);
     }
   } else {
-    setField(wk, itemId, 'orderQty', Number(val));
+    setField(wk, itemId, 'orderQty', roundHalf(Number(val)));
     setField(wk, itemId, 'manualOrder', true);
   }
   render();
@@ -1433,12 +1449,12 @@ function exportExcel() {
       'Category': currentMode.subCategories[item.subCategory]?.name || item.subCategory,
       'Vendor': item.vendor || '',
       'Unit': item.unit,
-      'Par Level': par,
-      'Prev Count': prevCount,
-      'Today Count': count,
-      'Usage': usage,
+      'Par Level': roundHalf(par),
+      'Prev Count': prevCount === '' ? '' : roundHalf(prevCount),
+      'Today Count': count === '' ? '' : roundHalf(count),
+      'Usage': usage === '' ? '' : roundHalf(usage),
       'Status': count === '' ? 'Not Counted' : count >= par ? 'Good' : count >= par*0.5 ? 'Low' : 'Critical',
-      'Order Qty': orderQty,
+      'Order Qty': orderQty === '' ? '' : roundHalf(orderQty),
       'Notes': data.notes || ''
     });
   });
@@ -1502,12 +1518,12 @@ function exportPDF() {
       item.name,
       item.vendor || '',
       item.unit,
-      par,
-      prevCount === '' ? '—' : prevCount,
-      count === '' ? '—' : count,
-      usage === '' ? '—' : usage,
+      fmtQty(par),
+      prevCount === '' ? '—' : fmtQty(prevCount),
+      count === '' ? '—' : fmtQty(count),
+      usage === '' ? '—' : fmtQty(usage),
       status,
-      orderQty === '' ? '—' : orderQty,
+      orderQty === '' ? '—' : fmtQty(orderQty),
       data.notes || ''
     ]);
   });
@@ -1606,12 +1622,12 @@ async function sendEmailReport() {
       <td style="padding:5px 8px;border:1px solid #eee;font-weight:600">${item.name}</td>
       <td style="padding:5px 8px;border:1px solid #eee;font-size:11px;color:#6b7280">${item.vendor||''}</td>
       <td style="padding:5px 8px;border:1px solid #eee;text-align:center;font-size:11px">${item.unit}</td>
-      <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${par}</td>
-      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;color:#9ca3af">${prevCount===''?'—':prevCount}</td>
-      <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${count===''?'—':count}</td>
-      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;${usageBg}">${usage===''?'—':usage}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${fmtQty(par)}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;color:#9ca3af">${prevCount===''?'—':fmtQty(prevCount)}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center">${count===''?'—':fmtQty(count)}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;${usageBg}">${usage===''?'—':fmtQty(usage)}</td>
       <td style="padding:5px 8px;border:1px solid #eee;text-align:center;color:${statusColor};font-weight:600">${statusText}</td>
-      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;${orderBg}">${orderQty===''?'—':orderQty}</td>
+      <td style="padding:5px 8px;border:1px solid #eee;text-align:center;${orderBg}">${orderQty===''?'—':fmtQty(orderQty)}</td>
       <td style="padding:5px 8px;border:1px solid #eee;font-size:11px">${data.notes||''}</td>
     </tr>`;
   });
