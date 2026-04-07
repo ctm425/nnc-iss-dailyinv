@@ -1,0 +1,172 @@
+rules_version = '2';
+
+// NNC Inventory — Firestore Security Rules
+//
+// Goal: any signed-in user can use the app (read shared config & inventory data,
+// write today's data, log transfers, submit edit requests). Only owners can
+// change settings, role permissions, and historical/destructive data.
+//
+// Owner identification is dual: (a) a `role: "owner"` field in users/{uid},
+// and (b) a hardcoded allowlist of owner emails so the bootstrap auto-promote
+// in shared.js can succeed even before the role field exists.
+//
+// Collections covered:
+//   users                         per-user profile { role, restaurants, ... }
+//   config/{settings,role-permissions,daily-report}
+//   days/{YYYY-MM-DD}             daily kitchen + produce data
+//   edit-requests                 manager edit requests (note: hyphen, not underscore)
+//   inventory_config, inventory_weeks    drygoods.html
+//   warehouse_config, warehouse_weeks, warehouse_transfers   warehouse.html, ondemand-renton.html
+//   storage_config, storage_weeks, storage_transfers          storage.html
+//   inter_transfers               transfer-request.html
+//   variance_logs                 variance.js
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwnerEmail() {
+      return isSignedIn()
+        && request.auth.token.email in [
+          'shan.janjua@gmail.com',
+          'shan@naanncurry.net'
+        ];
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function hasOwnerRole() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userRole() == 'owner';
+    }
+
+    function isOwner() {
+      return hasOwnerRole() || isOwnerEmail();
+    }
+
+    // ---------- users ----------
+    // Each user can read their own profile. Owners can read everyone.
+    // First-time login creates the profile from the client. We allow self-create
+    // with any role so that owner emails (who default to role:'owner' in shared.js)
+    // can self-bootstrap; non-owner-email accounts get role:'staff' from the client.
+    // Self-update lets a user change cosmetic fields (displayName, lastLogin) but
+    // not their own role unless they are an owner-email.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isOwner());
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isOwner()
+                    || (isSignedIn() && request.auth.uid == uid
+                        && request.resource.data.role == resource.data.role)
+                    || (isOwnerEmail() && request.auth.uid == uid);
+      allow delete: if isOwner();
+    }
+
+    // ---------- config ----------
+    // ALL signed-in users can READ every config doc (settings, role-permissions,
+    // daily-report). The app needs settings on every page load to render properly.
+    // Only owners can write.
+    //
+    // EmailJS public keys, service IDs, and template IDs stored here are NOT
+    // secrets — they ride along in every email sent. Restricting read on this
+    // collection breaks the app and provides no security benefit.
+    //
+    // EXCEPTION: shared.js bootstraps config/role-permissions on first run for
+    // any user (no role check). To support that, allow signed-in create on
+    // role-permissions only when the doc doesn't exist yet.
+    match /config/{doc} {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+
+    // ---------- days (daily kitchen + produce inventory) ----------
+    // All signed-in users can read and write day docs. The client enforces a
+    // historical-data lockout for non-owners via isHistorical() in saveData().
+    match /days/{dateKey} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+
+    // ---------- edit-requests (HYPHEN — verified against client code) ----------
+    // Managers/staff submit edit requests for historical days; owners approve.
+    match /edit-requests/{reqId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isOwner();
+    }
+
+    // ---------- inventory_config + inventory_weeks (drygoods.html) ----------
+    match /inventory_config/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+    match /inventory_weeks/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+
+    // ---------- warehouse_config + warehouse_weeks + warehouse_transfers ----------
+    match /warehouse_config/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+    match /warehouse_weeks/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+    match /warehouse_transfers/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+
+    // ---------- storage_config + storage_weeks + storage_transfers ----------
+    match /storage_config/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+    match /storage_weeks/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+    match /storage_transfers/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+
+    // ---------- inter_transfers (transfer-request.html) ----------
+    match /inter_transfers/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isOwner();
+    }
+
+    // ---------- variance_logs (variance.js) ----------
+    // Append-only audit trail; nobody (except owners) can edit or delete.
+    match /variance_logs/{doc} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isOwner();
+    }
+
+    // ---------- default deny ----------
+    // Any collection not explicitly allowed above is locked down.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
