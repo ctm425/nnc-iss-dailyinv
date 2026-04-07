@@ -2093,13 +2093,34 @@ function renderItemList(){
   let html='';
   items.forEach(item=>{
     const badge=item.category==='kitchen'?'cat-kitchen':'cat-produce';
+    const excluded=item.excludeFromEmail===true;
+    // "Exclude from email" toggle is only meaningful for kitchen items (produce uses its own page)
+    const toggleHTML=item.category==='kitchen'?`<label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--gray-500);margin-right:10px;cursor:pointer" title="If checked, item still appears on this page but is NOT included in the kitchen order email">
+        <input type="checkbox" ${excluded?'checked':''} onchange="toggleExcludeFromEmail('${item.id}',this.checked)" style="cursor:pointer">
+        Exclude from email
+      </label>`:'';
     html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--gray-100)">
       <div><strong>${item.name}</strong> <span style="color:var(--gray-400);font-size:.8rem">(${item.unit})</span>
-        <span class="cat-badge ${badge}" style="margin-left:6px">${CAT_LABELS[item.category]}</span></div>
-      <button class="btn btn-danger btn-sm" onclick="removeItem('${item.id}')">Remove</button>
+        <span class="cat-badge ${badge}" style="margin-left:6px">${CAT_LABELS[item.category]}</span>
+        ${excluded?'<span style="margin-left:6px;font-size:.7rem;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-weight:600">EMAIL HIDDEN</span>':''}
+      </div>
+      <div style="display:flex;align-items:center">
+        ${toggleHTML}
+        <button class="btn btn-danger btn-sm" onclick="removeItem('${item.id}')">Remove</button>
+      </div>
     </div>`;
   });
   document.getElementById('itemListManage').innerHTML=html;
+}
+
+function toggleExcludeFromEmail(itemId,checked){
+  const d=loadData();
+  const item=d.items.find(i=>i.id===itemId);
+  if(!item)return;
+  item.excludeFromEmail=!!checked;
+  items=d.items;
+  saveData(d);
+  showToast(checked?`"${item.name}" hidden from email`:`"${item.name}" included in email`);
 }
 
 function openAddItem(){document.getElementById('addModal').classList.add('show')}
@@ -2331,7 +2352,8 @@ function loadEmailJSConfig(){
 function buildReportHTML(){
   const dd=getDayData(dk(currentDate));
   const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
-  const kitchenItems=items.filter(i=>i.category==='kitchen');
+  // Exclude items flagged as excludeFromEmail (still tracked in inventory, just not emailed)
+  const kitchenItems=items.filter(i=>i.category==='kitchen'&&!i.excludeFromEmail);
   let tableRows='';
   kitchenItems.forEach(item=>{
     const d=dd[item.id]||{};
@@ -2373,6 +2395,11 @@ function sendReport(){
 
   const dateDisplay=MONTH_NAMES[currentDate.getMonth()]+' '+currentDate.getDate()+', '+currentDate.getFullYear();
   const dayStr=DAY_NAMES[currentDate.getDay()];
+  // Next day's date — this order is for tomorrow's needs
+  const nextDay=new Date(currentDate);
+  nextDay.setDate(nextDay.getDate()+1);
+  const nextDayDisplay=MONTH_NAMES[nextDay.getMonth()]+' '+nextDay.getDate()+', '+nextDay.getFullYear();
+  const nextDayName=DAY_NAMES[nextDay.getDay()];
 
   // Build the Send-To sections for email
   const key=dk(currentDate);
@@ -2398,7 +2425,11 @@ function sendReport(){
 
   // Build the HTML table for email body
   const tableRows=buildReportHTML();
-  const htmlTable=sendToHTML+`<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial">
+  const deliveryBanner=`<div style="font-family:system-ui,sans-serif,Arial;background:#1e3a5f;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0;margin-bottom:0">
+      <h2 style="margin:0;font-size:17px;font-weight:700">NNC Issaquah — Kitchen Daily Order</h2>
+      <p style="margin:4px 0 0;font-size:13px;opacity:.9">Items needed for: <strong>${nextDayName}, ${nextDayDisplay}</strong> | Inventoried by: ${person}</p>
+    </div>`;
+  const htmlTable=deliveryBanner+sendToHTML+`<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial">
     <thead><tr style="background:#1e3a5f">
       <th style="padding:8px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Item</th>
       <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Today's Par</th>
@@ -2430,13 +2461,15 @@ function sendReport(){
   emailjs.init(d.emailjs.publicKey);
   emailjs.send(d.emailjs.serviceId,d.emailjs.templateId,{
     to_email:emails.join(','),
-    from_name:'NNC Inventory System',
-    subject:dateDisplay+' - Issaquah Kitchen Order',
+    from_name:'NNC Issaquah Daily Order',
+    subject:'NNC Issaquah Kitchen Order — Needed for '+nextDayDisplay+' ('+nextDayName+')',
     date:dateDisplay,
     day:dayStr,
+    delivery_date:nextDayDisplay,
+    delivery_day:nextDayName,
     inventory_by:person,
     order_summary:htmlTable,
-    message:'NNC Main Kitchen - Daily Inventory Report'
+    message:'NNC Issaquah Kitchen Order — Items needed for '+nextDayName+', '+nextDayDisplay
   }).then(()=>{
     showToast('Report emailed to '+emails.length+' recipient(s)');
   }).catch(err=>{

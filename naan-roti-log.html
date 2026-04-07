@@ -651,7 +651,7 @@ function getDayName(d) { return d.toLocaleDateString('en-US', { weekday: 'long' 
 function getWeekStart(d) {
   const dt = new Date(d);
   const day = dt.getDay();
-  const diff = (day + 5) % 7; // Tue=0
+  const diff = (day + 6) % 7; // Mon=0
   dt.setDate(dt.getDate() - diff);
   dt.setHours(0,0,0,0);
   return dt;
@@ -660,7 +660,7 @@ function getWeekStart(d) {
 function getWeekDates(d) {
   const start = getWeekStart(d);
   const dates = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 7; i++) {
     const dt = new Date(start);
     dt.setDate(dt.getDate() + i);
     dates.push(dt);

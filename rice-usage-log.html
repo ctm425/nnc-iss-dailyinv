@@ -400,13 +400,13 @@ function getDayName(d) { return d.toLocaleDateString('en-US', { weekday: 'long' 
 
 function getWeekStart(d) {
   const dt = new Date(d); const day = dt.getDay();
-  dt.setDate(dt.getDate() - ((day + 5) % 7));
+  dt.setDate(dt.getDate() - ((day + 6) % 7));
   dt.setHours(0,0,0,0); return dt;
 }
 
 function getWeekDates(d) {
   const start = getWeekStart(d);
-  return Array.from({length:6}, (_,i) => { const dt = new Date(start); dt.setDate(dt.getDate()+i); return dt; });
+  return Array.from({length:7}, (_,i) => { const dt = new Date(start); dt.setDate(dt.getDate()+i); return dt; });
 }
 
 function setDate(d) {
