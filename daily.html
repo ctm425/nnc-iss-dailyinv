@@ -289,6 +289,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   </div>
 
   <div id="histLockBanner" style="display:none;background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px 20px;margin:0 24px;font-size:.88rem;color:#92400e;font-weight:600;text-align:center"></div>
+  <div id="lastEditedBar" style="display:none;margin:6px 24px 0;font-size:.78rem;color:#64748b;text-align:right">Last edited: <span id="lastEditedVal">—</span></div>
 
   <div class="inventory-person-bar">
     <label>Inventory By:</label>
@@ -650,14 +651,28 @@ function openEditRequest(){
   window.location.href='edit-request.html?date='+ds+'&page='+encodeURIComponent(page);
 }
 function setField(key,itemId,field,value){
-  if(isHistorical()&&!isOwner())return;
+  if(isHistorical()&&!isOwner()){
+    openHistoricalEditRequest({page:document.title,date:key,field:itemId+'.'+field});
+    return;
+  }
   const d=loadData();if(!d.days)d.days={};if(!d.days[key])d.days[key]={};if(!d.days[key][itemId])d.days[key][itemId]={};
-  d.days[key][itemId][field]=value;saveData(d);
+  d.days[key][itemId][field]=value;
+  if(!d.days[key].__meta)d.days[key].__meta={};
+  d.days[key].__meta.updatedAt=new Date().toISOString();
+  d.days[key].__meta.updatedBy=(currentUser&&currentUser.email)||'';
+  saveData(d);
 }
 
 // ==================== SEND-TO SECTIONS ====================
 let sendToDebounce=null;
 function saveSendToField(field,value){
+  if(isHistorical()&&!isOwner()){
+    // Block edit + prompt popup (do not persist a stray keystroke)
+    openHistoricalEditRequest({page:document.title,date:dk(currentDate),field:field});
+    // Restore on-screen value from stored data so the text appears unchanged
+    loadSendToFields();
+    return;
+  }
   clearTimeout(sendToDebounce);
   sendToDebounce=setTimeout(()=>{
     const key=dk(currentDate);
@@ -666,6 +681,10 @@ function saveSendToField(field,value){
     if(!d.days[key])d.days[key]={};
     if(!d.days[key].__sendTo)d.days[key].__sendTo={};
     d.days[key].__sendTo[field]=value;
+    // Touch the day's meta timestamp
+    if(!d.days[key].__meta)d.days[key].__meta={};
+    d.days[key].__meta.updatedAt=new Date().toISOString();
+    d.days[key].__meta.updatedBy=(currentUser&&currentUser.email)||'';
     saveData(d);
   },300);
 }
@@ -998,12 +1017,23 @@ function render(){
   document.getElementById('dayName').textContent=DAY_NAMES[d.getDay()];
   // Historical lock for non-owners
   const histLock=document.getElementById('histLockBanner');
-  if(isHistorical()&&!isOwner()){
+  const locked=isHistorical()&&!isOwner();
+  if(locked){
     const dateStr=currentDate.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
     histLock.style.display='block';
-    histLock.innerHTML='🔒 Historical data for '+dateStr+' is locked. <button style="margin-left:12px;padding:6px 16px;font-size:.82rem;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer" onclick="openEditRequest()">Request an Edit</button>';
+    histLock.innerHTML='🔒 Historical data for '+dateStr+' is locked. Click any field to submit an edit request, or use <button style="margin-left:8px;padding:6px 16px;font-size:.82rem;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer" onclick="openHistoricalEditRequest({page:document.title,date:dk(currentDate)})">Request an Edit</button>';
   }else{
     histLock.style.display='none';
+  }
+  // Last-edited timestamp
+  const dd=getDayData(dk(currentDate));
+  const bar=document.getElementById('lastEditedBar');
+  if(dd&&dd.__meta&&dd.__meta.updatedAt){
+    bar.style.display='block';
+    const dt=new Date(dd.__meta.updatedAt);
+    document.getElementById('lastEditedVal').textContent=dt.toLocaleString()+(dd.__meta.updatedBy?' by '+dd.__meta.updatedBy:'');
+  }else{
+    bar.style.display='none';
   }
   // Show/hide no-delivery banner
   document.getElementById('noDeliveryBanner').style.display=isSunday(d)?'flex':'none';
@@ -1014,6 +1044,26 @@ function render(){
     t.classList.toggle('active',t.dataset.tab===currentTab);
   });
   loadSendToFields();renderStats();renderTable();
+  // Disable inputs + wire historical popup on locked days
+  const invView=document.getElementById('inventoryView');
+  if(locked){
+    invView.querySelectorAll('#inventoryView input,#inventoryView textarea,#inventoryView select').forEach(el=>{
+      if(el.id==='datePicker')return;
+      el.setAttribute('data-hist-locked','1');
+      if(el.tagName==='SELECT'){el.disabled=true;}
+      else{el.readOnly=true;}
+      el.style.background='#f1f5f9';el.style.cursor='pointer';
+    });
+  }else{
+    invView.querySelectorAll('[data-hist-locked="1"]').forEach(el=>{
+      el.removeAttribute('data-hist-locked');
+      if(el.tagName==='SELECT')el.disabled=false;else el.readOnly=false;
+      el.style.background='';el.style.cursor='';
+    });
+  }
+  wireHistoricalEditPrompt(invView,function(){
+    return{historical:isHistorical(),isOwner:isOwner(),page:document.title,date:dk(currentDate)};
+  });
 }
 
 function renderStats(){

@@ -875,14 +875,35 @@ function renderTable() {
   const frozenTransfers = activeSection === 'frozen' ? computeFrozenTransferSummary() : {};
 
   const isFrozen = activeSection === 'frozen';
+  // Helper: last entered count for this SKU across any prior day-key for the active section.
+  // Used to populate the Prev Count column on non-frozen tabs.
+  const _prevCache = {};
+  function prevCountFor(itemId) {
+    if (_prevCache[itemId] !== undefined) return _prevCache[itemId];
+    const currentKey = `${wk}_${activeSection}`;
+    const suffix = '_' + activeSection;
+    const priorKeys = Object.keys(d.weeks || {})
+      .filter(k => k.endsWith(suffix) && k < currentKey)
+      .sort().reverse();
+    for (const pk of priorKeys) {
+      const pd = d.weeks[pk] && d.weeks[pk][itemId];
+      if (pd && pd.count !== undefined && pd.count !== '' && pd.count !== null) {
+        _prevCache[itemId] = Number(pd.count);
+        return _prevCache[itemId];
+      }
+    }
+    _prevCache[itemId] = null;
+    return null;
+  }
+  const nonFrozenHeaders = '<th style="text-align:center;background:#f1f5f9">Prev Count</th><th>Today&rsquo;s Count</th><th style="text-align:center;background:#ecfdf5">Change</th>';
   let html = `<table><thead><tr>
-    <th>Item</th><th>Item #</th><th>Batch #</th><th>Unit</th><th>${isFrozen ? 'Received' : 'Count'}</th>${isFrozen ? '<th style="text-align:center;color:var(--danger)">Transferred Out</th><th style="text-align:center;color:var(--success)">WH Remaining</th>' : ''}<th>Notes</th><th>Transfer</th>
+    <th>Item</th><th>Item #</th><th>Batch #</th><th>Unit</th>${isFrozen ? '<th>Received</th>' : nonFrozenHeaders}${isFrozen ? '<th style="text-align:center;color:var(--danger)">Transferred Out</th><th style="text-align:center;color:var(--success)">WH Remaining</th>' : ''}<th>Notes</th><th>Transfer</th>
   </tr></thead><tbody>`;
 
   Object.keys(sec.subCategories).forEach(catKey => {
     if (!grouped[catKey]) return;
     const cat = sec.subCategories[catKey];
-    const colSpan = isFrozen ? 9 : 7;
+    const colSpan = isFrozen ? 9 : 9;
     const vendorInfo = cat.receivedDate ? ` <span style="font-size:.72rem;color:var(--gray-500);font-weight:500;text-transform:none;letter-spacing:0">(Received ${cat.receivedDate})</span>` : '';
     html += `<tr class="section-header"><td colspan="${colSpan}" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}${vendorInfo}</td></tr>`;
 
@@ -899,6 +920,22 @@ function renderTable() {
         whRemaining = (count !== '' ? count : 0) - transferredOut;
       }
 
+      // Prev + Change columns (non-frozen only)
+      let prevCell = '';
+      let changeCell = '';
+      if (!isFrozen) {
+        const prev = prevCountFor(item.id);
+        const prevDisp = prev !== null ? fmt2(prev) : '—';
+        prevCell = `<td style="text-align:center;font-weight:600;color:#475569;background:#f8fafc">${prevDisp}</td>`;
+        if (count !== '' && prev !== null) {
+          const chg = Number(count) - prev;
+          const chgColor = chg < 0 ? 'var(--danger)' : chg > 0 ? 'var(--success)' : 'var(--gray-400)';
+          const chgSign = chg > 0 ? '+' : '';
+          changeCell = `<td style="text-align:center;font-weight:700;color:${chgColor};background:#f0fdf4">${chgSign}${fmt2(chg)}</td>`;
+        } else {
+          changeCell = `<td style="text-align:center;color:var(--gray-400);background:#f0fdf4">—</td>`;
+        }
+      }
       html += `<tr>
         <td>${item.name}</td>
         <td><input type="text" class="note-input" value="${item.itemNumber||''}" placeholder="—" style="width:80px"
@@ -906,9 +943,11 @@ function renderTable() {
         <td><input type="text" class="note-input" value="${item.batchNumber||''}" placeholder="—" style="width:80px"
           onchange="updateItemField('${item.id}','batchNumber',this.value)"></td>
         <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
-        <td><input type="number" value="${count}" min="0" step="0.5"
+        ${prevCell}
+        <td><input type="number" value="${count!==''?fmt2(count):''}" min="0" step="0.01"
           onchange="onCountChange('${item.id}',this.value)"
-          style="background:${count===''?'#fffbeb':'#fff'}"></td>`;
+          style="background:${count===''?'#fffbeb':'#fff'}"></td>
+        ${changeCell}`;
 
       if (isFrozen) {
         const outColor = transferredOut > 0 ? 'var(--danger)' : 'var(--gray-400)';
@@ -925,7 +964,7 @@ function renderTable() {
   });
 
   if (filtered.length === 0) {
-    const emptyColSpan = isFrozen ? 9 : 7;
+    const emptyColSpan = isFrozen ? 9 : 9;
     html += `<tr><td colspan="${emptyColSpan}" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
   }
   html += `</tbody></table>`;

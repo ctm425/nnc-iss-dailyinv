@@ -512,3 +512,131 @@ function showToastShared(msg) {
   t.style.opacity = '1';
   setTimeout(() => { t.style.opacity = '0'; }, 3000);
 }
+
+// ==================== 2-DECIMAL DISPLAY FORMATTER ====================
+// Formats a numeric value for display with exactly 2 decimal places.
+// Does NOT mutate storage; use on read only. Returns '' for null/undefined/''
+// so empty inputs stay empty in the UI.
+function fmt2(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  return n.toFixed(2);
+}
+
+// ==================== HISTORICAL-EDIT REQUEST POPUP ====================
+// Shared modal + submitter used by daily.html, produce-daily.html,
+// naan-roti-log.html, rice-usage-log.html (and any page added later).
+// A click on a locked historical field opens this popup, which offers to
+// submit a pending edit-request doc. Owner sees an alert badge on index.html.
+let _editReqModalBuilt = false;
+function _buildEditReqModal() {
+  if (_editReqModalBuilt) return;
+  _editReqModalBuilt = true;
+  const wrap = document.createElement('div');
+  wrap.id = 'editReqModal';
+  wrap.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:16px;font-family:inherit';
+  wrap.innerHTML = `
+    <div style="background:#fff;border-radius:12px;max-width:480px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+      <div style="font-size:1.15rem;font-weight:800;color:#1e3a5f;margin-bottom:8px">\uD83D\uDD12 Historical Data Locked</div>
+      <div id="editReqContext" style="font-size:.85rem;color:#64748b;margin-bottom:14px"></div>
+      <div style="font-size:.92rem;color:#334155;margin-bottom:12px">This entry is from a past day and cannot be edited directly. Do you need to request an adjustment from the owner?</div>
+      <label style="display:block;font-size:.8rem;font-weight:700;color:#475569;margin-bottom:4px">Which field?</label>
+      <input id="editReqField" type="text" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:.9rem;margin-bottom:10px" placeholder="e.g. Chicken PM count">
+      <label style="display:block;font-size:.8rem;font-weight:700;color:#475569;margin-bottom:4px">Correct value</label>
+      <input id="editReqValue" type="text" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:.9rem;margin-bottom:10px" placeholder="What should it be?">
+      <label style="display:block;font-size:.8rem;font-weight:700;color:#475569;margin-bottom:4px">Reason / notes</label>
+      <textarea id="editReqNotes" rows="3" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:.9rem;margin-bottom:14px;resize:vertical" placeholder="Why does this need to change?"></textarea>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="editReqCancel" type="button" style="padding:9px 18px;border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:6px;font-weight:700;cursor:pointer">Cancel</button>
+        <button id="editReqSubmit" type="button" style="padding:9px 18px;border:none;background:#4338ca;color:#fff;border-radius:6px;font-weight:700;cursor:pointer">Submit Request</button>
+      </div>
+      <div id="editReqMsg" style="margin-top:10px;font-size:.85rem;color:#475569"></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', function(e) { if (e.target === wrap) wrap.style.display = 'none'; });
+  document.getElementById('editReqCancel').onclick = function() { wrap.style.display = 'none'; };
+  document.getElementById('editReqSubmit').onclick = async function() {
+    const msg = document.getElementById('editReqMsg');
+    const field = document.getElementById('editReqField').value.trim();
+    const val = document.getElementById('editReqValue').value.trim();
+    const notes = document.getElementById('editReqNotes').value.trim();
+    if (!field) { msg.textContent = 'Please name the field.'; msg.style.color = '#b91c1c'; return; }
+    if (!auth.currentUser) { msg.textContent = 'Not signed in.'; msg.style.color = '#b91c1c'; return; }
+    const ctx = wrap._ctx || {};
+    try {
+      await db.collection('edit-requests').add({
+        page: ctx.page || document.title,
+        date: ctx.date || '',
+        item: field,
+        correctValue: val,
+        notes: notes,
+        status: 'pending',
+        submittedBy: auth.currentUser.email,
+        submittedByUid: auth.currentUser.uid,
+        submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: null,
+        reviewedAt: null,
+        reviewNotes: ''
+      });
+      msg.textContent = 'Request submitted. The owner has been notified.';
+      msg.style.color = '#059669';
+      setTimeout(function() { wrap.style.display = 'none'; }, 1200);
+    } catch (e) {
+      console.error('edit-request submit failed', e);
+      msg.textContent = 'Submit failed: ' + (e.message || e);
+      msg.style.color = '#b91c1c';
+    }
+  };
+}
+function openHistoricalEditRequest(opts) {
+  _buildEditReqModal();
+  const wrap = document.getElementById('editReqModal');
+  wrap._ctx = opts || {};
+  document.getElementById('editReqContext').textContent =
+    (opts && opts.page ? opts.page : document.title) +
+    (opts && opts.date ? ' — ' + opts.date : '');
+  document.getElementById('editReqField').value = (opts && opts.field) || '';
+  document.getElementById('editReqValue').value = '';
+  document.getElementById('editReqNotes').value = '';
+  document.getElementById('editReqMsg').textContent = '';
+  wrap.style.display = 'flex';
+}
+
+// Attach a one-shot click handler inside a container that opens the
+// edit-request popup when a disabled/readonly input is touched on a
+// historical day. Call from each page's render/applyEditMode path.
+function wireHistoricalEditPrompt(container, getCtx) {
+  if (!container || container._histWired) return;
+  container._histWired = true;
+  container.addEventListener('click', function(e) {
+    const t = e.target;
+    if (!t) return;
+    const tag = (t.tagName || '').toLowerCase();
+    if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') return;
+    const ctx = (typeof getCtx === 'function') ? (getCtx() || {}) : {};
+    if (!ctx.historical) return;
+    if (ctx.isOwner) return; // owner can edit directly
+    e.preventDefault();
+    openHistoricalEditRequest({
+      page: ctx.page || document.title,
+      date: ctx.date || '',
+      field: t.getAttribute('data-field') || t.id || t.name || ''
+    });
+  }, true);
+}
+
+// Live count of pending edit-requests — used to render an owner alert badge.
+// Calls cb(count) on every Firestore update; returns an unsubscribe fn.
+function watchPendingEditRequests(cb) {
+  if (!db || !auth.currentUser) return function(){};
+  try {
+    return db.collection('edit-requests').where('status','==','pending')
+      .onSnapshot(function(snap){ cb(snap.size); }, function(err){
+        console.error('pending edit-requests watch failed', err);
+      });
+  } catch (e) {
+    console.error('watchPendingEditRequests failed', e);
+    return function(){};
+  }
+}

@@ -590,6 +590,27 @@ function applyEditMode() {
       el.oninput = null;
     }
   });
+
+  // Non-owner historical: lock every editable input + wire the popup.
+  // Visual dimming + click-to-request-edit.
+  const body = document.body;
+  document.querySelectorAll('input[type="number"]').forEach(el => {
+    if (hist && !owner) {
+      el.setAttribute('data-hist-locked','1');
+      el.setAttribute('readonly', true);
+      el.style.background = '#f1f5f9';
+      el.style.cursor = 'pointer';
+    } else if (el.getAttribute('data-hist-locked') === '1') {
+      el.removeAttribute('data-hist-locked');
+      el.removeAttribute('readonly');
+      el.style.background = '';
+      el.style.cursor = '';
+    }
+  });
+  wireHistoricalEditPrompt(body, function() {
+    return { historical: isHistorical(), isOwner: isOwner(),
+             page: document.title, date: formatDate(currentDate) };
+  });
 }
 
 // In historical mode, update the total display divs from the unlocked input values

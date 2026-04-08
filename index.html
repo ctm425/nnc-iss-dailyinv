@@ -747,10 +747,10 @@ function showIssaquahDetail(container, loc, color) {
     </div>
   </div>`;
   if (profile?.role === 'owner' || profile?.role === 'manager') {
-    dataCorrectionTiles += `<div class="sheet-card" onclick="navigateTo('edit-requests.html')">
+    dataCorrectionTiles += `<div class="sheet-card" onclick="navigateTo('edit-requests.html')" style="position:relative">
       <div class="accent-bar" style="background:#2563eb"></div>
       <div class="icon">📋</div>
-      <div class="name">Review Edit Requests</div>
+      <div class="name">Review Edit Requests <span id="pendingEditBadge" style="display:none;background:#dc2626;color:#fff;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:middle">0</span></div>
       <div class="desc">View and approve/deny pending data correction requests from staff</div>
       <div class="meta">
         <span class="tag freq">as needed</span>
@@ -769,6 +769,16 @@ function showIssaquahDetail(container, loc, color) {
     ${ownerReport}${dailyOps}${usagePrep}${otherKitchen}${inventoryMain}${inventoryQuick}${vendors}${dataCorrections}
   `;
   container.classList.add('visible');
+  // Live pending-edit-request badge for owner/manager
+  if (profile?.role === 'owner' || profile?.role === 'manager') {
+    if (window._pendingEditUnsub) { try { window._pendingEditUnsub(); } catch(e){} }
+    window._pendingEditUnsub = watchPendingEditRequests(function(n){
+      const b = document.getElementById('pendingEditBadge');
+      if (!b) return;
+      if (n > 0) { b.style.display = 'inline-block'; b.textContent = n; }
+      else { b.style.display = 'none'; }
+    });
+  }
 }
 
 function openSheet(sheetKey) {

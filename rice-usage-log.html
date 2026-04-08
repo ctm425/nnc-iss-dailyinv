@@ -379,6 +379,25 @@ function applyEditMode() {
     const el = document.getElementById(id);
     if (hist && owner) { el.removeAttribute('readonly'); } else { el.setAttribute('readonly', true); }
   });
+
+  // Non-owner historical lock + popup wiring
+  document.querySelectorAll('input[type="number"]').forEach(el => {
+    if (hist && !owner) {
+      el.setAttribute('data-hist-locked','1');
+      el.setAttribute('readonly', true);
+      el.style.background = '#f1f5f9';
+      el.style.cursor = 'pointer';
+    } else if (el.getAttribute('data-hist-locked') === '1') {
+      el.removeAttribute('data-hist-locked');
+      el.removeAttribute('readonly');
+      el.style.background = '';
+      el.style.cursor = '';
+    }
+  });
+  wireHistoricalEditPrompt(document.body, function() {
+    return { historical: isHistorical(), isOwner: isOwner(),
+             page: document.title, date: formatDate(currentDate) };
+  });
 }
 
 // ==================== TAB SWITCHING ====================

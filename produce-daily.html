@@ -1013,6 +1013,27 @@ function render(){
     t.classList.toggle('active',t.dataset.tab===currentTab);
   });
   renderStats();renderTable();
+  const locked=isHistorical()&&!isOwner();
+  const invView=document.getElementById('inventoryView');
+  if(invView){
+    if(locked){
+      invView.querySelectorAll('input,textarea,select').forEach(el=>{
+        if(el.id==='datePicker')return;
+        el.setAttribute('data-hist-locked','1');
+        if(el.tagName==='SELECT')el.disabled=true;else el.readOnly=true;
+        el.style.background='#f1f5f9';el.style.cursor='pointer';
+      });
+    }else{
+      invView.querySelectorAll('[data-hist-locked="1"]').forEach(el=>{
+        el.removeAttribute('data-hist-locked');
+        if(el.tagName==='SELECT')el.disabled=false;else el.readOnly=false;
+        el.style.background='';el.style.cursor='';
+      });
+    }
+    wireHistoricalEditPrompt(invView,function(){
+      return{historical:isHistorical(),isOwner:isOwner(),page:document.title,date:dk(currentDate)};
+    });
+  }
 }
 
 function renderStats(){
