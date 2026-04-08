@@ -1190,11 +1190,20 @@ function _buildRow(item, weekData, prev, hasPrev) {
   const isManual = data.manualOrder === true;
   const orderQty = isManual && data.orderQty !== undefined ? Number(data.orderQty) : autoOrder;
   const prevItemData = prev.data[item.id] || {};
-  const prevCount = prevItemData.count !== undefined && prevItemData.count !== '' ? Number(prevItemData.count) : '';
-  const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
-  const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+  const prevCountRaw = prevItemData.count !== undefined && prevItemData.count !== '' ? Number(prevItemData.count) : '';
+  const prevOrderAuto = prevCountRaw !== '' ? Math.max(0, par - prevCountRaw) : 0;
+  // Only add received qty into the starting stock if the manager actually
+  // keyed an invoice value (manualOrder:true). Auto-suggested qty is NOT
+  // inventory that physically arrived, so it must not inflate prev count.
+  const prevReceived = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : 0;
+  // prevCount for display & usage = yesterday's physical count PLUS anything
+  // that was received that day. This is the true starting stock going into today.
+  const prevCount = prevCountRaw === '' ? '' : (prevCountRaw + prevReceived);
+  // prevOrder retained for backward-compat with any caller that still reads it;
+  // usage math below now uses the combined prevCount directly.
+  const prevOrder = prevReceived || prevOrderAuto;
   let usage = '';
-  if (hasPrev && prevCount !== '' && count !== '') usage = (prevCount + prevOrder) - count;
+  if (hasPrev && prevCountRaw !== '' && count !== '') usage = prevCount - count;
   let statusKey = 'uncounted';
   if (count !== '') {
     if (count >= par) statusKey = 'ok';
@@ -1303,7 +1312,7 @@ function renderTable() {
       ${th('vendor','Vendor')}
       ${th('unit','Unit')}
       ${th('par','Par Level')}
-      ${th('prev','Prev Count')}
+      ${th('prev','Prev Count','title="Yesterday\u2019s count plus anything received yesterday (the real starting stock for today)"')}
       ${th('count','Count')}
       ${th('usage','Usage')}
       ${th('status','Status')}
