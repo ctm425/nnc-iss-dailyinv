@@ -83,6 +83,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-bar{padding:12px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .search-input{padding:8px 14px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.9rem;width:260px}
 .search-input:focus{outline:none;border-color:var(--primary-light)}
+.filter-select{padding:8px 10px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.85rem;background:#fff;color:var(--gray-700);cursor:pointer}
+.filter-select:focus{outline:none;border-color:var(--primary-light)}
+.filter-label{font-size:.78rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px}
+.filter-clear{padding:6px 12px;font-size:.78rem;background:var(--gray-100);border:1px solid var(--gray-300);color:var(--gray-700);border-radius:var(--radius);cursor:pointer;font-weight:600}
+.filter-clear:hover{background:var(--gray-200)}
+/* Sortable headers */
+thead th.sortable{cursor:pointer;user-select:none}
+thead th.sortable:hover{background:var(--primary-bg);color:var(--primary)}
+thead th.sortable .sort-ind{display:inline-block;margin-left:4px;opacity:.4;font-size:.7rem}
+thead th.sortable.sorted .sort-ind{opacity:1;color:var(--primary)}
 
 /* Table */
 .table-wrap{padding:16px 24px;overflow-x:auto}
@@ -237,6 +247,23 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 <!-- FILTER -->
 <div class="filter-bar" id="filterBar">
   <input type="text" class="search-input" id="searchInput" placeholder="Search items..." oninput="render()">
+  <span class="filter-label">Vendor:</span>
+  <select class="filter-select" id="vendorFilter" onchange="render()"><option value="">All vendors</option></select>
+  <span class="filter-label">Status:</span>
+  <select class="filter-select" id="statusFilter" onchange="render()">
+    <option value="">All statuses</option>
+    <option value="ok">✓ Good</option>
+    <option value="low">⚠ Low</option>
+    <option value="critical">⛔ Critical</option>
+    <option value="uncounted">— Not Counted</option>
+  </select>
+  <span class="filter-label">Received:</span>
+  <select class="filter-select" id="receivedFilter" onchange="render()">
+    <option value="">All</option>
+    <option value="entered">Received Qty entered</option>
+    <option value="missing">Missing Received Qty</option>
+  </select>
+  <button class="filter-clear" onclick="clearInventoryFilters()">Clear Filters</button>
 </div>
 
 <!-- TABLE -->
@@ -1131,6 +1158,60 @@ function setTab(tab) {
   render();
 }
 
+// Sort state — one sort column at a time. null = use category grouping.
+let tableSort = { column: null, dir: 'asc' };
+
+function setTableSort(col) {
+  if (tableSort.column === col) {
+    tableSort.dir = tableSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableSort.column = col;
+    tableSort.dir = 'asc';
+  }
+  render();
+}
+
+function clearInventoryFilters() {
+  const si = document.getElementById('searchInput'); if (si) si.value = '';
+  const vf = document.getElementById('vendorFilter'); if (vf) vf.value = '';
+  const sf = document.getElementById('statusFilter'); if (sf) sf.value = '';
+  const rf = document.getElementById('receivedFilter'); if (rf) rf.value = '';
+  tableSort = { column: null, dir: 'asc' };
+  activeTab = 'all';
+  render();
+}
+
+// Build an enriched row used for both sort comparison and rendering.
+function _buildRow(item, weekData, prev, hasPrev) {
+  const data = weekData[item.id] || {};
+  const count = data.count !== undefined && data.count !== '' ? Number(data.count) : '';
+  const par = item.par || 0;
+  const autoOrder = count !== '' ? Math.max(0, par - count) : '';
+  const isManual = data.manualOrder === true;
+  const orderQty = isManual && data.orderQty !== undefined ? Number(data.orderQty) : autoOrder;
+  const prevItemData = prev.data[item.id] || {};
+  const prevCount = prevItemData.count !== undefined && prevItemData.count !== '' ? Number(prevItemData.count) : '';
+  const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
+  const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+  let usage = '';
+  if (hasPrev && prevCount !== '' && count !== '') usage = (prevCount + prevOrder) - count;
+  let statusKey = 'uncounted';
+  if (count !== '') {
+    if (count >= par) statusKey = 'ok';
+    else if (count >= par * 0.5) statusKey = 'low';
+    else statusKey = 'critical';
+  }
+  return { item, data, count, par, autoOrder, isManual, orderQty, prevCount, usage, statusKey };
+}
+
+function populateVendorFilter(items) {
+  const sel = document.getElementById('vendorFilter');
+  if (!sel) return;
+  const current = sel.value;
+  const vendors = Array.from(new Set(items.map(i => (i.vendor || '').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML = '<option value="">All vendors</option>' + vendors.map(v => `<option value="${v.replace(/"/g,'&quot;')}"${v===current?' selected':''}>${v}</option>`).join('');
+}
+
 function renderTable() {
   const container = document.getElementById('tableWrap');
   const d = loadData();
@@ -1140,113 +1221,150 @@ function renderTable() {
   const prev = getPreviousCountData();
   const hasPrev = prev.date !== null;
   const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const vendorFilter = document.getElementById('vendorFilter')?.value || '';
+  const statusFilter = document.getElementById('statusFilter')?.value || '';
+  const receivedFilter = document.getElementById('receivedFilter')?.value || '';
 
-  // Filter items
-  let filtered = items;
+  populateVendorFilter(items);
+
+  // Build enriched rows then apply filters
+  let rows = items.map(it => _buildRow(it, weekData, prev, hasPrev));
+
   if (activeTab !== 'all') {
-    filtered = filtered.filter(i => i.subCategory === activeTab);
+    rows = rows.filter(r => r.item.subCategory === activeTab);
   }
   if (search) {
-    filtered = filtered.filter(i => i.name.toLowerCase().includes(search));
+    rows = rows.filter(r => (r.item.name || '').toLowerCase().includes(search));
+  }
+  if (vendorFilter) {
+    rows = rows.filter(r => (r.item.vendor || '').trim() === vendorFilter);
+  }
+  if (statusFilter) {
+    rows = rows.filter(r => r.statusKey === statusFilter);
+  }
+  if (receivedFilter === 'entered') {
+    rows = rows.filter(r => r.isManual && r.orderQty !== '' && r.orderQty !== undefined);
+  } else if (receivedFilter === 'missing') {
+    rows = rows.filter(r => !r.isManual);
   }
 
-  // Group by subCategory
+  // Sort
+  const sortCol = tableSort.column;
+  const sortDir = tableSort.dir === 'desc' ? -1 : 1;
+  const cmpNum = (a, b) => {
+    const aIsEmpty = a === '' || a === null || a === undefined || Number.isNaN(a);
+    const bIsEmpty = b === '' || b === null || b === undefined || Number.isNaN(b);
+    if (aIsEmpty && bIsEmpty) return 0;
+    if (aIsEmpty) return 1; // empties last regardless of dir
+    if (bIsEmpty) return -1;
+    return (Number(a) - Number(b)) * sortDir;
+  };
+  const cmpStr = (a, b) => ((a || '').toString().toLowerCase()).localeCompare((b || '').toString().toLowerCase()) * sortDir;
+  const statusOrder = { critical: 0, low: 1, uncounted: 2, ok: 3 };
+
+  if (sortCol) {
+    rows.sort((ra, rb) => {
+      switch (sortCol) {
+        case 'name':    return cmpStr(ra.item.name, rb.item.name);
+        case 'vendor':  return cmpStr(ra.item.vendor, rb.item.vendor);
+        case 'unit':    return cmpStr(ra.item.unit, rb.item.unit);
+        case 'par':     return cmpNum(ra.par, rb.par);
+        case 'prev':    return cmpNum(ra.prevCount, rb.prevCount);
+        case 'count':   return cmpNum(ra.count, rb.count);
+        case 'usage':   return cmpNum(ra.usage, rb.usage);
+        case 'status':  return ((statusOrder[ra.statusKey] - statusOrder[rb.statusKey]) || 0) * sortDir;
+        case 'suggested': return cmpNum(ra.autoOrder, rb.autoOrder);
+        case 'received':  return cmpNum(ra.isManual ? ra.orderQty : '', rb.isManual ? rb.orderQty : '');
+        default: return 0;
+      }
+    });
+  }
+
+  // Group by subCategory ONLY when no active sort
   const grouped = {};
-  filtered.forEach(item => {
-    const cat = item.subCategory || 'other';
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(item);
-  });
+  const flatMode = !!sortCol;
+  if (!flatMode) {
+    rows.forEach(r => {
+      const cat = r.item.subCategory || 'other';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(r);
+    });
+  }
+
+  const sortInd = (col) => {
+    if (tableSort.column !== col) return '<span class="sort-ind">↕</span>';
+    return `<span class="sort-ind">${tableSort.dir === 'asc' ? '▲' : '▼'}</span>`;
+  };
+  const th = (col, label, attrs='') => `<th class="sortable${tableSort.column===col?' sorted':''}" onclick="setTableSort('${col}')" ${attrs}>${label}${sortInd(col)}</th>`;
 
   let html = `<table>
     <thead><tr>
-      <th>Item</th>
-      <th>Vendor</th>
-      <th>Unit</th>
-      <th>Par Level</th>
-      <th>Prev Count</th>
-      <th>Count</th>
-      <th>Usage</th>
-      <th>Status</th>
-      <th title="Auto-calculated: par minus current count">Suggested Order</th>
-      <th title="Enter the actual quantity received from the vendor invoice">Received Qty</th>
+      ${th('name','Item')}
+      ${th('vendor','Vendor')}
+      ${th('unit','Unit')}
+      ${th('par','Par Level')}
+      ${th('prev','Prev Count')}
+      ${th('count','Count')}
+      ${th('usage','Usage')}
+      ${th('status','Status')}
+      ${th('suggested','Suggested Order','title="Auto-calculated: par minus current count"')}
+      ${th('received','Received Qty','title="Enter the actual quantity received from the vendor invoice"')}
       <th>Notes</th>
     </tr></thead>
     <tbody>`;
 
-  const catOrder = Object.keys(currentMode.subCategories);
-  catOrder.forEach(catKey => {
-    if (!grouped[catKey]) return;
-    const cat = currentMode.subCategories[catKey];
-    html += `<tr class="section-header"><td colspan="11" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
+  const renderRow = (r) => {
+    const { item, data, count, par, autoOrder, isManual, orderQty, prevCount, usage, statusKey } = r;
+    let usageClass = 'usage-col usage-zero';
+    if (usage !== '') {
+      if (usage > par * 1.5) usageClass = 'usage-col usage-high';
+      else if (usage > 0) usageClass = 'usage-col usage-positive';
+      else usageClass = 'usage-col usage-zero';
+    }
+    let status = '—', statusClass = '';
+    if (statusKey === 'ok') { status = '✓ Good'; statusClass = 'status-ok'; }
+    else if (statusKey === 'low') { status = '⚠ Low'; statusClass = 'status-low'; }
+    else if (statusKey === 'critical') { status = '⛔ Critical'; statusClass = 'status-critical'; }
+    const transferBadge = data.transferBadge ? `<span style="display:inline-block;margin-left:6px;padding:2px 6px;background:#dcfce7;color:#166534;border-radius:4px;font-size:.7rem;font-weight:600">${data.transferBadge}</span>` : '';
+    return `<tr>
+      <td>${item.name}${transferBadge}</td>
+      <td style="font-size:.78rem;color:var(--gray-500)">${item.vendor || ''}</td>
+      <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
+      <td style="text-align:center;font-weight:600">${fmtQty(par)}</td>
+      <td style="text-align:center;color:var(--gray-400);font-size:.82rem">${prevCount !== '' ? fmtQty(prevCount) : '—'}</td>
+      <td><input type="number" value="${count !== '' ? fmtQty(count) : ''}" min="0" step="0.5"
+        onchange="onCountChange('${wk}','${item.id}',this.value)"
+        style="background:${count===''?'#fffbeb':'#fff'}"></td>
+      <td class="${usageClass}" style="text-align:center">${usage !== '' ? fmtQty(usage) : '—'}</td>
+      <td class="${statusClass}">${status}</td>
+      <td style="text-align:center;color:var(--gray-500);font-size:.82rem" title="Auto-calculated suggestion (par − count)">${autoOrder !== '' && autoOrder > 0 ? fmtQty(autoOrder) : '—'}</td>
+      <td>
+        <input type="number" value="${isManual ? fmtQty(orderQty) : ''}" min="0" step="0.5"
+          placeholder="from invoice"
+          style="width:70px;${isManual?'border-color:var(--success);background:#ecfdf5':''}"
+          onchange="onOrderOverride('${wk}','${item.id}',this.value)"
+          title="Enter the actual quantity received from the vendor invoice">
+        ${isManual ? `<button class="btn btn-sm" style="padding:2px 6px;font-size:.68rem;margin-left:2px" onclick="resetOrder('${wk}','${item.id}')" title="Clear received qty">✕</button>` : ''}
+      </td>
+      <td><input type="text" class="note-input" value="${data.notes||''}" placeholder="Notes..."
+        onchange="setField('${wk}','${item.id}','notes',this.value)"></td>
+    </tr>`;
+  };
 
-    grouped[catKey].forEach(item => {
-      const data = weekData[item.id] || {};
-      const count = data.count !== undefined && data.count !== '' ? Number(data.count) : '';
-      const par = item.par || 0;
-      const autoOrder = count !== '' ? Math.max(0, par - count) : '';
-      const isManual = data.manualOrder === true;
-      const orderQty = isManual && data.orderQty !== undefined ? Number(data.orderQty) : autoOrder;
-
-      // Previous count data
-      const prevItemData = prev.data[item.id] || {};
-      const prevCount = prevItemData.count !== undefined && prevItemData.count !== '' ? Number(prevItemData.count) : '';
-      const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
-      // prevOrder = quantity that came in between last count and this count.
-      // If the manager entered a received qty (manualOrder:true -> orderQty) we
-      // use that. Otherwise we fall back to the auto suggestion for backward
-      // compatibility with historical rows where received qty was never entered.
-      const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
-
-      // Usage = previous count + previous received qty - today's count
-      let usage = '', usageClass = 'usage-col usage-zero';
-      if (hasPrev && prevCount !== '' && count !== '') {
-        usage = (prevCount + prevOrder) - count;
-        if (usage > par * 1.5) usageClass = 'usage-col usage-high';
-        else if (usage > 0) usageClass = 'usage-col usage-positive';
-        else usageClass = 'usage-col usage-zero';
-      }
-
-      let status = '', statusClass = '';
-      if (count === '') {
-        status = '—'; statusClass = '';
-      } else if (count >= par) {
-        status = '✓ Good'; statusClass = 'status-ok';
-      } else if (count >= par * 0.5) {
-        status = '⚠ Low'; statusClass = 'status-low';
-      } else {
-        status = '⛔ Critical'; statusClass = 'status-critical';
-      }
-
-      const transferBadge = data.transferBadge ? `<span style="display:inline-block;margin-left:6px;padding:2px 6px;background:#dcfce7;color:#166534;border-radius:4px;font-size:.7rem;font-weight:600">${data.transferBadge}</span>` : '';
-      html += `<tr>
-        <td>${item.name}${transferBadge}</td>
-        <td style="font-size:.78rem;color:var(--gray-500)">${item.vendor || ''}</td>
-        <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
-        <td style="text-align:center;font-weight:600">${fmtQty(par)}</td>
-        <td style="text-align:center;color:var(--gray-400);font-size:.82rem">${prevCount !== '' ? fmtQty(prevCount) : '—'}</td>
-        <td><input type="number" value="${count !== '' ? fmtQty(count) : ''}" min="0" step="0.5"
-          onchange="onCountChange('${wk}','${item.id}',this.value)"
-          style="background:${count===''?'#fffbeb':'#fff'}"></td>
-        <td class="${usageClass}" style="text-align:center">${usage !== '' ? fmtQty(usage) : '—'}</td>
-        <td class="${statusClass}">${status}</td>
-        <td style="text-align:center;color:var(--gray-500);font-size:.82rem" title="Auto-calculated suggestion (par − count)">${autoOrder !== '' && autoOrder > 0 ? fmtQty(autoOrder) : '—'}</td>
-        <td>
-          <input type="number" value="${isManual ? fmtQty(orderQty) : ''}" min="0" step="0.5"
-            placeholder="from invoice"
-            style="width:70px;${isManual?'border-color:var(--success);background:#ecfdf5':''}"
-            onchange="onOrderOverride('${wk}','${item.id}',this.value)"
-            title="Enter the actual quantity received from the vendor invoice">
-          ${isManual ? `<button class="btn btn-sm" style="padding:2px 6px;font-size:.68rem;margin-left:2px" onclick="resetOrder('${wk}','${item.id}')" title="Clear received qty">✕</button>` : ''}
-        </td>
-        <td><input type="text" class="note-input" value="${data.notes||''}" placeholder="Notes..."
-          onchange="setField('${wk}','${item.id}','notes',this.value)"></td>
-      </tr>`;
+  if (flatMode) {
+    rows.forEach(r => { html += renderRow(r); });
+  } else {
+    const catOrder = Object.keys(currentMode.subCategories);
+    catOrder.forEach(catKey => {
+      if (!grouped[catKey] || !grouped[catKey].length) return;
+      const cat = currentMode.subCategories[catKey];
+      html += `<tr class="section-header"><td colspan="11" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
+      grouped[catKey].forEach(r => { html += renderRow(r); });
     });
-  });
+  }
 
-  if (filtered.length === 0) {
-    html += `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
+  if (rows.length === 0) {
+    html += `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--gray-400)">No items match the current filters</td></tr>`;
   }
 
   html += `</tbody></table>`;
