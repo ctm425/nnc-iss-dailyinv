@@ -1168,8 +1168,8 @@ function renderTable() {
       <th>Count</th>
       <th>Usage</th>
       <th>Status</th>
-      <th>Order Qty</th>
-      <th>Override</th>
+      <th title="Auto-calculated: par minus current count">Suggested Order</th>
+      <th title="Enter the actual quantity received from the vendor invoice">Received Qty</th>
       <th>Notes</th>
     </tr></thead>
     <tbody>`;
@@ -1192,9 +1192,13 @@ function renderTable() {
       const prevItemData = prev.data[item.id] || {};
       const prevCount = prevItemData.count !== undefined && prevItemData.count !== '' ? Number(prevItemData.count) : '';
       const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
+      // prevOrder = quantity that came in between last count and this count.
+      // If the manager entered a received qty (manualOrder:true -> orderQty) we
+      // use that. Otherwise we fall back to the auto suggestion for backward
+      // compatibility with historical rows where received qty was never entered.
       const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
 
-      // Usage = previous count + previous order qty - today's count
+      // Usage = previous count + previous received qty - today's count
       let usage = '', usageClass = 'usage-col usage-zero';
       if (hasPrev && prevCount !== '' && count !== '') {
         usage = (prevCount + prevOrder) - count;
@@ -1226,13 +1230,14 @@ function renderTable() {
           style="background:${count===''?'#fffbeb':'#fff'}"></td>
         <td class="${usageClass}" style="text-align:center">${usage !== '' ? fmtQty(usage) : '—'}</td>
         <td class="${statusClass}">${status}</td>
-        <td style="text-align:center;${orderQty!==''&&orderQty>0?'font-weight:700;color:var(--amber)':''}">${orderQty !== '' ? fmtQty(orderQty) : '—'}</td>
+        <td style="text-align:center;color:var(--gray-500);font-size:.82rem" title="Auto-calculated suggestion (par − count)">${autoOrder !== '' && autoOrder > 0 ? fmtQty(autoOrder) : '—'}</td>
         <td>
           <input type="number" value="${isManual ? fmtQty(orderQty) : ''}" min="0" step="0.5"
-            placeholder="auto"
-            style="width:55px;${isManual?'border-color:var(--amber);background:#fffbeb':''}"
-            onchange="onOrderOverride('${wk}','${item.id}',this.value)">
-          ${isManual ? `<button class="btn btn-sm" style="padding:2px 6px;font-size:.68rem;margin-left:2px" onclick="resetOrder('${wk}','${item.id}')" title="Reset to auto">↺</button>` : ''}
+            placeholder="from invoice"
+            style="width:70px;${isManual?'border-color:var(--success);background:#ecfdf5':''}"
+            onchange="onOrderOverride('${wk}','${item.id}',this.value)"
+            title="Enter the actual quantity received from the vendor invoice">
+          ${isManual ? `<button class="btn btn-sm" style="padding:2px 6px;font-size:.68rem;margin-left:2px" onclick="resetOrder('${wk}','${item.id}')" title="Clear received qty">✕</button>` : ''}
         </td>
         <td><input type="text" class="note-input" value="${data.notes||''}" placeholder="Notes..."
           onchange="setField('${wk}','${item.id}','notes',this.value)"></td>
@@ -1454,7 +1459,8 @@ function exportExcel() {
       'Today Count': count === '' ? '' : roundHalf(count),
       'Usage': usage === '' ? '' : roundHalf(usage),
       'Status': count === '' ? 'Not Counted' : count >= par ? 'Good' : count >= par*0.5 ? 'Low' : 'Critical',
-      'Order Qty': orderQty === '' ? '' : roundHalf(orderQty),
+      'Suggested Order': autoOrder === '' ? '' : roundHalf(autoOrder),
+      'Received Qty': isManual && orderQty !== '' ? roundHalf(orderQty) : '',
       'Notes': data.notes || ''
     });
   });
@@ -1465,7 +1471,7 @@ function exportExcel() {
 
   ws['!cols'] = [
     { wch: 32 }, { wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 10 },
-    { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 20 }
+    { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 20 }
   ];
 
   XLSX.writeFile(wb, `Inventory_${currentMode.storageKey || 'allnonfrozen'}_${weekKey()}.xlsx`);
@@ -1523,13 +1529,14 @@ function exportPDF() {
       count === '' ? '—' : fmtQty(count),
       usage === '' ? '—' : fmtQty(usage),
       status,
-      orderQty === '' ? '—' : fmtQty(orderQty),
+      autoOrder === '' ? '—' : fmtQty(autoOrder),
+      isManual && orderQty !== '' ? fmtQty(orderQty) : '—',
       data.notes || ''
     ]);
   });
 
   doc.autoTable({
-    head: [['Item', 'Vendor', 'Unit', 'Par', 'Prev', 'Count', 'Usage', 'Status', 'Order', 'Notes']],
+    head: [['Item', 'Vendor', 'Unit', 'Par', 'Prev', 'Count', 'Usage', 'Status', 'Suggested', 'Received', 'Notes']],
     body: rows,
     startY: startY,
     styles: { fontSize: 6.5 },
@@ -1898,8 +1905,8 @@ function updateAnalyticsChart() {
       yLabel = 'Usage (units)';
     } else {
       chartData = aggData.map(p => p.order);
-      chartLabel = 'Total Orders';
-      yLabel = 'Order Qty (units)';
+      chartLabel = 'Total Received';
+      yLabel = 'Received Qty (units)';
     }
     const labels = aggData.map(p => p.label);
 
@@ -1966,7 +1973,7 @@ function updateAnalyticsChart() {
     analyticsChart = new Chart(canvas, {
       type: view === 'stock' ? 'line' : 'bar',
       data: { labels: allLabels, datasets },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: true, title: { display: true, text: view === 'stock' ? 'Stock Level' : view === 'usage' ? 'Usage' : 'Order Qty' } }, x: { title: { display: true, text: 'Count Date' } } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: true, title: { display: true, text: view === 'stock' ? 'Stock Level' : view === 'usage' ? 'Usage' : 'Received Qty' } }, x: { title: { display: true, text: 'Count Date' } } } }
     });
 
     renderAnalyticsPivotMulti(allLabels, targetItems, perItemAgg, view);
@@ -2005,7 +2012,7 @@ function aggregateAnalytics(dataPoints, granularity) {
 function renderAnalyticsPivotAll(aggData, view) {
   let html = '<h3 style="margin-bottom:12px">Summary Table</h3>';
   const metric = view === 'stock' ? 'count' : view === 'usage' ? 'usage' : 'order';
-  const metricLabel = view === 'stock' ? 'Stock Level' : view === 'usage' ? 'Usage' : 'Order Qty';
+  const metricLabel = view === 'stock' ? 'Stock Level' : view === 'usage' ? 'Usage' : 'Received Qty';
   html += '<table><thead><tr><th>Period</th><th style="text-align:center">' + metricLabel + '</th></tr></thead><tbody>';
   if (aggData.length) {
     let total = 0;
