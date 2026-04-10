@@ -944,6 +944,34 @@ function setupFirestoreListener() {
     localStorage.setItem(storageId(), JSON.stringify(d));
     if (mainTab !== 'analytics') render();
   });
+
+  // Fetch recent previous days so Prev Count column works even on a fresh browser
+  fetchRecentDays(firestoreDocPath(), storageId());
+}
+
+// One-time fetch of the previous 7 days of inventory data for Prev Count
+async function fetchRecentDays(fsDocPrefix, lsKey) {
+  const d = loadData();
+  if (!d.weeks) d.weeks = {};
+  let updated = false;
+  for (let i = 1; i <= 7; i++) {
+    const prev = new Date(currentDate);
+    prev.setDate(prev.getDate() - i);
+    const dk = dateKey(prev);
+    // Skip if already in localStorage
+    if (d.weeks[dk] && Object.keys(d.weeks[dk]).some(k => k !== '__meta' && d.weeks[dk][k]?.count !== undefined)) continue;
+    try {
+      const snap = await db.collection('inventory_weeks').doc(`${fsDocPrefix}_${dk}`).get();
+      if (snap.exists) {
+        d.weeks[dk] = snap.data();
+        updated = true;
+      }
+    } catch(e) { /* silent */ }
+  }
+  if (updated) {
+    localStorage.setItem(lsKey, JSON.stringify(d));
+    if (mainTab !== 'analytics') render();
+  }
 }
 
 function setupMultiSourceListeners() {
@@ -1006,7 +1034,35 @@ function setupMultiSourceListeners() {
       if (mainTab !== 'analytics') render();
     });
     unsubDateMulti.push(unsub);
+
+    // Fetch recent previous days for this source (for Prev Count)
+    fetchRecentDaysMultiSource(src.storageKey);
   });
+}
+
+// One-time fetch of the previous 7 days for a multi-source storageKey
+async function fetchRecentDaysMultiSource(storageKey) {
+  const sd = loadSourceData(storageKey);
+  if (!sd.weeks) sd.weeks = {};
+  let updated = false;
+  const fsPrefix = `${storageKey}_${restaurantKey}`;
+  for (let i = 1; i <= 7; i++) {
+    const prev = new Date(currentDate);
+    prev.setDate(prev.getDate() - i);
+    const dk = dateKey(prev);
+    if (sd.weeks[dk] && Object.keys(sd.weeks[dk]).some(k => k !== '__meta' && sd.weeks[dk][k]?.count !== undefined)) continue;
+    try {
+      const snap = await db.collection('inventory_weeks').doc(`${fsPrefix}_${dk}`).get();
+      if (snap.exists) {
+        sd.weeks[dk] = snap.data();
+        updated = true;
+      }
+    } catch(e) { /* silent */ }
+  }
+  if (updated) {
+    localStorage.setItem(storageIdFor(storageKey), JSON.stringify(sd));
+    if (mainTab !== 'analytics') render();
+  }
 }
 
 // ==================== AUTH ====================
