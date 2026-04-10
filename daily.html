@@ -444,32 +444,33 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 <script>
 // ==================== DEFAULT ITEMS ====================
 const DEFAULT_ITEMS = [
-  {id:'chicken-korma',name:'Chicken Korma',unit:'tray',category:'kitchen',par:{mon:9,tue:13,wed:13,thu:13,fri:24,sat:24,sun:25}},
-  {id:'lamb-korma',name:'Lamb Korma',unit:'tray',category:'kitchen',par:{mon:6,tue:8,wed:8,thu:8,fri:12,sat:12,sun:14}},
-  {id:'aloo',name:'Aloo',unit:'tray',category:'kitchen',par:{mon:3,tue:3,wed:3,thu:3.5,fri:4.5,sat:4.5,sun:5}},
-  {id:'gobi',name:'Gobi',unit:'tray',category:'kitchen',par:{mon:3,tue:3,wed:3,thu:3.5,fri:5.5,sat:5.5,sun:6}},
-  {id:'chana',name:'Chana',unit:'tray',category:'kitchen',par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
-  {id:'daal',name:'Daal',unit:'tray',category:'kitchen',par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
-  {id:'bengun',name:'Bengun',unit:'tray',category:'kitchen',par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
-  {id:'palak',name:'Palak',unit:'tray',category:'kitchen',par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:4}},
-  {id:'biryani-sauce',name:'Biryani Sauce',unit:'tray',category:'kitchen',par:{mon:4,tue:6,wed:6,thu:7,fri:9,sat:10,sun:10}},
-  {id:'onion-sauce',name:'Onion Sauce',unit:'containers',category:'kitchen',par:{mon:6,tue:8,wed:8,thu:10,fri:13,sat:13,sun:15}},
-  {id:'butter-sauce',name:'Butter Sauce',unit:'containers',category:'kitchen',par:{mon:5,tue:6,wed:6,thu:8,fri:9,sat:10,sun:10}},
-  {id:'malai-boti',name:'Malai Boti',unit:'lbs',category:'kitchen',par:{mon:28,tue:28,wed:28,thu:32,fri:52,sat:52,sun:52}},
-  {id:'tikka-white',name:'Tikka White',unit:'lbs',category:'kitchen',par:{mon:12,tue:12,wed:12,thu:12,fri:20,sat:20,sun:24}},
-  {id:'tikka-dark',name:'Tikka Dark',unit:'lbs',category:'kitchen',par:{mon:12,tue:12,wed:12,thu:12,fri:20,sat:20,sun:24}},
+  // orderStep: 0.5=halves, 1=whole only, 4=4-lb increments, 5=5-unit increments
+  {id:'chicken-korma',name:'Chicken Korma',unit:'tray',category:'kitchen',orderStep:1,par:{mon:9,tue:13,wed:13,thu:13,fri:24,sat:24,sun:25}},
+  {id:'lamb-korma',name:'Lamb Korma',unit:'tray',category:'kitchen',orderStep:1,par:{mon:6,tue:8,wed:8,thu:8,fri:12,sat:12,sun:14}},
+  {id:'aloo',name:'Aloo',unit:'tray',category:'kitchen',orderStep:0.5,par:{mon:3,tue:3,wed:3,thu:3.5,fri:4.5,sat:4.5,sun:5}},
+  {id:'gobi',name:'Gobi',unit:'tray',category:'kitchen',orderStep:0.5,par:{mon:3,tue:3,wed:3,thu:3.5,fri:5.5,sat:5.5,sun:6}},
+  {id:'chana',name:'Chana',unit:'tray',category:'kitchen',orderStep:0.5,par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
+  {id:'daal',name:'Daal',unit:'tray',category:'kitchen',orderStep:0.5,par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
+  {id:'bengun',name:'Bengun',unit:'tray',category:'kitchen',orderStep:0.5,par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:3.5}},
+  {id:'palak',name:'Palak',unit:'tray',category:'kitchen',orderStep:0.5,par:{mon:2.5,tue:2.5,wed:2.5,thu:2.5,fri:3.5,sat:3.5,sun:4}},
+  {id:'biryani-sauce',name:'Biryani Sauce',unit:'tray',category:'kitchen',orderStep:1,par:{mon:4,tue:6,wed:6,thu:7,fri:9,sat:10,sun:10}},
+  {id:'onion-sauce',name:'Onion Sauce',unit:'containers',category:'kitchen',orderStep:1,par:{mon:6,tue:8,wed:8,thu:10,fri:13,sat:13,sun:15}},
+  {id:'butter-sauce',name:'Butter Sauce',unit:'containers',category:'kitchen',orderStep:1,par:{mon:5,tue:6,wed:6,thu:8,fri:9,sat:10,sun:10}},
+  {id:'malai-boti',name:'Malai Boti',unit:'lbs',category:'kitchen',orderStep:4,par:{mon:28,tue:28,wed:28,thu:32,fri:52,sat:52,sun:52}},
+  {id:'tikka-white',name:'Tikka White',unit:'lbs',category:'kitchen',orderStep:4,par:{mon:12,tue:12,wed:12,thu:12,fri:20,sat:20,sun:24}},
+  {id:'tikka-dark',name:'Tikka Dark',unit:'lbs',category:'kitchen',orderStep:4,par:{mon:12,tue:12,wed:12,thu:12,fri:20,sat:20,sun:24}},
   {id:'fish-tandoori',name:'Fish Tandoori',unit:'case',category:'kitchen',par:{mon:1,tue:1,wed:1,thu:1,fri:1.25,sat:1.5,sun:1.5}},
   {id:'ctm-tikka',name:'CTM Tikka',unit:'lbs',category:'kitchen',par:{mon:0,tue:0,wed:0,thu:0,fri:0,sat:0,sun:0}},
-  {id:'pakora',name:'Pakora',unit:'tray',category:'kitchen',par:{mon:3,tue:3,wed:3,thu:3,fri:4,sat:4,sun:5}},
+  {id:'pakora',name:'Pakora',unit:'tray',category:'kitchen',orderStep:0.5,par:{mon:3,tue:3,wed:3,thu:3,fri:4,sat:4,sun:5}},
   {id:'tandoori-sauce',name:'Tandoori Sauce',unit:'bottles',category:'kitchen',par:{mon:1,tue:1,wed:1,thu:1,fri:1,sat:1,sun:1}},
   {id:'mint-sauce',name:'Mint Sauce',unit:'sauce container',category:'kitchen',par:{mon:1,tue:1,wed:1,thu:1,fri:1,sat:1.5,sun:1.5}},
-  {id:'mango-lassi',name:'Mango Lassi',unit:'batch',category:'kitchen',par:{mon:2,tue:2,wed:2,thu:2,fri:3,sat:3,sun:4}},
-  {id:'yogurt',name:'Yogurt',unit:'container',category:'kitchen',par:{mon:2,tue:2,wed:2,thu:2,fri:2,sat:2,sun:3}},
+  {id:'mango-lassi',name:'Mango Lassi',unit:'batch',category:'kitchen',orderStep:1,par:{mon:2,tue:2,wed:2,thu:2,fri:3,sat:3,sun:4}},
+  {id:'yogurt',name:'Yogurt',unit:'container',category:'kitchen',orderStep:1,par:{mon:2,tue:2,wed:2,thu:2,fri:2,sat:2,sun:3}},
   {id:'tamarind',name:'Tamarind',unit:'Ketchup contr/gallon',category:'kitchen',par:{mon:0.5,tue:0.5,wed:0.5,thu:0.5,fri:0.5,sat:0.5,sun:0.5}},
-  {id:'brown-onion',name:'Brown Onion',unit:'tray',category:'kitchen',par:{mon:2,tue:2,wed:2,thu:3,fri:3,sat:3,sun:4}},
+  {id:'brown-onion',name:'Brown Onion',unit:'tray',category:'kitchen',orderStep:1,par:{mon:2,tue:2,wed:2,thu:3,fri:3,sat:3,sun:4}},
   {id:'milk',name:'Milk',unit:'gallon',category:'kitchen',par:{mon:6,tue:6,wed:6,thu:6,fri:6,sat:6,sun:6}},
-  {id:'kulfi',name:'Kulfi',unit:'orders',category:'kitchen',par:{mon:40,tue:40,wed:40,thu:40,fri:40,sat:40,sun:40}},
-  {id:'mango-ice-cream',name:'Mango Ice Cream',unit:'orders',category:'kitchen',par:{mon:30,tue:30,wed:30,thu:30,fri:30,sat:30,sun:30}},
+  {id:'kulfi',name:'Kulfi',unit:'orders',category:'kitchen',orderStep:5,par:{mon:40,tue:40,wed:40,thu:40,fri:40,sat:40,sun:40}},
+  {id:'mango-ice-cream',name:'Mango Ice Cream',unit:'orders',category:'kitchen',orderStep:5,par:{mon:30,tue:30,wed:30,thu:30,fri:30,sat:30,sun:30}},
   {id:'ghulab-jamun',name:'Ghulab Jamun',unit:'black containers',category:'kitchen',par:{mon:5,tue:5,wed:5,thu:5,fri:5,sat:5,sun:5}},
   {id:'garlic',name:'Garlic',unit:'packet',category:'produce',par:{mon:2,tue:2,wed:2,thu:2,fri:2,sat:2,sun:2}},
   {id:'medium-onion',name:'Medium Onion Bags',unit:'bags',category:'produce',par:{mon:10,tue:5,wed:5,thu:6,fri:8,sat:12,sun:12}},
@@ -941,13 +942,26 @@ function hasManualAM(itemId){
   return todayData.am!==undefined;
 }
 
+// Round a value UP to the nearest valid order increment for this item.
+// Always rounds up so you never under-order (e.g. need 3 tikka → rounds to 4).
+function snapToStep(val, step) {
+  if (!step || step <= 0) return val;
+  if (val <= 0) return 0;
+  return Math.ceil(val / step) * step;
+}
+
+function getOrderStep(item) {
+  return item.orderStep || 0.5; // default 0.5 for items without explicit step
+}
+
 function calcNormalOrder(item,pmVal){
   if(pmVal===undefined||pmVal===null||pmVal==='') return null;
   // If Sunday and orders not enabled, return 0 for kitchen items (no Monday delivery)
   if(isSunday(currentDate)&&!sundayOrdersEnabled&&item.category==='kitchen') return 0;
   const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
   const nextPar=getPar(item,nextDay);
-  return Math.max(0, nextPar - Number(pmVal));
+  const raw = Math.max(0, nextPar - Number(pmVal));
+  return snapToStep(raw, getOrderStep(item));
 }
 
 function hasManualOrder(itemId){
@@ -973,8 +987,23 @@ function onOrderChange(key,itemId,val){
       saveData(d);
     }
   }else{
-    setField(key,itemId,'normalOrder',Number(val));
+    const item=items.find(i=>i.id===itemId);
+    const step=item?getOrderStep(item):0.5;
+    const snapped=snapToStep(Number(val),step);
+    setField(key,itemId,'normalOrder',snapped);
     setField(key,itemId,'manualOrder',true);
+  }
+  render();
+}
+
+function onExtraChange(key,itemId,val){
+  if(val===''){
+    setField(key,itemId,'extraOrder',undefined);
+  }else{
+    const item=items.find(i=>i.id===itemId);
+    const step=item?getOrderStep(item):0.5;
+    const snapped=snapToStep(Number(val),step);
+    setField(key,itemId,'extraOrder',snapped);
   }
   render();
 }
@@ -1163,12 +1192,14 @@ function renderTable(){
 
       // Order: editable input, shows auto value but can be overridden (like AM)
       const orderClass=isManualOrd?'auto-field overridden':'auto-field';
+      const itemStep=getOrderStep(item);
+      const stepHint=itemStep>=4?` (${itemStep}-unit increments)`:(itemStep===1?' (whole only)':'');
       const orderHtml=itemSunBlock?
         `<input type="number" class="auto-field" value="0" disabled>`:
         `<div class="am-cell">
-          <input type="number" class="${orderClass}" value="${normalOrderVal}" step="0.5" min="0"
+          <input type="number" class="${orderClass}" value="${normalOrderVal}" step="${itemStep}" min="0"
             onchange="onOrderChange('${key}','${item.id}',this.value)"
-            title="${isManualOrd?'Manual override (click reset to auto-calc)':'Auto: next day par - PM'}">
+            title="${isManualOrd?'Manual override (click reset to auto-calc)':'Auto: next day par - PM'}${stepHint}">
           ${isManualOrd?`<button class="am-reset" onclick="resetOrder('${key}','${item.id}')" title="Reset to auto-calculate">x</button>`:''}
         </div>`;
 
@@ -1194,8 +1225,8 @@ function renderTable(){
           onchange="onPMChange('${key}','${item.id}',this.value)"></td>
         <td><span class="usage-val ${usageCls}">${usage!==''?usage:'-'}</span></td>
         <td>${orderHtml}</td>
-        <td><input type="number" class="extra-field" value="${extraOrderVal}" step="0.5" min="0" placeholder="0"
-          onchange="setField('${key}','${item.id}','extraOrder',this.value===''?undefined:Number(this.value));render()"${orderDisabled}></td>
+        <td><input type="number" class="extra-field" value="${extraOrderVal}" step="${itemStep}" min="0" placeholder="0"
+          onchange="onExtraChange('${key}','${item.id}',this.value)"${orderDisabled}></td>
         <td class="total-order-cell"><strong>${totalDisplay}</strong></td>
         <td style="color:var(--gray-400);font-size:.78rem;text-align:center">${r2(tomorrowPar)}</td>
         <td>${reasonHtml}</td>
@@ -2417,21 +2448,20 @@ function buildReportHTML(){
     const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
     const eo=d.extraOrder||0;
     const total=sunNoOrder?0:r2((no||0)+Number(eo));
-    const usageColor=usage!==''?(usage<0?'#dc2626':usage>0?'#16a34a':'#333'):'#999';
-    const totalBg=total>0?'#1e3a5f':'#e5e7eb';
-    const totalColor=total>0?'#ffffff':'#999';
+    const usagePrefix=usage!==''?(usage>0?'+':''):'';
     const reasonText=d.reason?(d.reason==='other'?(d.reasonOther||'Other'):(REASON_LABELS[d.reason]||d.reason)):'';
-    tableRows+=`<tr>
-      <td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600;font-size:13px">${item.name} <span style="color:#999;font-weight:400;font-size:11px">(${item.unit})</span></td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:#b45309;font-weight:600">${par}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${am!==null?r2(am):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;background:#eff6ff;font-weight:600">${pm!==undefined?r2(pm):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px;color:${usageColor};font-weight:600">${usage!==''?usage:'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${no!==null?r2(no):'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:13px">${eo||'-'}</td>
-      <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:center;font-size:15px;font-weight:800;background:${totalBg};color:${totalColor};letter-spacing:0.5px">${total||'-'}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">${tmrwPar}</td>
-      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:11px;color:#666">${reasonText||'-'}</td>
+    const rowBg=total>0?'#f9f9f9':'#fff';
+    tableRows+=`<tr style="background:${rowBg}">
+      <td style="padding:3px 6px;border:1px solid #999;font-weight:600;font-size:11px;white-space:nowrap">${item.name} <span style="font-weight:400;font-size:9px">(${item.unit})</span></td>
+      <td style="padding:3px 4px;border:1px solid #999;text-align:center;font-size:11px;font-weight:600">${par}</td>
+      <td style="padding:3px 4px;border:1px solid #999;text-align:center;font-size:11px">${am!==null?r2(am):'-'}</td>
+      <td style="padding:3px 4px;border:1px solid #999;text-align:center;font-size:11px;font-weight:700;border-width:2px">${pm!==undefined?r2(pm):'-'}</td>
+      <td style="padding:3px 4px;border:1px solid #999;text-align:center;font-size:11px">${usage!==''?usagePrefix+usage:'-'}</td>
+      <td style="padding:3px 4px;border:1px solid #999;text-align:center;font-size:11px">${no!==null?r2(no):'-'}</td>
+      <td style="padding:3px 4px;border:1px solid #999;text-align:center;font-size:11px">${eo||'-'}</td>
+      <td style="padding:4px 6px;border:2px solid #000;text-align:center;font-size:13px;font-weight:900">${total||'-'}</td>
+      <td style="padding:3px 4px;border:1px solid #999;text-align:center;font-size:9px">${tmrwPar}</td>
+      <td style="padding:3px 4px;border:1px solid #999;text-align:center;font-size:9px">${reasonText||'-'}</td>
     </tr>`;
   });
   return tableRows;
@@ -2460,37 +2490,37 @@ function sendReport(){
 
   let sendToHTML='';
   if(rentonText||issaquahText){
-    sendToHTML+='<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial;margin-bottom:20px"><tbody>';
+    sendToHTML+='<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial;margin-bottom:12px"><tbody>';
     if(rentonText){
-      sendToHTML+=`<tr><td style="background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;padding:10px 16px;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:1px;border-radius:6px 6px 0 0">&#x1F4E6; SEND TO RENTON</td></tr>
-      <tr><td style="padding:14px 16px;background:#f5f3ff;border:2px solid #c4b5fd;border-top:none;font-size:14px;line-height:1.6;white-space:pre-wrap;border-radius:0 0 6px 6px">${rentonText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td></tr>`;
+      sendToHTML+=`<tr><td style="border:2px solid #000;padding:6px 10px;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:1px">SEND TO RENTON</td></tr>
+      <tr><td style="padding:8px 10px;border:1px solid #999;border-top:none;font-size:12px;line-height:1.5;white-space:pre-wrap">${rentonText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td></tr>`;
     }
     if(issaquahText){
-      sendToHTML+=`<tr><td style="padding-top:${rentonText?'16px':'0'}"></td></tr>
-      <tr><td style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:10px 16px;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:1px;border-radius:6px 6px 0 0">&#x1F4E6; SEND TO ISSAQUAH</td></tr>
-      <tr><td style="padding:14px 16px;background:#eff6ff;border:2px solid #93c5fd;border-top:none;font-size:14px;line-height:1.6;white-space:pre-wrap;border-radius:0 0 6px 6px">${issaquahText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td></tr>`;
+      sendToHTML+=`<tr><td style="padding-top:${rentonText?'10px':'0'}"></td></tr>
+      <tr><td style="border:2px solid #000;padding:6px 10px;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:1px">SEND TO ISSAQUAH</td></tr>
+      <tr><td style="padding:8px 10px;border:1px solid #999;border-top:none;font-size:12px;line-height:1.5;white-space:pre-wrap">${issaquahText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td></tr>`;
     }
     sendToHTML+='</tbody></table>';
   }
 
   // Build the HTML table for email body
   const tableRows=buildReportHTML();
-  const deliveryBanner=`<div style="font-family:system-ui,sans-serif,Arial;background:#1e3a5f;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0;margin-bottom:0">
-      <h2 style="margin:0;font-size:17px;font-weight:700">NNC Issaquah — Kitchen Daily Order</h2>
-      <p style="margin:4px 0 0;font-size:13px;opacity:.9">Items needed for: <strong>${nextDayName}, ${nextDayDisplay}</strong> | Inventoried by: ${person}</p>
+  const deliveryBanner=`<div style="font-family:system-ui,sans-serif,Arial;border:2px solid #000;padding:8px 12px;margin-bottom:0">
+      <h2 style="margin:0;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:1px">NNC Issaquah — Kitchen Daily Order</h2>
+      <p style="margin:3px 0 0;font-size:11px">Items needed for: <strong>${nextDayName}, ${nextDayDisplay}</strong> &nbsp;|&nbsp; Inventoried by: <strong>${person}</strong></p>
     </div>`;
   const htmlTable=deliveryBanner+sendToHTML+`<table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif,Arial">
-    <thead><tr style="background:#1e3a5f">
-      <th style="padding:8px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Item</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Today's Par</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">AM</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f;background:#2563eb;font-weight:700">PM</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Usage</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Order</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Extra</th>
-      <th style="padding:8px 10px;color:#fff;text-align:center;font-size:12px;text-transform:uppercase;font-weight:800;border:1px solid #1e3a5f;background:#b45309;letter-spacing:1px">TOTAL ORDER</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:10px;text-transform:uppercase;border:1px solid #1e3a5f;color:#94a3b8">Tmrw Par</th>
-      <th style="padding:8px 6px;color:#fff;text-align:center;font-size:11px;text-transform:uppercase;border:1px solid #1e3a5f">Reason</th>
+    <thead><tr>
+      <th style="padding:4px 6px;text-align:left;font-size:9px;text-transform:uppercase;border:2px solid #000;font-weight:800">Item</th>
+      <th style="padding:4px 4px;text-align:center;font-size:9px;text-transform:uppercase;border:2px solid #000;font-weight:800">Par</th>
+      <th style="padding:4px 4px;text-align:center;font-size:9px;text-transform:uppercase;border:2px solid #000;font-weight:800">AM</th>
+      <th style="padding:4px 4px;text-align:center;font-size:9px;text-transform:uppercase;border:2px solid #000;font-weight:800">PM</th>
+      <th style="padding:4px 4px;text-align:center;font-size:9px;text-transform:uppercase;border:2px solid #000;font-weight:800">Usage</th>
+      <th style="padding:4px 4px;text-align:center;font-size:9px;text-transform:uppercase;border:2px solid #000;font-weight:800">Order</th>
+      <th style="padding:4px 4px;text-align:center;font-size:9px;text-transform:uppercase;border:2px solid #000;font-weight:800">Extra</th>
+      <th style="padding:4px 6px;text-align:center;font-size:10px;text-transform:uppercase;border:2px solid #000;font-weight:900;letter-spacing:1px">TOTAL</th>
+      <th style="padding:4px 4px;text-align:center;font-size:8px;text-transform:uppercase;border:2px solid #000;font-weight:700">Tmrw Par</th>
+      <th style="padding:4px 4px;text-align:center;font-size:8px;text-transform:uppercase;border:2px solid #000;font-weight:700">Reason</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>`;
@@ -2598,7 +2628,7 @@ function sendProduceReport(){
     emailjs.init(d.emailjs.publicKey);
     emailjs.send(d.emailjs.serviceId,d.emailjs.templateId,{
       to_email:emails.join(','),
-      from_name:'NNC Inventory System',
+      from_name:'NNC Issaquah Daily Order',
       subject:dateDisplay+' - Issaquah Produce Order',
       date:dateDisplay,
       day:dayStr,
