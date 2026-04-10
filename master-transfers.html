@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Master Transfers — All Locations</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --primary: #1e3a5f; --primary-light: #2563eb; --primary-bg: #eff6ff;
+  --danger: #dc2626; --success: #16a34a;
+  --amber: #d97706; --amber-bg: #fffbeb;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+/* Login */
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#1e3a5f,#0f172a);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.login-box button{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-box button:hover{background:var(--primary-light)}
+.login-error{color:var(--danger);font-size:.82rem;display:none;margin-top:8px}
+
+/* Header */
+.header{background:var(--primary);color:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.header h1{font-size:1.2rem;font-weight:700}
+.header-right{display:flex;gap:8px;align-items:center}
+.btn{padding:8px 14px;border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-white{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-white:hover{background:rgba(255,255,255,.25)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{background:#15803d}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:#b91c1c}
+.btn-sm{padding:4px 10px;font-size:.75rem}
+.btn-ghost{background:transparent;color:var(--gray-700);border:1px solid var(--gray-300)}
+.btn-ghost:hover{background:var(--gray-100)}
+
+/* Summary cards */
+.summary-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:16px 24px}
+.summary-card{background:#fff;border-radius:var(--radius);padding:14px 18px;border:1px solid var(--gray-200)}
+.summary-card .label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+.summary-card .value{font-size:1.6rem;font-weight:700;margin-top:2px}
+.summary-card .value.warn{color:var(--danger)}
+.summary-card .value.amber{color:var(--amber)}
+.summary-card .value.ok{color:var(--success)}
+
+/* Filter bar */
+.filter-bar{padding:12px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border-bottom:1px solid var(--gray-200)}
+.filter-select{padding:8px 10px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.85rem;background:#fff;color:var(--gray-700);cursor:pointer}
+.filter-select:focus{outline:none;border-color:var(--primary-light)}
+.filter-label{font-size:.78rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px}
+.filter-clear{padding:6px 12px;font-size:.78rem;background:var(--gray-100);border:1px solid var(--gray-300);color:var(--gray-700);border-radius:var(--radius);cursor:pointer;font-weight:600}
+.filter-clear:hover{background:var(--gray-200)}
+.search-input{padding:8px 14px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.9rem;width:200px}
+.search-input:focus{outline:none;border-color:var(--primary-light)}
+.date-input{padding:7px 10px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.85rem}
+
+/* Table */
+.table-wrap{padding:16px 24px;overflow-x:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.06);min-width:900px}
+thead th{background:var(--gray-100);padding:6px 10px;text-align:left;font-size:.72rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--gray-200);position:sticky;top:0;z-index:5;cursor:pointer;user-select:none}
+thead th:hover{background:var(--primary-bg);color:var(--primary)}
+thead th .sort-ind{display:inline-block;margin-left:3px;opacity:.4;font-size:.65rem}
+thead th.sorted .sort-ind{opacity:1;color:var(--primary)}
+tbody td{padding:5px 10px;border-bottom:1px solid var(--gray-100);font-size:.84rem}
+tbody tr:hover td{background:var(--primary-bg)}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600}
+.badge-pending{background:var(--amber-bg);color:var(--amber);border:1px solid #fbbf24}
+.badge-accepted{background:#ecfdf5;color:#166534;border:1px solid #86efac}
+.badge-rejected{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5}
+.badge-returned{background:#eff6ff;color:#1e40af;border:1px solid #93c5fd}
+.badge-warehouse{background:#f5f3ff;color:#4338ca;border:1px solid #c4b5fd}
+.badge-storage{background:#ecfeff;color:#0e7490;border:1px solid #67e8f9}
+.badge-inter{background:#fff7ed;color:#9a3412;border:1px solid #fdba74}
+
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.visible{opacity:1;pointer-events:all}
+.modal{background:#fff;border-radius:var(--radius);padding:24px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h3{font-size:1.1rem;font-weight:700;margin-bottom:16px}
+.modal-field{margin-bottom:14px}
+.modal-field label{display:block;font-size:.85rem;font-weight:600;margin-bottom:4px;color:var(--gray-700)}
+.modal-field input,.modal-field select{width:100%;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.9rem}
+.modal-field input:focus,.modal-field select:focus{outline:none;border-color:var(--primary-light)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
+
+/* Responsive */
+@media(max-width:768px){
+  .header{padding:10px 16px}
+  .header h1{font-size:1rem}
+  .filter-bar{padding:8px 12px}
+  .table-wrap{padding:8px}
+  .summary-bar{padding:8px 12px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Master Transfers</h2>
+    <p class="subtitle">Sign in to view all transfer activity</p>
+    <input type="email" id="loginEmail" placeholder="Email address">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>📦 Master Transfers — All Locations</h1>
+  <div class="header-right">
+    <button class="btn btn-white" onclick="openNewTransferModal()">+ New Transfer</button>
+    <a href="index.html" class="btn btn-white">← Dashboard</a>
+    <button class="btn btn-white" onclick="auth.signOut()">Sign Out</button>
+  </div>
+</div>
+
+<!-- SUMMARY -->
+<div class="summary-bar" id="summaryBar"></div>
+
+<!-- FILTERS -->
+<div class="filter-bar">
+  <input type="text" class="search-input" id="searchInput" placeholder="Search items..." oninput="renderAll()">
+  <span class="filter-label">Source:</span>
+  <select class="filter-select" id="sourceFilter" onchange="renderAll()">
+    <option value="">All sources</option>
+    <option value="warehouse">Warehouse</option>
+    <option value="storage">Storage Unit</option>
+    <option value="inter">Inter-Location</option>
+  </select>
+  <span class="filter-label">Status:</span>
+  <select class="filter-select" id="statusFilter" onchange="renderAll()">
+    <option value="">All statuses</option>
+    <option value="pending">Pending</option>
+    <option value="accepted">Accepted</option>
+    <option value="rejected">Rejected</option>
+    <option value="returned">Returned</option>
+  </select>
+  <span class="filter-label">From:</span>
+  <select class="filter-select" id="fromFilter" onchange="renderAll()"><option value="">All</option></select>
+  <span class="filter-label">To:</span>
+  <select class="filter-select" id="toFilter" onchange="renderAll()"><option value="">All</option></select>
+  <span class="filter-label">Date:</span>
+  <input type="date" class="date-input" id="dateFrom" onchange="renderAll()">
+  <span style="font-size:.8rem;color:var(--gray-400)">to</span>
+  <input type="date" class="date-input" id="dateTo" onchange="renderAll()">
+  <button class="filter-clear" onclick="clearFilters()">Clear</button>
+</div>
+
+<!-- TABLE -->
+<div class="table-wrap" id="tableWrap"></div>
+
+<!-- NEW TRANSFER MODAL -->
+<div class="modal-overlay" id="newTransferModal">
+  <div class="modal">
+    <h3 id="newModalTitle">New Transfer</h3>
+    <div id="newModalSubtitle" style="font-size:.78rem;color:#6b7280;margin-bottom:12px;display:none"></div>
+    <div id="newModalApprovalBanner" style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 12px;font-size:.78rem;color:#1e40af;margin-bottom:14px;display:none"></div>
+    <div class="modal-field">
+      <label>Transfer Type</label>
+      <select id="newType" onchange="onNewTypeChange()">
+        <option value="warehouse">From Warehouse</option>
+        <option value="storage">From Storage Unit</option>
+        <option value="inter">Inter-Location</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>From</label>
+      <select id="newFrom"></select>
+    </div>
+    <div class="modal-field">
+      <label>To</label>
+      <select id="newTo"></select>
+    </div>
+    <div class="modal-field">
+      <label>Item Name</label>
+      <select id="newItem" onchange="onNewItemChange('new')"><option value="">— Select an item —</option></select>
+      <input type="text" id="newItemCustom" placeholder="Enter custom item name" style="display:none;margin-top:6px;">
+    </div>
+    <div class="modal-field">
+      <label>Quantity</label>
+      <input type="number" id="newQty" min="0.5" step="0.5" placeholder="0">
+    </div>
+    <div class="modal-field">
+      <label>Authorized By</label>
+      <input type="text" id="newAuth" placeholder="Manager name">
+    </div>
+    <div class="modal-field">
+      <label>Transfer Date</label>
+      <input type="date" id="newDate">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeNewTransferModal()">Cancel</button>
+      <button class="btn btn-primary" id="newModalSubmitBtn" onclick="submitNewTransfer()">Create Transfer</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT TRANSFER MODAL -->
+<div class="modal-overlay" id="editTransferModal">
+  <div class="modal">
+    <h3>Edit Transfer</h3>
+    <input type="hidden" id="editId">
+    <input type="hidden" id="editCollection">
+    <input type="hidden" id="editSource">
+    <div class="modal-field">
+      <label>Item Name</label>
+      <select id="editItem" onchange="onNewItemChange('edit')"><option value="">— Select an item —</option></select>
+      <input type="text" id="editItemCustom" placeholder="Enter custom item name" style="display:none;margin-top:6px;">
+    </div>
+    <div class="modal-field">
+      <label>Quantity</label>
+      <input type="number" id="editQty" min="0.5" step="0.5">
+    </div>
+    <div class="modal-field">
+      <label>From</label>
+      <select id="editFrom"></select>
+    </div>
+    <div class="modal-field">
+      <label>To</label>
+      <select id="editTo"></select>
+    </div>
+    <div class="modal-field">
+      <label>Status</label>
+      <select id="editStatus">
+        <option value="pending">Pending</option>
+        <option value="accepted">Accepted</option>
+        <option value="rejected">Rejected</option>
+        <option value="returned">Returned</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Transfer Date</label>
+      <input type="date" id="editDate">
+    </div>
+    <div class="modal-field">
+      <label>Authorized By</label>
+      <input type="text" id="editAuth">
+    </div>
+    <div style="margin-top:8px;padding:8px 10px;background:#fffbeb;border:1px solid #fbbf24;border-radius:6px;font-size:.78rem;color:#92400e;display:none" id="editInventoryNote"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="shared.js?v=20260410"></script>
+<script>
+// ==================== STATE ====================
+let allTransfers = []; // unified array
+let tableSort = { column: 'date', dir: 'desc' };
+
+const LOCATIONS = {
+  'nnc-iss': 'Issaquah - NNC',
+  'renton-wh': 'Renton Warehouse',
+  'nnc-renton': 'Renton - NNC',
+  'ondemand-renton': 'On Demand Renton',
+  'babas-bel': "Baba's Bellevue",
+  'storage': 'Issaquah Storage Unit'
+};
+
+// ==================== APPROVAL PERMISSIONS ====================
+function isCurrentUserOwner() {
+  return currentUserProfile && currentUserProfile.role === 'owner';
+}
+
+// ==================== INVENTORY CONFIG CACHE ====================
+// Keyed by locationKey, each entry is an array of { id, name, unit, par, section/category }
+const inventoryCache = {};
+
+async function loadAllInventoryConfigs() {
+  // Drygoods configs — one per restaurant
+  const drygoodsKeys = ['nnc-iss', 'nnc-renton', 'ondemand-renton', 'babas-bel'];
+  for (const rk of drygoodsKeys) {
+    try {
+      const snap = await db.collection('inventory_config').doc(`drygoods_${rk}`).get();
+      if (snap.exists) {
+        const items = (snap.data().items || []).map(i => ({ ...i, _invType: 'drygoods', _restKey: rk }));
+        inventoryCache[rk] = (inventoryCache[rk] || []).concat(items);
+      }
+    } catch(e) { /* silent */ }
+  }
+
+  // Warehouse configs
+  const whKeys = ['nnc-iss', 'renton-wh', 'ondemand-renton'];
+  for (const rk of whKeys) {
+    try {
+      const snap = await db.collection('warehouse_config').doc(`warehouse_${rk}`).get();
+      if (snap.exists) {
+        const data = snap.data();
+        const itemsBySection = data.items || {};
+        Object.keys(itemsBySection).forEach(section => {
+          const sItems = itemsBySection[section];
+          if (!Array.isArray(sItems)) return;
+          const mapped = sItems.map(i => ({ ...i, _invType: 'warehouse', _restKey: rk, _section: section }));
+          inventoryCache[rk] = (inventoryCache[rk] || []).concat(mapped);
+        });
+      }
+    } catch(e) { /* silent */ }
+  }
+
+  // Storage configs
+  try {
+    const snap = await db.collection('storage_config').doc('storage_nnc-iss').get();
+    if (snap.exists) {
+      const data = snap.data();
+      const itemsByCat = data.items || {};
+      Object.keys(itemsByCat).forEach(catKey => {
+        const catItems = itemsByCat[catKey];
+        if (!Array.isArray(catItems)) return;
+        const mapped = catItems.map(i => ({ ...i, _invType: 'storage', _restKey: 'nnc-iss', _category: catKey }));
+        inventoryCache['storage'] = (inventoryCache['storage'] || []).concat(mapped);
+      });
+    }
+  } catch(e) { /* silent */ }
+}
+
+// Get items available at a given location key, sorted by name
+function getItemsForLocation(locationKey) {
+  return (inventoryCache[locationKey] || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+// Populate an item <select> element from a location's inventory
+function populateItemSelect(selectId, locationKey, currentItemName) {
+  const sel = document.getElementById(selectId);
+  const items = getItemsForLocation(locationKey);
+  if (items.length === 0) {
+    sel.innerHTML = '<option value="">No items found for this location</option><option value="__custom">Enter custom item name...</option>';
+    return;
+  }
+  let html = '<option value="">— Select an item —</option>';
+  const seen = new Set();
+  items.forEach(item => {
+    // Deduplicate by name (same item might be in multiple sections)
+    const key = item.name.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    const label = item.name + (item.unit ? ` (${item.unit})` : '') + (item._section ? ` [${item._section}]` : '') + (item._category ? ` [${item._category}]` : '');
+    const selected = currentItemName && item.name.toLowerCase() === currentItemName.toLowerCase() ? ' selected' : '';
+    html += `<option value="${item.name.replace(/"/g,'&quot;')}" data-id="${item.id}" data-unit="${item.unit||''}"${selected}>${label}</option>`;
+  });
+  html += '<option value="__custom">Other (enter custom name)...</option>';
+  sel.innerHTML = html;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  if (!email || !password) { err.textContent = 'Please enter email and password.'; err.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in...'; err.style.display = 'none';
+  try { await auth.signInWithEmailAndPassword(email, password); }
+  catch(e) { err.textContent = e.message; err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+
+auth.onAuthStateChanged(async user => {
+  const overlay = document.getElementById('loginOverlay');
+  if (user) {
+    overlay.classList.add('hidden');
+    await loadUserProfile();
+    loadAllInventoryConfigs(); // async but non-blocking — cache populates in background
+    setupListeners();
+  } else {
+    overlay.classList.remove('hidden');
+  }
+});
+
+// ==================== FIRESTORE LISTENERS ====================
+function setupListeners() {
+  // Warehouse transfers
+  db.collection('warehouse_transfers').orderBy('timestamp', 'desc').limit(500).onSnapshot(snap => {
+    const items = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      items.push({
+        _id: doc.id,
+        _source: 'warehouse',
+        _collection: 'warehouse_transfers',
+        itemName: d.itemName || '',
+        itemId: d.itemId || null,
+        quantity: d.quantity || 0,
+        from: d.from || '',
+        fromName: d.fromName || LOCATIONS[d.from] || d.from || '',
+        to: d.to || '',
+        toName: d.toName || LOCATIONS[d.to] || d.to || '',
+        status: d.status || 'pending',
+        date: d.transferDate || d.date || '',
+        timestamp: d.timestamp,
+        transferredBy: d.transferredBy || d.createdBy || '',
+        authorizedBy: d.authorizedBy || '',
+        section: d.section || '',
+        acceptedBy: d.acceptedBy || '',
+        acceptedAt: d.acceptedAt || null,
+        rejectedBy: d.rejectedBy || '',
+        rejectedAt: d.rejectedAt || null,
+        notes: d.notes || ''
+      });
+    });
+    mergeTransfers('warehouse', items);
+  });
+
+  // Storage transfers
+  db.collection('storage_transfers').orderBy('timestamp', 'desc').limit(500).onSnapshot(snap => {
+    const items = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      items.push({
+        _id: doc.id,
+        _source: 'storage',
+        _collection: 'storage_transfers',
+        itemName: d.itemName || '',
+        itemId: d.itemId || null,
+        quantity: d.quantity || 0,
+        from: d.from || 'storage',
+        fromName: d.fromName || 'Issaquah Storage Unit',
+        to: d.to || 'nnc-iss',
+        toName: d.toName || LOCATIONS[d.to] || 'Issaquah - NNC',
+        status: d.status || 'pending',
+        date: d.date || '',
+        timestamp: d.timestamp,
+        transferredBy: d.transferredBy || '',
+        authorizedBy: '',
+        acceptedBy: d.acceptedBy || '',
+        acceptedAt: d.acceptedAt || null,
+        rejectedBy: d.rejectedBy || '',
+        rejectedAt: d.rejectedAt || null,
+        notes: ''
+      });
+    });
+    mergeTransfers('storage', items);
+  });
+
+  // Inter-location transfers
+  db.collection('inter_transfers').orderBy('createdAt', 'desc').limit(500).onSnapshot(snap => {
+    const items = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      items.push({
+        _id: doc.id,
+        _source: 'inter',
+        _collection: 'inter_transfers',
+        itemName: d.itemName || '',
+        itemId: null,
+        quantity: d.quantity || 0,
+        from: d.from || '',
+        fromName: d.fromName || LOCATIONS[d.from] || d.from || '',
+        to: d.to || '',
+        toName: d.toName || LOCATIONS[d.to] || d.to || '',
+        status: d.status || 'pending',
+        date: d.transferDate || d.date || '',
+        timestamp: d.timestamp || d.createdAt,
+        transferredBy: d.transferredBy || '',
+        authorizedBy: d.authorizedBy || '',
+        acceptedBy: '',
+        acceptedAt: null,
+        rejectedBy: '',
+        rejectedAt: null,
+        returnedDate: d.returnedDate || null,
+        notes: ''
+      });
+    });
+    mergeTransfers('inter', items);
+  });
+}
+
+// Merge partial updates from each listener into the unified array
+const _partials = { warehouse: [], storage: [], inter: [] };
+function mergeTransfers(source, items) {
+  _partials[source] = items;
+  allTransfers = [..._partials.warehouse, ..._partials.storage, ..._partials.inter];
+  populateLocationFilters();
+  renderAll();
+}
+
+// ==================== FILTERS ====================
+function populateLocationFilters() {
+  const froms = new Set(); const tos = new Set();
+  allTransfers.forEach(t => {
+    if (t.fromName) froms.add(t.fromName);
+    if (t.toName) tos.add(t.toName);
+  });
+  _populateSelect('fromFilter', Array.from(froms).sort(), 'All');
+  _populateSelect('toFilter', Array.from(tos).sort(), 'All');
+}
+function _populateSelect(id, vals, allLabel) {
+  const sel = document.getElementById(id);
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${allLabel}</option>` + vals.map(v => `<option value="${v.replace(/"/g,'&quot;')}"${v===current?' selected':''}>${v}</option>`).join('');
+}
+
+function clearFilters() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('sourceFilter').value = '';
+  document.getElementById('statusFilter').value = '';
+  document.getElementById('fromFilter').value = '';
+  document.getElementById('toFilter').value = '';
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  tableSort = { column: 'date', dir: 'desc' };
+  renderAll();
+}
+
+function getFiltered() {
+  let list = allTransfers.slice();
+  const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const source = document.getElementById('sourceFilter')?.value || '';
+  const status = document.getElementById('statusFilter')?.value || '';
+  const fromF = document.getElementById('fromFilter')?.value || '';
+  const toF = document.getElementById('toFilter')?.value || '';
+  const dateFrom = document.getElementById('dateFrom')?.value || '';
+  const dateTo = document.getElementById('dateTo')?.value || '';
+
+  if (search) list = list.filter(t => (t.itemName || '').toLowerCase().includes(search) || (t.transferredBy || '').toLowerCase().includes(search));
+  if (source) list = list.filter(t => t._source === source);
+  if (status) list = list.filter(t => t.status === status);
+  if (fromF) list = list.filter(t => t.fromName === fromF);
+  if (toF) list = list.filter(t => t.toName === toF);
+  if (dateFrom) list = list.filter(t => (t.date || '') >= dateFrom);
+  if (dateTo) list = list.filter(t => (t.date || '') <= dateTo);
+  return list;
+}
+
+// ==================== SORT ====================
+function setSort(col) {
+  if (tableSort.column === col) tableSort.dir = tableSort.dir === 'asc' ? 'desc' : 'asc';
+  else { tableSort.column = col; tableSort.dir = col === 'date' ? 'desc' : 'asc'; }
+  renderAll();
+}
+
+function sortList(list) {
+  const col = tableSort.column;
+  const dir = tableSort.dir === 'desc' ? -1 : 1;
+  return list.sort((a, b) => {
+    let av, bv;
+    switch (col) {
+      case 'item': av = a.itemName; bv = b.itemName; break;
+      case 'qty': return ((a.quantity || 0) - (b.quantity || 0)) * dir;
+      case 'from': av = a.fromName; bv = b.fromName; break;
+      case 'to': av = a.toName; bv = b.toName; break;
+      case 'status': av = a.status; bv = b.status; break;
+      case 'source': av = a._source; bv = b._source; break;
+      case 'by': av = a.transferredBy; bv = b.transferredBy; break;
+      case 'date': default:
+        const ad = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp)) : new Date(0);
+        const bd = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate() : new Date(b.timestamp)) : new Date(0);
+        return (ad - bd) * dir;
+    }
+    return ((av || '').toString().toLowerCase()).localeCompare(((bv || '').toString().toLowerCase())) * dir;
+  });
+}
+
+// ==================== RENDER ====================
+function renderAll() {
+  renderSummary();
+  renderTable();
+}
+
+function renderSummary() {
+  const pending = allTransfers.filter(t => t.status === 'pending').length;
+  const accepted = allTransfers.filter(t => t.status === 'accepted').length;
+  const rejected = allTransfers.filter(t => t.status === 'rejected').length;
+  const returned = allTransfers.filter(t => t.status === 'returned').length;
+  const total = allTransfers.length;
+  document.getElementById('summaryBar').innerHTML = `
+    <div class="summary-card"><div class="label">Total Transfers</div><div class="value">${total}</div></div>
+    <div class="summary-card"><div class="label">Pending</div><div class="value${pending>0?' amber':''}">${pending}</div></div>
+    <div class="summary-card"><div class="label">Accepted</div><div class="value ok">${accepted}</div></div>
+    <div class="summary-card"><div class="label">Rejected</div><div class="value${rejected>0?' warn':''}">${rejected}</div></div>
+    <div class="summary-card"><div class="label">Returned</div><div class="value">${returned}</div></div>
+  `;
+}
+
+function renderTable() {
+  const container = document.getElementById('tableWrap');
+  let list = getFiltered();
+  list = sortList(list);
+
+  const si = (col) => {
+    if (tableSort.column !== col) return '<span class="sort-ind">\u2195</span>';
+    return `<span class="sort-ind">${tableSort.dir === 'asc' ? '\u25B2' : '\u25BC'}</span>`;
+  };
+  const th = (col, label) => `<th class="${tableSort.column===col?'sorted':''}" onclick="setSort('${col}')">${label}${si(col)}</th>`;
+
+  let html = `<table><thead><tr>
+    ${th('date','Date')}
+    ${th('source','Source')}
+    ${th('item','Item')}
+    ${th('qty','Qty')}
+    ${th('from','From')}
+    ${th('to','To')}
+    ${th('status','Status')}
+    ${th('by','Transferred By')}
+    <th>Actions</th>
+  </tr></thead><tbody>`;
+
+  if (list.length === 0) {
+    html += '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--gray-400)">No transfers match the current filters</td></tr>';
+  }
+
+  list.forEach(t => {
+    const dateStr = formatTransferDate(t);
+    const sourceBadge = t._source === 'warehouse' ? '<span class="badge badge-warehouse">Warehouse</span>'
+      : t._source === 'storage' ? '<span class="badge badge-storage">Storage</span>'
+      : '<span class="badge badge-inter">Inter-Loc</span>';
+    const statusBadge = t.status === 'pending' ? '<span class="badge badge-pending">Pending</span>'
+      : t.status === 'accepted' ? '<span class="badge badge-accepted">Accepted</span>'
+      : t.status === 'rejected' ? '<span class="badge badge-rejected">Rejected</span>'
+      : t.status === 'returned' ? '<span class="badge badge-returned">Returned</span>'
+      : `<span class="badge">${t.status}</span>`;
+
+    const ownerUser = isCurrentUserOwner();
+    let actions = `<button class="btn btn-sm btn-ghost" onclick="openEditModal('${t._id}')" title="Edit this transfer">Edit</button> `;
+    if (t.status === 'pending') {
+      if (ownerUser) {
+        actions += `<button class="btn btn-success btn-sm" onclick="acceptTransfer('${t._id}','${t._collection}','${t._source}')">Accept</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectTransfer('${t._id}','${t._collection}')">Reject</button>`;
+      } else {
+        actions += `<span style="font-size:.72rem;color:var(--gray-400);font-style:italic">Awaiting owner approval</span>`;
+      }
+    } else if (t.status === 'accepted' && t._source === 'inter') {
+      actions += `<button class="btn btn-sm btn-ghost" onclick="markReturned('${t._id}')">Return</button>`;
+    }
+
+    const sectionTag = t.section ? ` <span style="font-size:.7rem;color:var(--gray-400)">(${t.section})</span>` : '';
+    html += `<tr>
+      <td style="white-space:nowrap;font-size:.82rem">${dateStr}</td>
+      <td>${sourceBadge}</td>
+      <td style="font-weight:600">${t.itemName}${sectionTag}</td>
+      <td style="text-align:center;font-weight:600">${t.quantity}</td>
+      <td style="font-size:.82rem">${t.fromName}</td>
+      <td style="font-size:.82rem">${t.toName}</td>
+      <td>${statusBadge}</td>
+      <td style="font-size:.78rem;color:var(--gray-500)">${t.transferredBy || '—'}</td>
+      <td>${actions}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function formatTransferDate(t) {
+  if (t.timestamp) {
+    const d = t.timestamp.toDate ? t.timestamp.toDate() : new Date(t.timestamp);
+    if (!isNaN(d)) {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+  }
+  return t.date || '—';
+}
+
+// ==================== INVENTORY ADJUSTMENT ====================
+// Maps destination keys to the Firestore collections and doc patterns that hold their inventory.
+// When a transfer is accepted, we try to increment the receiving location's count.
+
+// Get Monday of the week for a given date (matches drygoods/warehouse/storage weekKey logic)
+function getWeekKey(dateStr) {
+  const d = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+  const day = d.getDay(); // 0=Sun
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  return `${monday.getFullYear()}-${String(monday.getMonth()+1).padStart(2,'0')}-${String(monday.getDate()).padStart(2,'0')}`;
+}
+
+// Deduct quantity from the source location's inventory when a transfer is accepted.
+// Currently handles storage source only (storage_config/storage_weeks).
+async function deductFromSource(transfer) {
+  const { itemName, itemId, quantity, from, _source, date } = transfer;
+  if (_source !== 'storage' || !from || !quantity) return '';
+
+  const wk = getWeekKey(date);
+  const stDocId = `storage_${from === 'storage' ? 'nnc-iss' : from}`;
+  try {
+    const configSnap = await db.collection('storage_config').doc(stDocId).get();
+    if (!configSnap.exists) return '';
+    const config = configSnap.data();
+    const itemsByCat = config.items || {};
+    for (const catKey of Object.keys(itemsByCat)) {
+      const catItems = itemsByCat[catKey] || [];
+      if (!Array.isArray(catItems)) continue;
+      const match = catItems.find(i =>
+        i.name?.toLowerCase() === itemName.toLowerCase() ||
+        i.id === (itemId || itemName.toLowerCase().replace(/\s+/g, '-'))
+      );
+      if (match) {
+        const weekDocId = `${stDocId}_${wk}_${catKey}`;
+        const weekSnap = await db.collection('storage_weeks').doc(weekDocId).get();
+        const weekData = weekSnap.exists ? weekSnap.data() : {};
+        const current = weekData[match.id]?.count;
+        const newCount = (current !== undefined && current !== '' ? Number(current) : 0) - quantity;
+        weekData[match.id] = weekData[match.id] || {};
+        weekData[match.id].count = newCount;
+        await db.collection('storage_weeks').doc(weekDocId).set(weekData, { merge: true });
+        return `-${quantity} ${itemName} deducted from storage/${catKey} (week ${wk})`;
+      }
+    }
+  } catch(e) { console.warn('Storage source deduction failed:', e); }
+  return '';
+}
+
+// Try to find the item in the destination's inventory and increment its count.
+// Returns a string describing what happened.
+async function adjustInventoryOnAccept(transfer) {
+  const { itemName, itemId, quantity, to, _source, date } = transfer;
+  if (!to || !itemName || !quantity) return 'No adjustment (missing data)';
+
+  // Deduct from source location
+  const sourceResult = await deductFromSource(transfer);
+
+  const wk = getWeekKey(date);
+
+  // --- DRYGOODS (inventory_weeks) ---
+  // Try to match item in drygoods config for the destination restaurant
+  const drygoodsDocId = `drygoods_${to}`;
+  try {
+    const configSnap = await db.collection('inventory_config').doc(drygoodsDocId).get();
+    if (configSnap.exists) {
+      const config = configSnap.data();
+      const items = config.items || [];
+      const match = items.find(i =>
+        i.name.toLowerCase() === itemName.toLowerCase() ||
+        i.id === (itemId || itemName.toLowerCase().replace(/\s+/g, '-'))
+      );
+      if (match) {
+        const weekDocId = `${drygoodsDocId}_${wk}`;
+        const weekSnap = await db.collection('inventory_weeks').doc(weekDocId).get();
+        const weekData = weekSnap.exists ? weekSnap.data() : {};
+        const current = weekData[match.id]?.count;
+        const newCount = (current !== undefined && current !== '' ? Number(current) : 0) + quantity;
+        weekData[match.id] = weekData[match.id] || {};
+        weekData[match.id].count = newCount;
+        weekData[match.id].transferBadge = `+${quantity} from ${_source}`;
+        await db.collection('inventory_weeks').doc(weekDocId).set(weekData, { merge: true });
+        const destMsg = `+${quantity} ${itemName} added to ${LOCATIONS[to] || to} drygoods (week ${wk})`;
+        return sourceResult ? `${sourceResult} | ${destMsg}` : destMsg;
+      }
+    }
+  } catch(e) { console.warn('Drygoods inventory lookup failed:', e); }
+
+  // --- WAREHOUSE (warehouse_weeks) ---
+  // Warehouse items are organized by section (frozen, produce, etc.)
+  // We check each section's items for a match
+  const whDocId = `warehouse_${to}`;
+  try {
+    const configSnap = await db.collection('warehouse_config').doc(whDocId).get();
+    if (configSnap.exists) {
+      const config = configSnap.data();
+      const sections = config.sections || {};
+      for (const section of Object.keys(sections)) {
+        const sItems = sections[section]?.items || config.items?.[section] || [];
+        const match = (Array.isArray(sItems) ? sItems : []).find(i =>
+          i.name?.toLowerCase() === itemName.toLowerCase() ||
+          i.id === (itemId || itemName.toLowerCase().replace(/\s+/g, '-'))
+        );
+        if (match) {
+          const weekDocId = `${whDocId}_${wk}_${section}`;
+          const weekSnap = await db.collection('warehouse_weeks').doc(weekDocId).get();
+          const weekData = weekSnap.exists ? weekSnap.data() : {};
+          const current = weekData[match.id]?.count;
+          const newCount = (current !== undefined && current !== '' ? Number(current) : 0) + quantity;
+          weekData[match.id] = weekData[match.id] || {};
+          weekData[match.id].count = newCount;
+          weekData[match.id].transferBadge = `+${quantity} from ${_source}`;
+          await db.collection('warehouse_weeks').doc(weekDocId).set(weekData, { merge: true });
+          const whSecMsg = `+${quantity} ${itemName} added to ${LOCATIONS[to] || to} warehouse/${section} (week ${wk})`;
+          return sourceResult ? `${sourceResult} | ${whSecMsg}` : whSecMsg;
+        }
+      }
+      // Also check flat items array if sections didn't work
+      const flatItems = config.items;
+      if (Array.isArray(flatItems)) {
+        const match = flatItems.find(i =>
+          i.name?.toLowerCase() === itemName.toLowerCase() ||
+          i.id === (itemId || itemName.toLowerCase().replace(/\s+/g, '-'))
+        );
+        if (match) {
+          const weekDocId = `${whDocId}_${wk}`;
+          const weekSnap = await db.collection('warehouse_weeks').doc(weekDocId).get();
+          const weekData = weekSnap.exists ? weekSnap.data() : {};
+          const current = weekData[match.id]?.count;
+          const newCount = (current !== undefined && current !== '' ? Number(current) : 0) + quantity;
+          weekData[match.id] = weekData[match.id] || {};
+          weekData[match.id].count = newCount;
+          await db.collection('warehouse_weeks').doc(weekDocId).set(weekData, { merge: true });
+          const whFlatMsg = `+${quantity} ${itemName} added to ${LOCATIONS[to] || to} warehouse (week ${wk})`;
+          return sourceResult ? `${sourceResult} | ${whFlatMsg}` : whFlatMsg;
+        }
+      }
+    }
+  } catch(e) { console.warn('Warehouse inventory lookup failed:', e); }
+
+  // --- STORAGE (storage_weeks) ---
+  const stDocId = `storage_${to}`;
+  try {
+    const configSnap = await db.collection('storage_config').doc(stDocId).get();
+    if (configSnap.exists) {
+      const config = configSnap.data();
+      const itemsByCat = config.items || {};
+      for (const catKey of Object.keys(itemsByCat)) {
+        const catItems = itemsByCat[catKey] || [];
+        if (!Array.isArray(catItems)) continue;
+        const match = catItems.find(i =>
+          i.name?.toLowerCase() === itemName.toLowerCase() ||
+          i.id === (itemId || itemName.toLowerCase().replace(/\s+/g, '-'))
+        );
+        if (match) {
+          const weekDocId = `${stDocId}_${wk}_${catKey}`;
+          const weekSnap = await db.collection('storage_weeks').doc(weekDocId).get();
+          const weekData = weekSnap.exists ? weekSnap.data() : {};
+          const current = weekData[match.id]?.count;
+          const newCount = (current !== undefined && current !== '' ? Number(current) : 0) + quantity;
+          weekData[match.id] = weekData[match.id] || {};
+          weekData[match.id].count = newCount;
+          await db.collection('storage_weeks').doc(weekDocId).set(weekData, { merge: true });
+          const stDestMsg = `+${quantity} ${itemName} added to ${LOCATIONS[to] || to} storage/${catKey} (week ${wk})`;
+          return sourceResult ? `${sourceResult} | ${stDestMsg}` : stDestMsg;
+        }
+      }
+    }
+  } catch(e) { console.warn('Storage inventory lookup failed:', e); }
+
+  const notFoundMsg = `Item "${itemName}" not found in ${LOCATIONS[to] || to} inventory — status updated but destination count not adjusted. Update the count manually from the destination page.`;
+  return sourceResult ? `${sourceResult} | ${notFoundMsg}` : notFoundMsg;
+}
+
+// Reverse an inventory adjustment (for reject after accept, or edit that changes qty)
+async function reverseInventoryAdjustment(transfer) {
+  // Same logic as adjustInventoryOnAccept but subtracts instead
+  const reverseTransfer = { ...transfer, quantity: -transfer.quantity };
+  const result = await adjustInventoryOnAccept(reverseTransfer);
+  return result.replace('+', '').replace('added to', 'reversed from');
+}
+
+// ==================== ACTIONS ====================
+async function acceptTransfer(docId, collection, source) {
+  if (!isCurrentUserOwner()) { alert('Only the owner can approve transfers.'); return; }
+  if (!confirm('Accept this transfer?\nThis will also try to add the quantity to the receiving location\'s inventory.')) return;
+  const transfer = allTransfers.find(t => t._id === docId);
+  try {
+    // If it was previously rejected, note the status change
+    const wasRejected = transfer && transfer.status === 'rejected';
+
+    await db.collection(collection).doc(docId).update({
+      status: 'accepted',
+      acceptedAt: new Date(),
+      acceptedBy: auth.currentUser.email
+    });
+
+    // Adjust inventory at destination
+    if (transfer && (source === 'warehouse' || source === 'storage')) {
+      const result = await adjustInventoryOnAccept(transfer);
+      showToast(result);
+    } else {
+      showToast('Transfer accepted' + (source === 'inter' ? ' (inter-location transfers do not auto-adjust inventory counts)' : ''));
+    }
+  } catch(e) {
+    console.error('Accept error:', e);
+    alert('Failed to accept: ' + e.message);
+  }
+}
+
+async function rejectTransfer(docId, collection) {
+  if (!isCurrentUserOwner()) { alert('Only the owner can reject transfers.'); return; }
+  const transfer = allTransfers.find(t => t._id === docId);
+  const wasAccepted = transfer && transfer.status === 'accepted';
+
+  let msg = 'Reject this transfer?';
+  if (wasAccepted) {
+    msg += '\n\nThis transfer was previously ACCEPTED. Rejecting it will also try to reverse the inventory adjustment (subtract the quantity from the receiving location).';
+  }
+  if (!confirm(msg)) return;
+
+  try {
+    await db.collection(collection).doc(docId).update({
+      status: 'rejected',
+      rejectedAt: new Date(),
+      rejectedBy: auth.currentUser.email
+    });
+
+    // If previously accepted, reverse the inventory adjustment
+    if (wasAccepted && transfer && (transfer._source === 'warehouse' || transfer._source === 'storage')) {
+      const result = await reverseInventoryAdjustment(transfer);
+      showToast('Transfer rejected. ' + result);
+    } else {
+      showToast('Transfer rejected');
+    }
+  } catch(e) {
+    console.error('Reject error:', e);
+    alert('Failed to reject: ' + e.message);
+  }
+}
+
+async function markReturned(docId) {
+  const returnDate = prompt('Return date (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+  if (!returnDate) return;
+  try {
+    await db.collection('inter_transfers').doc(docId).update({
+      status: 'returned',
+      returnedDate: returnDate,
+      returnedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('Marked as returned');
+  } catch(e) {
+    console.error('Return error:', e);
+    alert('Failed to mark returned: ' + e.message);
+  }
+}
+
+// ==================== EDIT MODAL ====================
+function openEditModal(docId) {
+  const t = allTransfers.find(x => x._id === docId);
+  if (!t) { showToast('Transfer not found'); return; }
+
+  document.getElementById('editId').value = docId;
+  document.getElementById('editCollection').value = t._collection;
+  document.getElementById('editSource').value = t._source;
+  // Populate item dropdown from the FROM location, pre-select current item
+  const fromKey = t._source === 'storage' ? 'storage' : t.from;
+  populateItemSelect('editItem', fromKey, t.itemName);
+  // If item wasn't found in the dropdown (custom/legacy), select __custom and fill the text input
+  const editSel = document.getElementById('editItem');
+  if (editSel.value !== t.itemName && t.itemName) {
+    // Item not in the inventory list — use custom
+    editSel.value = '__custom';
+    document.getElementById('editItemCustom').style.display = 'block';
+    document.getElementById('editItemCustom').value = t.itemName;
+  } else {
+    document.getElementById('editItemCustom').style.display = 'none';
+    document.getElementById('editItemCustom').value = '';
+  }
+  document.getElementById('editQty').value = t.quantity;
+  document.getElementById('editStatus').value = t.status;
+  document.getElementById('editAuth').value = t.authorizedBy || '';
+
+  // Parse date from transfer
+  let dateVal = '';
+  if (t.date) {
+    // Try to get ISO format
+    if (/^\d{4}-\d{2}-\d{2}/.test(t.date)) dateVal = t.date.slice(0,10);
+    else {
+      const parsed = new Date(t.date);
+      if (!isNaN(parsed)) dateVal = parsed.toISOString().slice(0,10);
+    }
+  }
+  document.getElementById('editDate').value = dateVal;
+
+  // Populate From/To selects
+  const locOpts = Object.entries(LOCATIONS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  document.getElementById('editFrom').innerHTML = locOpts;
+  document.getElementById('editTo').innerHTML = locOpts;
+  document.getElementById('editFrom').value = t.from;
+  document.getElementById('editTo').value = t.to;
+
+  // Re-populate item dropdown when From changes in edit modal
+  document.getElementById('editFrom').onchange = function() {
+    populateItemSelect('editItem', this.value);
+    document.getElementById('editItemCustom').style.display = 'none';
+    document.getElementById('editItemCustom').value = '';
+  };
+
+  // Lock status dropdown for non-owners
+  const editStatusSel = document.getElementById('editStatus');
+  if (!isCurrentUserOwner()) {
+    // Non-owners can only keep the current status or set to pending
+    editStatusSel.disabled = true;
+    editStatusSel.title = 'Only the owner can change transfer status';
+  } else {
+    editStatusSel.disabled = false;
+    editStatusSel.title = '';
+  }
+
+  // Show inventory note if status is being changed
+  const note = document.getElementById('editInventoryNote');
+  if (t.status === 'accepted' && (t._source === 'warehouse' || t._source === 'storage')) {
+    note.textContent = 'This transfer was accepted and inventory was adjusted. Changing the status or quantity will attempt to reverse/re-apply the inventory adjustment.';
+    note.style.display = 'block';
+  } else if (!isCurrentUserOwner()) {
+    note.textContent = 'Status changes require owner approval. You can edit other transfer details.';
+    note.style.display = 'block';
+    note.style.background = '#f0f4ff';
+    note.style.borderColor = '#93c5fd';
+    note.style.color = '#1e40af';
+  } else {
+    note.style.display = 'none';
+  }
+
+  document.getElementById('editTransferModal').classList.add('visible');
+}
+
+function closeEditModal() {
+  document.getElementById('editTransferModal').classList.remove('visible');
+}
+
+async function saveEdit() {
+  const docId = document.getElementById('editId').value;
+  const collection = document.getElementById('editCollection').value;
+  const source = document.getElementById('editSource').value;
+  const original = allTransfers.find(x => x._id === docId);
+  if (!original) { showToast('Transfer not found'); return; }
+
+  const editItemSel = document.getElementById('editItem');
+  const newItem = (editItemSel.value === '__custom'
+    ? document.getElementById('editItemCustom').value.trim()
+    : editItemSel.value.trim());
+  const newQty = Number(document.getElementById('editQty').value);
+  const newFrom = document.getElementById('editFrom').value;
+  const newTo = document.getElementById('editTo').value;
+  const newStatus = document.getElementById('editStatus').value;
+  const newDate = document.getElementById('editDate').value;
+  const newAuth = document.getElementById('editAuth').value.trim();
+
+  if (!newItem) { alert('Item name is required'); return; }
+  if (!newQty || newQty <= 0) { alert('Enter a valid quantity'); return; }
+
+  // Non-owners cannot change status
+  const oldStatus = original.status;
+  const statusChanged = oldStatus !== newStatus;
+  if (statusChanged && !isCurrentUserOwner()) {
+    alert('Only the owner can change transfer status. Your other edits have not been saved.');
+    return;
+  }
+  const qtyChanged = original.quantity !== newQty;
+
+  try {
+    // Build the update object
+    const update = {
+      itemName: newItem,
+      quantity: newQty,
+      from: newFrom,
+      to: newTo,
+      fromName: LOCATIONS[newFrom] || newFrom,
+      toName: LOCATIONS[newTo] || newTo,
+      authorizedBy: newAuth
+    };
+    if (newDate) {
+      update.date = newDate;
+      update.transferDate = newDate;
+    }
+
+    // Handle status changes with inventory implications
+    if (statusChanged) {
+      update.status = newStatus;
+      if (newStatus === 'accepted') {
+        update.acceptedAt = new Date();
+        update.acceptedBy = auth.currentUser.email;
+      } else if (newStatus === 'rejected') {
+        update.rejectedAt = new Date();
+        update.rejectedBy = auth.currentUser.email;
+      } else if (newStatus === 'returned') {
+        update.returnedDate = newDate || new Date().toISOString().slice(0,10);
+        update.returnedAt = firebase.firestore.FieldValue.serverTimestamp();
+      }
+    }
+
+    await db.collection(collection).doc(docId).update(update);
+
+    // Handle inventory adjustments for warehouse/storage transfers
+    if (source === 'warehouse' || source === 'storage') {
+      // Case 1: was accepted, now rejected/pending → reverse old adjustment
+      if (oldStatus === 'accepted' && newStatus !== 'accepted') {
+        const result = await reverseInventoryAdjustment(original);
+        showToast('Saved. Inventory reversed: ' + result);
+      }
+      // Case 2: was not accepted, now accepted → apply new adjustment
+      else if (oldStatus !== 'accepted' && newStatus === 'accepted') {
+        const updatedTransfer = { ...original, itemName: newItem, quantity: newQty, to: newTo, date: newDate || original.date };
+        const result = await adjustInventoryOnAccept(updatedTransfer);
+        showToast('Saved. ' + result);
+      }
+      // Case 3: was accepted, still accepted, but qty changed → reverse old, apply new
+      else if (oldStatus === 'accepted' && newStatus === 'accepted' && (qtyChanged || original.to !== newTo)) {
+        await reverseInventoryAdjustment(original);
+        const updatedTransfer = { ...original, itemName: newItem, quantity: newQty, to: newTo, date: newDate || original.date };
+        const result = await adjustInventoryOnAccept(updatedTransfer);
+        showToast('Saved. Inventory updated: ' + result);
+      }
+      else {
+        showToast('Transfer updated');
+      }
+    } else {
+      showToast('Transfer updated');
+    }
+
+    closeEditModal();
+  } catch(e) {
+    console.error('Save edit error:', e);
+    alert('Failed to save: ' + e.message);
+  }
+}
+
+// ==================== NEW TRANSFER MODAL ====================
+function openNewTransferModal() {
+  const owner = isCurrentUserOwner();
+  // Set modal title, subtitle, banner, and button based on role
+  document.getElementById('newModalTitle').textContent = owner ? 'New Transfer' : 'Request Inventory Transfer';
+  const subtitle = document.getElementById('newModalSubtitle');
+  const banner = document.getElementById('newModalApprovalBanner');
+  const submitBtn = document.getElementById('newModalSubmitBtn');
+  if (owner) {
+    subtitle.style.display = 'none';
+    banner.style.display = 'none';
+    submitBtn.textContent = 'Create Transfer';
+    submitBtn.style.background = '';
+  } else {
+    subtitle.textContent = 'Transfers require owner approval before inventory is adjusted';
+    subtitle.style.display = 'block';
+    banner.innerHTML = '<strong>ℹ</strong>&nbsp; You are submitting a <strong>transfer request</strong>. It will remain pending until the owner reviews and approves it.';
+    banner.style.display = 'block';
+    submitBtn.textContent = 'Submit Request';
+    submitBtn.style.background = '#f59e0b';
+  }
+  document.getElementById('newTransferModal').classList.add('visible');
+  document.getElementById('newDate').value = new Date().toISOString().slice(0,10);
+  onNewTypeChange();
+}
+
+function closeNewTransferModal() {
+  document.getElementById('newTransferModal').classList.remove('visible');
+}
+
+function onNewTypeChange() {
+  const type = document.getElementById('newType').value;
+  const fromSel = document.getElementById('newFrom');
+  const toSel = document.getElementById('newTo');
+
+  if (type === 'warehouse') {
+    fromSel.innerHTML = '<option value="renton-wh">Renton Warehouse</option>';
+    toSel.innerHTML = Object.entries(LOCATIONS).filter(([k]) => k !== 'renton-wh' && k !== 'storage').map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  } else if (type === 'storage') {
+    fromSel.innerHTML = '<option value="storage">Issaquah Storage Unit</option>';
+    toSel.innerHTML = '<option value="nnc-iss">Issaquah - NNC</option>';
+  } else {
+    const opts = Object.entries(LOCATIONS).filter(([k]) => k !== 'storage').map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+    fromSel.innerHTML = opts;
+    toSel.innerHTML = opts;
+  }
+  // Repopulate item dropdown based on selected From location
+  populateItemSelect('newItem', fromSel.value);
+  document.getElementById('newItemCustom').style.display = 'none';
+  document.getElementById('newItemCustom').value = '';
+}
+
+// When the From location changes in the New Transfer modal, repopulate items
+document.getElementById('newFrom').addEventListener('change', function() {
+  populateItemSelect('newItem', this.value);
+  document.getElementById('newItemCustom').style.display = 'none';
+  document.getElementById('newItemCustom').value = '';
+});
+
+// Show/hide custom item text input when "Other" is selected
+function onNewItemChange(prefix) {
+  const sel = document.getElementById(prefix + 'Item');
+  const custom = document.getElementById(prefix + 'ItemCustom');
+  if (sel.value === '__custom') {
+    custom.style.display = 'block';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+    custom.value = '';
+  }
+}
+
+async function submitNewTransfer() {
+  const type = document.getElementById('newType').value;
+  const from = document.getElementById('newFrom').value;
+  const to = document.getElementById('newTo').value;
+  const itemSel = document.getElementById('newItem');
+  const itemName = (itemSel.value === '__custom'
+    ? document.getElementById('newItemCustom').value.trim()
+    : itemSel.value.trim());
+  const qty = Number(document.getElementById('newQty').value);
+  const authorizedBy = document.getElementById('newAuth').value.trim();
+  const transferDate = document.getElementById('newDate').value;
+
+  if (!itemName) { alert('Enter an item name'); return; }
+  if (!qty || qty <= 0) { alert('Enter a valid quantity'); return; }
+  if (from === to) { alert('From and To cannot be the same location'); return; }
+
+  const now = new Date();
+  const dateDisplay = now.toLocaleDateString();
+
+  let collection;
+  const doc = {
+    itemName,
+    quantity: qty,
+    from,
+    to,
+    fromName: LOCATIONS[from] || from,
+    toName: LOCATIONS[to] || to,
+    status: 'pending',
+    date: transferDate || dateDisplay,
+    transferDate: transferDate || now.toISOString().slice(0,10),
+    timestamp: now,
+    createdAt: now,
+    transferredBy: auth.currentUser.email,
+    authorizedBy: authorizedBy || ''
+  };
+
+  if (type === 'warehouse') {
+    collection = 'warehouse_transfers';
+  } else if (type === 'storage') {
+    collection = 'storage_transfers';
+  } else {
+    collection = 'inter_transfers';
+  }
+
+  try {
+    await db.collection(collection).add(doc);
+    showToast(isCurrentUserOwner() ? 'Transfer created' : 'Transfer request submitted — awaiting owner approval');
+    closeNewTransferModal();
+    // Clear form
+    document.getElementById('newItem').selectedIndex = 0;
+    document.getElementById('newItemCustom').value = '';
+    document.getElementById('newItemCustom').style.display = 'none';
+    document.getElementById('newQty').value = '';
+    document.getElementById('newAuth').value = '';
+  } catch(e) {
+    console.error('Create transfer error:', e);
+    alert('Failed to create transfer: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>
