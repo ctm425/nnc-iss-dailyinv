@@ -230,7 +230,8 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
 <!-- TRANSFER MODAL -->
 <div class="modal-overlay" id="transferModal">
   <div class="modal">
-    <h3>Transfer: <span id="transferItemName"></span></h3>
+    <h3 id="transferModalTitle">Transfer: <span id="transferItemName"></span></h3>
+    <div id="transferApprovalBanner" style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 12px;font-size:.78rem;color:#1e40af;margin-bottom:14px;display:none"></div>
     <div class="modal-field">
       <label>In Stock:</label>
       <div class="info" id="transferInStock">—</div>
@@ -245,7 +246,7 @@ input[type="number"]:focus{outline:none;border-color:var(--primary-light);box-sh
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeTransferModal()">Cancel</button>
-      <button class="btn-confirm" onclick="confirmTransfer()">Confirm Transfer</button>
+      <button class="btn-confirm" id="transferSubmitBtn" onclick="confirmTransfer()">Confirm Transfer</button>
     </div>
   </div>
 </div>
@@ -664,8 +665,24 @@ function renderTable() {
 
   if (search) itemsWithCat = itemsWithCat.filter(i => i.name.toLowerCase().includes(search));
 
+  // Build a lookup of outgoing transfers this week from cachedTransfers
+  // These are transfers made since the current week started (already subtracted from count if count existed)
+  const thisWeekStart = currentWeekStart.toISOString().slice(0,10);
+  const transfersThisWeek = {};
+  cachedTransfers.forEach(t => {
+    if (!t.timestamp) return;
+    const tDate = t.timestamp.toDate ? t.timestamp.toDate() : new Date(t.timestamp);
+    const tStr = tDate.toISOString().slice(0,10);
+    if (tStr >= thisWeekStart && t.from === 'storage') {
+      transfersThisWeek[t.itemId] = (transfersThisWeek[t.itemId] || 0) + (t.quantity || 0);
+    }
+  });
+
+  const colCount = isAll ? 10 : 9;
   let html = `<table><thead><tr>
-    <th>Item</th>${isAll?'<th>Category</th>':''}<th>Unit</th><th>Par Level</th><th>Count</th><th>Usage</th><th>Status</th>
+    <th>Item</th>${isAll?'<th>Category</th>':''}<th>Unit</th><th>Par Level</th>
+    <th title="Last week\u2019s count minus any transfers out this week.\nShows estimated current stock between inventory counts.">Prev Count</th>
+    <th>Count</th><th>Usage</th><th>Status</th>
     <th>Notes</th><th>Transfer</th>
   </tr></thead><tbody>`;
 
@@ -677,10 +694,14 @@ function renderTable() {
     const data = weekData[item.id] || {};
     const prevData = prevWeekData[item.id] || {};
     const count = data.count !== undefined && data.count !== '' ? Number(data.count) : '';
-    const prevCount = prevData.count !== undefined && prevData.count !== '' ? Number(prevData.count) : '';
+    const prevCountRaw = prevData.count !== undefined && prevData.count !== '' ? Number(prevData.count) : '';
     const par = item.par || 0;
 
-    // Usage = previous count - current count (positive = items consumed/moved out)
+    // Adjusted prev count: last week's count minus transfers out this week
+    const xfersOut = transfersThisWeek[item.id] || 0;
+    const prevCount = prevCountRaw !== '' ? (prevCountRaw - xfersOut) : '';
+
+    // Usage = prev count (adjusted) - current count (positive = items consumed/moved out)
     let usageDisplay = '—';
     let usageStyle = 'color:var(--gray-400)';
     if (count !== '' && prevCount !== '') {
@@ -701,7 +722,17 @@ function renderTable() {
     if (isAll && catKey !== currentCatHeader) {
       currentCatHeader = catKey;
       const cat = CATEGORIES[catKey];
-      html += `<tr class="section-header"><td colspan="9" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
+      html += `<tr class="section-header"><td colspan="${colCount}" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
+    }
+
+    // Prev count display: show adjusted value, tooltip with breakdown if transfers exist
+    let prevDisplay = '—';
+    let prevTooltip = '';
+    if (prevCount !== '') {
+      prevDisplay = prevCount;
+      if (xfersOut > 0) {
+        prevTooltip = `Last count: ${prevCountRaw}, transferred out this week: ${xfersOut}`;
+      }
     }
 
     html += `<tr>
@@ -709,6 +740,7 @@ function renderTable() {
       ${isAll?`<td style="font-size:.75rem;color:var(--gray-500)">${CATEGORIES[catKey].icon}</td>`:''}
       <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
       <td style="text-align:center;font-weight:600;color:var(--gray-400)">${par > 0 ? par : '—'}</td>
+      <td style="text-align:center;color:var(--gray-500);font-size:.82rem" ${prevTooltip?`title="${prevTooltip}"`:''}>${prevDisplay}</td>
       <td><input type="number" value="${count}" min="0" step="0.5"
         onchange="onCountChange('${item.id}',this.value${isAll?`,'${catKey}'`:''})"
         style="background:${count===''?'#fffbeb':'#fff'}"></td>
@@ -721,8 +753,7 @@ function renderTable() {
   });
 
   if (itemsWithCat.length === 0) {
-    const cols = isAll ? 9 : 8;
-    html += `<tr><td colspan="${cols}" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
+    html += `<tr><td colspan="${colCount}" style="text-align:center;padding:24px;color:var(--gray-400)">No items found</td></tr>`;
   }
   html += `</tbody></table>`;
   container.innerHTML = html;
@@ -777,7 +808,25 @@ function loadInventoryPerson() {
 // ==================== TRANSFER MODAL ====================
 function openTransferModal(itemId, itemName, currentCount) {
   transferModalItem = { itemId, itemName, currentCount };
+  const isOwner = currentUserProfile && currentUserProfile.role === 'owner';
+  // Role-aware modal text
+  const titleEl = document.getElementById('transferModalTitle');
+  titleEl.innerHTML = isOwner
+    ? 'Transfer: <span id="transferItemName"></span>'
+    : 'Request Transfer: <span id="transferItemName"></span>';
   document.getElementById('transferItemName').textContent = itemName;
+  const banner = document.getElementById('transferApprovalBanner');
+  const submitBtn = document.getElementById('transferSubmitBtn');
+  if (isOwner) {
+    banner.style.display = 'none';
+    submitBtn.textContent = 'Confirm Transfer';
+    submitBtn.style.background = '';
+  } else {
+    banner.innerHTML = '<strong>ℹ</strong>&nbsp; This will submit a <strong>transfer request</strong> for owner approval. Inventory will not be adjusted until the request is approved.';
+    banner.style.display = 'block';
+    submitBtn.textContent = 'Submit Request';
+    submitBtn.style.background = '#f59e0b';
+  }
   document.getElementById('transferInStock').textContent = currentCount;
   document.getElementById('transferQty').value = '';
   document.getElementById('transferModal').classList.add('visible');
@@ -800,10 +849,7 @@ async function confirmTransfer() {
     return;
   }
 
-  const wk = weekKey();
-  const d = loadData();
-  const newCount = transferModalItem.currentCount - qty;
-  setField(wk, activeCategory, transferModalItem.itemId, 'count', newCount);
+  const isOwner = currentUserProfile && currentUserProfile.role === 'owner';
 
   if (auth.currentUser) {
     try {
@@ -814,15 +860,29 @@ async function confirmTransfer() {
         from: 'storage',
         to: 'nnc-iss',
         fromName: 'Issaquah Storage Unit',
-        status: 'pending',
+        toName: 'Issaquah - NNC',
+        status: isOwner ? 'accepted' : 'pending',
         date: new Date().toLocaleDateString(),
+        transferDate: new Date().toISOString().slice(0,10),
         timestamp: new Date(),
-        transferredBy: auth.currentUser.email
+        createdAt: new Date(),
+        transferredBy: auth.currentUser.email,
+        ...(isOwner ? { acceptedBy: auth.currentUser.email, acceptedAt: new Date() } : {})
       });
     } catch(e) { console.error('Transfer save error:', e); }
   }
 
-  showToast(`Transferred ${qty} ${transferModalItem.itemName.split('(')[0]}`);
+  if (isOwner) {
+    // Owner: immediately adjust inventory count
+    const wk = weekKey();
+    const newCount = transferModalItem.currentCount - qty;
+    setField(wk, activeCategory, transferModalItem.itemId, 'count', newCount);
+    showToast(`Transferred ${qty} ${transferModalItem.itemName.split('(')[0]}`);
+  } else {
+    // Non-owner: do NOT adjust count — wait for owner approval
+    showToast('Transfer request submitted — awaiting owner approval');
+  }
+
   closeTransferModal();
   render();
 }
@@ -963,6 +1023,15 @@ function saveEmailSettings() {
 function exportExcel() {
   const d = loadData();
   const wb = XLSX.utils.book_new();
+  const thisWeekStartExport = currentWeekStart.toISOString().slice(0,10);
+  const transfersThisWeekExport = {};
+  cachedTransfers.forEach(t => {
+    if (!t.timestamp) return;
+    const tDate = t.timestamp.toDate ? t.timestamp.toDate() : new Date(t.timestamp);
+    if (tDate.toISOString().slice(0,10) >= thisWeekStartExport && t.from === 'storage') {
+      transfersThisWeekExport[t.itemId] = (transfersThisWeekExport[t.itemId] || 0) + (t.quantity || 0);
+    }
+  });
 
   const prevWk = weekKey(getPrevWeekStart());
   Object.keys(CATEGORIES).forEach(catKey => {
@@ -976,7 +1045,9 @@ function exportExcel() {
       const data = weekData[item.id] || {};
       const prevData = prevWeekData[item.id] || {};
       const count = data.count !== undefined ? Number(data.count) : '';
-      const prevCount = prevData.count !== undefined ? Number(prevData.count) : '';
+      const prevCountRaw = prevData.count !== undefined ? Number(prevData.count) : '';
+      const xfOut = transfersThisWeekExport[item.id] || 0;
+      const prevCount = prevCountRaw !== '' ? (prevCountRaw - xfOut) : '';
       const par = item.par || 0;
       let usage = '—';
       if (count !== '' && prevCount !== '') {
@@ -987,6 +1058,7 @@ function exportExcel() {
         'Item': item.name,
         'Unit': item.unit,
         'Par': par > 0 ? par : '—',
+        'Prev Count': prevCount !== '' ? prevCount : '—',
         'Count': count,
         'Usage': usage,
         'Status': count===''?'Not Counted': par===0?'':count>=par?'Good': count>=par*0.5?'Low':'Critical',
@@ -994,7 +1066,7 @@ function exportExcel() {
       });
     });
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{wch:40},{wch:8},{wch:6},{wch:6},{wch:8},{wch:12},{wch:20}];
+    ws['!cols'] = [{wch:40},{wch:8},{wch:6},{wch:10},{wch:6},{wch:8},{wch:12},{wch:20}];
     XLSX.utils.book_append_sheet(wb, ws, cat.name.substring(0,31));
   });
 
@@ -1008,6 +1080,15 @@ function exportPDF() {
   const doc = new jsPDF('landscape');
   const d = loadData();
   let firstPage = true;
+  const thisWeekStartPdf = currentWeekStart.toISOString().slice(0,10);
+  const transfersThisWeekPdf = {};
+  cachedTransfers.forEach(t => {
+    if (!t.timestamp) return;
+    const tDate = t.timestamp.toDate ? t.timestamp.toDate() : new Date(t.timestamp);
+    if (tDate.toISOString().slice(0,10) >= thisWeekStartPdf && t.from === 'storage') {
+      transfersThisWeekPdf[t.itemId] = (transfersThisWeekPdf[t.itemId] || 0) + (t.quantity || 0);
+    }
+  });
 
   const prevWk = weekKey(getPrevWeekStart());
   Object.keys(CATEGORIES).forEach(catKey => {
@@ -1031,7 +1112,9 @@ function exportPDF() {
       const data = weekData[item.id] || {};
       const prevData = prevWeekData[item.id] || {};
       const count = data.count !== undefined ? Number(data.count) : '';
-      const prevCount = prevData.count !== undefined ? Number(prevData.count) : '';
+      const prevCountRaw = prevData.count !== undefined ? Number(prevData.count) : '';
+      const xfOutPdf = transfersThisWeekPdf[item.id] || 0;
+      const prevCount = prevCountRaw !== '' ? (prevCountRaw - xfOutPdf) : '';
       const par = item.par || 0;
       let usage = '—';
       if (count !== '' && prevCount !== '') {
@@ -1039,11 +1122,11 @@ function exportPDF() {
         usage = diff > 0 ? `-${diff}` : diff < 0 ? `+${Math.abs(diff)}` : '0';
       }
       const status = count===''?'—': par===0?'': count>=par?'✓ Good': count>=par*0.5?'⚠ Low':'⛔ Critical';
-      rows.push([item.name, item.unit, par>0?par:'—', count===''?'—':count, usage, status, data.notes||'']);
+      rows.push([item.name, item.unit, par>0?par:'—', prevCount!==''?prevCount:'—', count===''?'—':count, usage, status, data.notes||'']);
     });
 
     doc.autoTable({
-      head: [['Item','Unit','Par','Count','Usage','Status','Notes']],
+      head: [['Item','Unit','Par','Prev','Count','Usage','Status','Notes']],
       body: rows,
       startY: person ? 33 : 27,
       styles: { fontSize: 8 },
