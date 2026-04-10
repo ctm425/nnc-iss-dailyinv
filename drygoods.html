@@ -951,24 +951,24 @@ function setupFirestoreListener() {
 
 // One-time fetch of the previous 7 days of inventory data for Prev Count
 async function fetchRecentDays(fsDocPrefix, lsKey) {
-  const d = loadData();
-  if (!d.weeks) d.weeks = {};
-  let updated = false;
+  const fetched = {};
   for (let i = 1; i <= 7; i++) {
     const prev = new Date(currentDate);
     prev.setDate(prev.getDate() - i);
     const dk = dateKey(prev);
-    // Skip if already in localStorage
-    if (d.weeks[dk] && Object.keys(d.weeks[dk]).some(k => k !== '__meta' && d.weeks[dk][k]?.count !== undefined)) continue;
+    // Check current localStorage to skip already-loaded dates
+    const existing = loadData();
+    if (existing.weeks && existing.weeks[dk] && Object.keys(existing.weeks[dk]).some(k => k !== '__meta' && existing.weeks[dk][k]?.count !== undefined)) continue;
     try {
       const snap = await db.collection('inventory_weeks').doc(`${fsDocPrefix}_${dk}`).get();
-      if (snap.exists) {
-        d.weeks[dk] = snap.data();
-        updated = true;
-      }
+      if (snap.exists) fetched[dk] = snap.data();
     } catch(e) { /* silent */ }
   }
-  if (updated) {
+  if (Object.keys(fetched).length > 0) {
+    // Re-load fresh to avoid overwriting concurrent listener updates
+    const d = loadData();
+    if (!d.weeks) d.weeks = {};
+    Object.assign(d.weeks, fetched);
     localStorage.setItem(lsKey, JSON.stringify(d));
     if (mainTab !== 'analytics') render();
   }
@@ -1042,24 +1042,23 @@ function setupMultiSourceListeners() {
 
 // One-time fetch of the previous 7 days for a multi-source storageKey
 async function fetchRecentDaysMultiSource(storageKey) {
-  const sd = loadSourceData(storageKey);
-  if (!sd.weeks) sd.weeks = {};
-  let updated = false;
+  const fetched = {};
   const fsPrefix = `${storageKey}_${restaurantKey}`;
   for (let i = 1; i <= 7; i++) {
     const prev = new Date(currentDate);
     prev.setDate(prev.getDate() - i);
     const dk = dateKey(prev);
-    if (sd.weeks[dk] && Object.keys(sd.weeks[dk]).some(k => k !== '__meta' && sd.weeks[dk][k]?.count !== undefined)) continue;
+    const existing = loadSourceData(storageKey);
+    if (existing.weeks && existing.weeks[dk] && Object.keys(existing.weeks[dk]).some(k => k !== '__meta' && existing.weeks[dk][k]?.count !== undefined)) continue;
     try {
       const snap = await db.collection('inventory_weeks').doc(`${fsPrefix}_${dk}`).get();
-      if (snap.exists) {
-        sd.weeks[dk] = snap.data();
-        updated = true;
-      }
+      if (snap.exists) fetched[dk] = snap.data();
     } catch(e) { /* silent */ }
   }
-  if (updated) {
+  if (Object.keys(fetched).length > 0) {
+    const sd = loadSourceData(storageKey);
+    if (!sd.weeks) sd.weeks = {};
+    Object.assign(sd.weeks, fetched);
     localStorage.setItem(storageIdFor(storageKey), JSON.stringify(sd));
     if (mainTab !== 'analytics') render();
   }
