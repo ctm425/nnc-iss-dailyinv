@@ -650,7 +650,6 @@ function findPreviousCountDate() {
     .filter(k => k < currentKey && k !== '__meta')
     .sort()
     .reverse();
-  // Return the first date that actually has count data (not just meta)
   for (const dk of dates) {
     const wd = d.weeks[dk];
     const hasData = Object.keys(wd).some(k => k !== '__meta' && wd[k]?.count !== undefined);
@@ -659,11 +658,42 @@ function findPreviousCountDate() {
   return null;
 }
 
+// Returns per-item previous count data by scanning ALL previous dates.
+// Each item gets the most recent date that has a count for it.
 function getPreviousCountData() {
-  const prevDate = findPreviousCountDate();
-  if (!prevDate) return { date: null, data: {} };
   const d = loadData();
-  return { date: prevDate, data: d.weeks[prevDate] || {} };
+  if (!d.weeks) return { date: null, data: {}, dateRange: null };
+  const currentKey = dateKey();
+  const dates = Object.keys(d.weeks)
+    .filter(k => k < currentKey && k !== '__meta')
+    .sort()
+    .reverse();
+
+  const merged = {};    // itemId → { count, manualOrder, orderQty, ... }
+  const itemDates = {}; // itemId → date string where count was found
+  let earliestDate = null;
+  let latestDate = null;
+
+  for (const dk of dates) {
+    const wd = d.weeks[dk] || {};
+    for (const itemId of Object.keys(wd)) {
+      if (itemId === '__meta') continue;
+      // Only use this date for this item if we haven't found a newer count already
+      if (merged[itemId]) continue;
+      if (wd[itemId]?.count !== undefined && wd[itemId].count !== '') {
+        merged[itemId] = wd[itemId];
+        itemDates[itemId] = dk;
+        if (!latestDate || dk > latestDate) latestDate = dk;
+        if (!earliestDate || dk < earliestDate) earliestDate = dk;
+      }
+    }
+  }
+
+  return {
+    date: latestDate,
+    data: merged,
+    dateRange: earliestDate && earliestDate !== latestDate ? { from: earliestDate, to: latestDate } : null
+  };
 }
 
 // ==================== DATA PERSISTENCE ====================
@@ -956,7 +986,6 @@ async function fetchRecentDays(fsDocPrefix, lsKey) {
     const prev = new Date(currentDate);
     prev.setDate(prev.getDate() - i);
     const dk = dateKey(prev);
-    // Check current localStorage to skip already-loaded dates
     const existing = loadData();
     if (existing.weeks && existing.weeks[dk] && Object.keys(existing.weeks[dk]).some(k => k !== '__meta' && existing.weeks[dk][k]?.count !== undefined)) continue;
     try {
@@ -965,7 +994,6 @@ async function fetchRecentDays(fsDocPrefix, lsKey) {
     } catch(e) { /* silent */ }
   }
   if (Object.keys(fetched).length > 0) {
-    // Re-load fresh to avoid overwriting concurrent listener updates
     const d = loadData();
     if (!d.weeks) d.weeks = {};
     Object.assign(d.weeks, fetched);
@@ -1130,11 +1158,16 @@ function updateDateNav() {
   const isToday = currentDate.getTime() === today.getTime();
   document.getElementById('dayName').textContent = DAY_NAMES[currentDate.getDay()] + (isToday ? ' (Today)' : '');
   // Show previous count reference
-  const prev = findPreviousCountDate();
+  const prevInfo = getPreviousCountData();
   const prevEl = document.getElementById('prevCountDate');
-  if (prev) {
-    const pd = new Date(prev + 'T00:00:00');
-    prevEl.textContent = formatDateFull(pd);
+  if (prevInfo.date) {
+    const pd = new Date(prevInfo.date + 'T00:00:00');
+    if (prevInfo.dateRange) {
+      const from = new Date(prevInfo.dateRange.from + 'T00:00:00');
+      prevEl.textContent = `${formatDateFull(from)} — ${formatDateFull(pd)}`;
+    } else {
+      prevEl.textContent = formatDateFull(pd);
+    }
   } else {
     prevEl.textContent = 'No previous count found';
   }
