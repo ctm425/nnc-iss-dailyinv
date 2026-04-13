@@ -562,6 +562,26 @@ SHEET_MODES['nnc-allnonfrozen'] = {
 
 const UNITS = ['each', 'case', 'bag', 'box', 'bottle', 'can', 'jar', 'lb', 'oz', 'gallon', 'pack', 'roll'];
 
+// ==================== PACKING LOG INTEGRATION ====================
+// Maps packing-log Firestore fields → prepared item IDs in nnc-frozen
+const PACKING_LOG_MAP = {
+  'botikabab_orders': 'boti-kabab',
+  'lambchops_orders': 'lamb-chops',
+  'seekh_chicken': 'chicken-seekh',
+  'seekh_lamb': 'lamb-seekh',
+  'haleem_bags': 'haleem-lamb',
+  'keema_bags': 'keema',
+  'karela_bags': 'karela',
+  'nehari_bags': 'nehari-sauce'
+};
+// Reverse: item ID → packing-log field
+const ITEM_TO_PACKING_FIELD = {};
+Object.entries(PACKING_LOG_MAP).forEach(([field, itemId]) => {
+  ITEM_TO_PACKING_FIELD[itemId] = field;
+});
+// Cache: { 'YYYY-MM-DD': { field: value, ... } | null }
+let packingLogCache = {};
+
 // ==================== STATE ====================
 let currentDate = new Date();
 currentDate.setHours(0, 0, 0, 0);
@@ -977,6 +997,9 @@ function setupFirestoreListener() {
 
   // Fetch recent previous days so Prev Count column works even on a fresh browser
   fetchRecentDays(firestoreDocPath(), storageId());
+
+  // Fetch packing log data for prepared items (nnc-frozen only)
+  fetchPackingLogData();
 }
 
 // One-time fetch of the previous 7 days of inventory data for Prev Count
@@ -1000,6 +1023,74 @@ async function fetchRecentDays(fsDocPrefix, lsKey) {
     localStorage.setItem(lsKey, JSON.stringify(d));
     if (mainTab !== 'analytics') render();
   }
+}
+
+// ==================== PACKING LOG FETCH ====================
+// Fetch packing-log records for the date range relevant to the current view.
+// Only applies to nnc-frozen sheet on nnc-iss restaurant.
+async function fetchPackingLogData() {
+  if (currentMode.storageKey !== 'frozen' || restaurantKey !== 'nnc-iss') return;
+
+  const currentDk = dateKey();
+  const prev = getPreviousCountData();
+  // Start from the day AFTER prev count (that packing is already in prev count)
+  // through current date inclusive
+  const startDate = prev.date || currentDk;
+
+  // Build date list (max 14 days to avoid excessive reads)
+  const dates = [];
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(currentDk + 'T00:00:00');
+  const iter = new Date(start);
+  let safety = 0;
+  while (iter <= end && safety < 14) {
+    dates.push(`${iter.getFullYear()}-${String(iter.getMonth()+1).padStart(2,'0')}-${String(iter.getDate()).padStart(2,'0')}`);
+    iter.setDate(iter.getDate() + 1);
+    safety++;
+  }
+
+  let fetched = false;
+  for (const dk of dates) {
+    if (packingLogCache[dk] !== undefined) continue; // already fetched
+    try {
+      const snap = await db.collection('packing-log').doc('nnc-iss').collection('records').doc(dk).get();
+      packingLogCache[dk] = snap.exists ? snap.data() : null;
+      fetched = true;
+    } catch(e) {
+      packingLogCache[dk] = null;
+    }
+  }
+  if (fetched && mainTab !== 'analytics') render();
+}
+
+// Sum packing-log quantities for a prepared item between two dates.
+// fromDate exclusive, toDate inclusive (production between count periods).
+function getPackedTotal(itemId, fromDate, toDate) {
+  const field = ITEM_TO_PACKING_FIELD[itemId];
+  if (!field) return 0;
+
+  let total = 0;
+  const start = new Date(fromDate + 'T00:00:00');
+  start.setDate(start.getDate() + 1); // exclusive of fromDate
+  const end = new Date(toDate + 'T00:00:00');
+  const iter = new Date(start);
+  let safety = 0;
+  while (iter <= end && safety < 14) {
+    const dk = `${iter.getFullYear()}-${String(iter.getMonth()+1).padStart(2,'0')}-${String(iter.getDate()).padStart(2,'0')}`;
+    const rec = packingLogCache[dk];
+    if (rec && rec[field]) total += Number(rec[field]) || 0;
+    iter.setDate(iter.getDate() + 1);
+    safety++;
+  }
+  return total;
+}
+
+// Get packed qty for a single date (for the Packed column display)
+function getPackedOnDate(itemId, dk) {
+  const field = ITEM_TO_PACKING_FIELD[itemId];
+  if (!field) return 0;
+  const rec = packingLogCache[dk];
+  return (rec && rec[field]) ? (Number(rec[field]) || 0) : 0;
 }
 
 function setupMultiSourceListeners() {
@@ -1194,11 +1285,20 @@ function renderStats() {
     // Calculate usage for stats
     if (hasPrev) {
       const prevItemData = prev.data[id] || {};
-      const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
-      if (prevCount !== '' && data.count !== undefined && data.count !== '') {
-        const prevOrderAuto = Math.max(0, par - prevCount);
-        const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
-        const usage = (prevCount + prevOrder) - count;
+      const prevCountRaw = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
+      if (prevCountRaw !== '' && data.count !== undefined && data.count !== '') {
+        const prevOrderAuto = Math.max(0, par - prevCountRaw);
+        let prevReceived = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+        // Packing log integration for stats
+        const isPreparedWithPacking = item.subCategory === 'prepared'
+          && ITEM_TO_PACKING_FIELD[id]
+          && currentMode.storageKey === 'frozen'
+          && restaurantKey === 'nnc-iss';
+        if (isPreparedWithPacking && prev.date) {
+          const packed = getPackedTotal(id, prev.date, dateKey());
+          if (!prevItemData.manualOrder && packed > 0) prevReceived = packed;
+        }
+        const usage = (prevCountRaw + prevReceived) - count;
         if (usage > 0) { totalUsage += usage; usageItems++; }
       }
     }
@@ -1283,7 +1383,24 @@ function _buildRow(item, weekData, prev, hasPrev) {
   // Only add received qty into the starting stock if the manager actually
   // keyed an invoice value (manualOrder:true). Auto-suggested qty is NOT
   // inventory that physically arrived, so it must not inflate prev count.
-  const prevReceived = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : 0;
+  let prevReceived = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : 0;
+
+  // --- Packing log integration for prepared items ---
+  // For prepared items with packing log data, use the sum of packed quantities
+  // between prev count date and current date as 'received' (production = inflow).
+  let packedTotal = 0;
+  const isPreparedWithPacking = item.subCategory === 'prepared'
+    && ITEM_TO_PACKING_FIELD[item.id]
+    && currentMode.storageKey === 'frozen'
+    && restaurantKey === 'nnc-iss';
+  if (isPreparedWithPacking && hasPrev && prev.date) {
+    packedTotal = getPackedTotal(item.id, prev.date, dateKey());
+    // Packing data supplements manual received; if no manual entry, use packing
+    if (!prevItemData.manualOrder && packedTotal > 0) {
+      prevReceived = packedTotal;
+    }
+  }
+
   // prevCount for display & usage = yesterday's physical count PLUS anything
   // that was received that day. This is the true starting stock going into today.
   const prevCount = prevCountRaw === '' ? '' : (prevCountRaw + prevReceived);
@@ -1298,7 +1415,7 @@ function _buildRow(item, weekData, prev, hasPrev) {
     else if (count >= par * 0.5) statusKey = 'low';
     else statusKey = 'critical';
   }
-  return { item, data, count, par, autoOrder, isManual, orderQty, prevCount, usage, statusKey };
+  return { item, data, count, par, autoOrder, isManual, orderQty, prevCount, usage, statusKey, packedTotal };
 }
 
 function populateVendorFilter(items) {
@@ -1371,6 +1488,7 @@ function renderTable() {
         case 'usage':   return cmpNum(ra.usage, rb.usage);
         case 'status':  return ((statusOrder[ra.statusKey] - statusOrder[rb.statusKey]) || 0) * sortDir;
         case 'suggested': return cmpNum(ra.autoOrder, rb.autoOrder);
+        case 'packed':    return cmpNum(ra.packedTotal || 0, rb.packedTotal || 0);
         case 'received':  return cmpNum(ra.isManual ? ra.orderQty : '', rb.isManual ? rb.orderQty : '');
         default: return 0;
       }
@@ -1394,6 +1512,9 @@ function renderTable() {
   };
   const th = (col, label, attrs='') => `<th class="sortable${tableSort.column===col?' sorted':''}" onclick="setTableSort('${col}')" ${attrs}>${label}${sortInd(col)}</th>`;
 
+  const showPackedCol = currentMode.storageKey === 'frozen' && restaurantKey === 'nnc-iss';
+  const totalCols = showPackedCol ? 12 : 11;
+
   let html = `<table>
     <thead><tr>
       ${th('name','Item')}
@@ -1402,6 +1523,7 @@ function renderTable() {
       ${th('par','Par Level')}
       ${th('prev','Prev Count','title="Yesterday\u2019s count plus anything received yesterday (the real starting stock for today)"')}
       ${th('count','Count')}
+      ${showPackedCol ? th('packed','Packed','title="Total packed (from packing log) between previous count and today"') : ''}
       ${th('usage','Usage')}
       ${th('status','Status')}
       ${th('suggested','Suggested Order','title="Auto-calculated: par minus current count"')}
@@ -1411,7 +1533,7 @@ function renderTable() {
     <tbody>`;
 
   const renderRow = (r) => {
-    const { item, data, count, par, autoOrder, isManual, orderQty, prevCount, usage, statusKey } = r;
+    const { item, data, count, par, autoOrder, isManual, orderQty, prevCount, usage, statusKey, packedTotal } = r;
     let usageClass = 'usage-col usage-zero';
     if (usage !== '') {
       if (usage > par * 1.5) usageClass = 'usage-col usage-high';
@@ -1423,6 +1545,15 @@ function renderTable() {
     else if (statusKey === 'low') { status = '⚠ Low'; statusClass = 'status-low'; }
     else if (statusKey === 'critical') { status = '⛔ Critical'; statusClass = 'status-critical'; }
     const transferBadge = data.transferBadge ? `<span style="display:inline-block;margin-left:6px;padding:2px 6px;background:#dcfce7;color:#166534;border-radius:4px;font-size:.7rem;font-weight:600">${data.transferBadge}</span>` : '';
+    // Packed column: greyed out, read-only, shows total packed from packing log
+    let packedCell = '';
+    if (showPackedCol) {
+      if (packedTotal > 0) {
+        packedCell = `<td style="text-align:center;background:var(--gray-100);color:var(--gray-500);font-size:.82rem;font-weight:600" title="From packing log: ${fmtQty(packedTotal)} packed between prev count and today">${fmtQty(packedTotal)}</td>`;
+      } else {
+        packedCell = `<td style="text-align:center;background:var(--gray-100);color:var(--gray-300);font-size:.82rem">—</td>`;
+      }
+    }
     return `<tr>
       <td>${item.name}${transferBadge}</td>
       <td style="font-size:.78rem;color:var(--gray-500)">${item.vendor || ''}</td>
@@ -1432,6 +1563,7 @@ function renderTable() {
       <td><input type="number" value="${count !== '' ? fmtQty(count) : ''}" min="0" step="0.5"
         onchange="onCountChange('${wk}','${item.id}',this.value)"
         style="background:${count===''?'#fffbeb':'#fff'}"></td>
+      ${packedCell}
       <td class="${usageClass}" style="text-align:center">${usage !== '' ? fmtQty(usage) : '—'}</td>
       <td class="${statusClass}">${status}</td>
       <td style="text-align:center;color:var(--gray-500);font-size:.82rem" title="Auto-calculated suggestion (par − count)">${autoOrder !== '' && autoOrder > 0 ? fmtQty(autoOrder) : '—'}</td>
@@ -1455,13 +1587,13 @@ function renderTable() {
     catOrder.forEach(catKey => {
       if (!grouped[catKey] || !grouped[catKey].length) return;
       const cat = currentMode.subCategories[catKey];
-      html += `<tr class="section-header"><td colspan="11" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
+      html += `<tr class="section-header"><td colspan="${totalCols}" style="border-left:4px solid ${cat.color}">${cat.icon} ${cat.name}</td></tr>`;
       grouped[catKey].forEach(r => { html += renderRow(r); });
     });
   }
 
   if (rows.length === 0) {
-    html += `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--gray-400)">No items match the current filters</td></tr>`;
+    html += `<tr><td colspan="${totalCols}" style="text-align:center;padding:24px;color:var(--gray-400)">No items match the current filters</td></tr>`;
   }
 
   html += `</tbody></table>`;
@@ -1650,6 +1782,7 @@ function exportExcel() {
   const hasPrev = prev.date !== null;
 
   const rows = [];
+  const xlShowPacked = currentMode.storageKey === 'frozen' && restaurantKey === 'nnc-iss';
   items.forEach(item => {
     const data = weekData[item.id] || {};
     const count = data.count !== undefined ? Number(data.count) : '';
@@ -1659,12 +1792,27 @@ function exportExcel() {
     const orderQty = isManual ? Number(data.orderQty) : autoOrder;
 
     const prevItemData = prev.data[item.id] || {};
-    const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
-    const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
-    const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
-    const usage = (hasPrev && prevCount !== '' && count !== '') ? (prevCount + prevOrder) - count : '';
+    const prevCountRaw = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
+    const prevOrderAuto = prevCountRaw !== '' ? Math.max(0, par - prevCountRaw) : 0;
+    let prevReceived = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
 
-    rows.push({
+    // Packing log integration for prepared items
+    let packedTotal = 0;
+    const isPreparedWithPacking = item.subCategory === 'prepared'
+      && ITEM_TO_PACKING_FIELD[item.id]
+      && currentMode.storageKey === 'frozen'
+      && restaurantKey === 'nnc-iss';
+    if (isPreparedWithPacking && hasPrev && prev.date) {
+      packedTotal = getPackedTotal(item.id, prev.date, dateKey());
+      if (!prevItemData.manualOrder && packedTotal > 0) {
+        prevReceived = packedTotal;
+      }
+    }
+    const prevCount = prevCountRaw !== '' ? (prevCountRaw + prevReceived) : '';
+
+    const usage = (hasPrev && prevCountRaw !== '' && count !== '') ? prevCount - count : '';
+
+    const row = {
       'Item': item.name,
       'Category': currentMode.subCategories[item.subCategory]?.name || item.subCategory,
       'Vendor': item.vendor || '',
@@ -1672,22 +1820,27 @@ function exportExcel() {
       'Par Level': roundHalf(par),
       'Prev Count': prevCount === '' ? '' : roundHalf(prevCount),
       'Today Count': count === '' ? '' : roundHalf(count),
-      'Usage': usage === '' ? '' : roundHalf(usage),
-      'Status': count === '' ? 'Not Counted' : count >= par ? 'Good' : count >= par*0.5 ? 'Low' : 'Critical',
-      'Suggested Order': autoOrder === '' ? '' : roundHalf(autoOrder),
-      'Received Qty': isManual && orderQty !== '' ? roundHalf(orderQty) : '',
-      'Notes': data.notes || ''
-    });
+    };
+    if (xlShowPacked) row['Packed (Log)'] = packedTotal > 0 ? roundHalf(packedTotal) : '';
+    row['Usage'] = usage === '' ? '' : roundHalf(usage);
+    row['Status'] = count === '' ? 'Not Counted' : count >= par ? 'Good' : count >= par*0.5 ? 'Low' : 'Critical';
+    row['Suggested Order'] = autoOrder === '' ? '' : roundHalf(autoOrder);
+    row['Received Qty'] = isManual && orderQty !== '' ? roundHalf(orderQty) : '';
+    row['Notes'] = data.notes || '';
+    rows.push(row);
   });
 
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, currentMode.title.substring(0,31));
 
-  ws['!cols'] = [
+  const baseCols = [
     { wch: 32 }, { wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 10 },
-    { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 20 }
+    { wch: 10 }, { wch: 10 }
   ];
+  if (xlShowPacked) baseCols.push({ wch: 12 });
+  baseCols.push({ wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 20 });
+  ws['!cols'] = baseCols;
 
   XLSX.writeFile(wb, `Inventory_${currentMode.storageKey || 'allnonfrozen'}_${weekKey()}.xlsx`);
   showToast('Excel exported');
@@ -1719,6 +1872,7 @@ function exportPDF() {
     startY += 7;
   }
 
+  const pdfShowPacked = currentMode.storageKey === 'frozen' && restaurantKey === 'nnc-iss';
   const rows = [];
   items.forEach(item => {
     const data = weekData[item.id] || {};
@@ -1730,38 +1884,65 @@ function exportPDF() {
     const status = count === '' ? '—' : count >= par ? '✓ Good' : count >= par*0.5 ? '⚠ Low' : '⛔ Critical';
 
     const prevItemData = prev.data[item.id] || {};
-    const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
-    const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
-    const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
-    const usage = (hasPrev && prevCount !== '' && count !== '') ? (prevCount + prevOrder) - count : '';
+    const prevCountRaw = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
+    const prevOrderAuto = prevCountRaw !== '' ? Math.max(0, par - prevCountRaw) : 0;
+    let prevReceived = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
 
-    rows.push([
+    // Packing log integration
+    let packedTotal = 0;
+    const isPreparedWithPacking = item.subCategory === 'prepared'
+      && ITEM_TO_PACKING_FIELD[item.id]
+      && currentMode.storageKey === 'frozen'
+      && restaurantKey === 'nnc-iss';
+    if (isPreparedWithPacking && hasPrev && prev.date) {
+      packedTotal = getPackedTotal(item.id, prev.date, dateKey());
+      if (!prevItemData.manualOrder && packedTotal > 0) {
+        prevReceived = packedTotal;
+      }
+    }
+    const prevCount = prevCountRaw !== '' ? (prevCountRaw + prevReceived) : '';
+    const usage = (hasPrev && prevCountRaw !== '' && count !== '') ? prevCount - count : '';
+
+    const row = [
       item.name,
       item.vendor || '',
       item.unit,
       fmtQty(par),
       prevCount === '' ? '—' : fmtQty(prevCount),
       count === '' ? '—' : fmtQty(count),
+    ];
+    if (pdfShowPacked) row.push(packedTotal > 0 ? fmtQty(packedTotal) : '—');
+    row.push(
       usage === '' ? '—' : fmtQty(usage),
       status,
       autoOrder === '' ? '—' : fmtQty(autoOrder),
       isManual && orderQty !== '' ? fmtQty(orderQty) : '—',
       data.notes || ''
-    ]);
+    );
+    rows.push(row);
   });
 
+  const pdfHead = ['Item', 'Vendor', 'Unit', 'Par', 'Prev', 'Count'];
+  if (pdfShowPacked) pdfHead.push('Packed');
+  pdfHead.push('Usage', 'Status', 'Suggested', 'Received', 'Notes');
+
+  const pdfColStyles = {
+    0: { cellWidth: 38 },
+    1: { cellWidth: 24 },
+  };
+  // Usage column is at index 6 (no packed) or 7 (with packed)
+  const usageIdx = pdfShowPacked ? 7 : 6;
+  const sugIdx = pdfShowPacked ? 9 : 8;
+  pdfColStyles[usageIdx] = { fontStyle: 'bold' };
+  pdfColStyles[sugIdx] = { fontStyle: 'bold' };
+
   doc.autoTable({
-    head: [['Item', 'Vendor', 'Unit', 'Par', 'Prev', 'Count', 'Usage', 'Status', 'Suggested', 'Received', 'Notes']],
+    head: [pdfHead],
     body: rows,
     startY: startY,
     styles: { fontSize: 6.5 },
     headStyles: { fillColor: [30, 58, 95] },
-    columnStyles: {
-      0: { cellWidth: 38 },
-      1: { cellWidth: 24 },
-      6: { fontStyle: 'bold' },
-      8: { fontStyle: 'bold' }
-    }
+    columnStyles: pdfColStyles
   });
 
   doc.save(`Inventory_${currentMode.storageKey || 'allnonfrozen'}_${weekKey()}.pdf`);
@@ -1825,10 +2006,24 @@ async function sendEmailReport() {
     if (orderQty > 0) totalOrders++;
 
     const prevItemData = prev.data[item.id] || {};
-    const prevCount = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
-    const prevOrderAuto = prevCount !== '' ? Math.max(0, par - prevCount) : 0;
-    const prevOrder = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
-    const usage = (hasPrev && prevCount !== '' && count !== '') ? (prevCount + prevOrder) - count : '';
+    const prevCountRaw = prevItemData.count !== undefined ? Number(prevItemData.count) : '';
+    const prevOrderAuto = prevCountRaw !== '' ? Math.max(0, par - prevCountRaw) : 0;
+    let prevReceived = prevItemData.manualOrder ? Number(prevItemData.orderQty || 0) : prevOrderAuto;
+
+    // Packing log integration
+    let packedTotal = 0;
+    const isPreparedWithPacking = item.subCategory === 'prepared'
+      && ITEM_TO_PACKING_FIELD[item.id]
+      && currentMode.storageKey === 'frozen'
+      && restaurantKey === 'nnc-iss';
+    if (isPreparedWithPacking && hasPrev && prev.date) {
+      packedTotal = getPackedTotal(item.id, prev.date, dateKey());
+      if (!prevItemData.manualOrder && packedTotal > 0) {
+        prevReceived = packedTotal;
+      }
+    }
+    const prevCount = prevCountRaw !== '' ? (prevCountRaw + prevReceived) : '';
+    const usage = (hasPrev && prevCountRaw !== '' && count !== '') ? prevCount - count : '';
 
     let statusColor = '#6b7280', statusText = '—';
     if (count !== '') {
