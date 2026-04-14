@@ -605,14 +605,16 @@ function roundHalf(v) {
   if (v === '' || v === null || v === undefined) return v;
   const n = Number(v);
   if (isNaN(n)) return v;
-  return Math.round(n * 2) / 2;
+  return Math.round(n * 4) / 4;
 }
-// Format a quantity for display: snap to nearest 0.5 and show with 1 decimal place
+// Format a quantity for display: snap to nearest 0.25 and show with up to 2 decimal places
 function fmtQty(v) {
   if (v === '' || v === null || v === undefined) return v;
   const n = Number(v);
   if (isNaN(n)) return v;
-  return (Math.round(n * 2) / 2).toFixed(1);
+  const rounded = Math.round(n * 4) / 4;
+  // Show 2 decimals only when needed (0.25, 0.75), otherwise 1 or 0
+  return rounded % 1 === 0 ? rounded.toString() : rounded % 0.5 === 0 ? rounded.toFixed(1) : rounded.toFixed(2);
 }
 
 // ==================== DATE HELPERS ====================
@@ -1560,7 +1562,7 @@ function renderTable() {
       <td style="font-size:.78rem;color:var(--gray-500)">${item.unit}</td>
       <td style="text-align:center;font-weight:600">${fmtQty(par)}</td>
       <td style="text-align:center;color:var(--gray-400);font-size:.82rem">${prevCount !== '' ? fmtQty(prevCount) : '—'}</td>
-      <td><input type="number" value="${count !== '' ? fmtQty(count) : ''}" min="0" step="0.5"
+      <td><input type="number" value="${count !== '' ? fmtQty(count) : ''}" min="0" step="0.25"
         onchange="onCountChange('${wk}','${item.id}',this.value)"
         style="background:${count===''?'#fffbeb':'#fff'}"></td>
       ${packedCell}
@@ -1568,7 +1570,7 @@ function renderTable() {
       <td class="${statusClass}">${status}</td>
       <td style="text-align:center;color:var(--gray-500);font-size:.82rem" title="Auto-calculated suggestion (par − count)">${autoOrder !== '' && autoOrder > 0 ? fmtQty(autoOrder) : '—'}</td>
       <td>
-        <input type="number" value="${isManual ? fmtQty(orderQty) : ''}" min="0" step="0.5"
+        <input type="number" value="${isManual ? fmtQty(orderQty) : ''}" min="0" step="0.25"
           placeholder="from invoice"
           style="width:70px;${isManual?'border-color:var(--success);background:#ecfdf5':''}"
           onchange="onOrderOverride('${wk}','${item.id}',this.value)"
