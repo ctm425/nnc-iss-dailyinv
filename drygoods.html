@@ -1719,10 +1719,9 @@ function updateItem(idx, field, val) {
   const d = loadData();
   if (d.items[idx]) {
     d.items[idx][field] = val;
-    // Auto-generate ID from name if name changed
-    if (field === 'name') {
-      d.items[idx].id = val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    }
+    // ID is immutable after creation — changing it orphans all historical
+    // week data keyed under the old id. New items get a unique id via
+    // addNewItem() (Date.now-based), so there is no need to regenerate here.
     saveData(d);
   }
   render();

@@ -980,9 +980,7 @@ function updateItem(idx, field, val) {
   if (!d.items[activeCategory]) d.items[activeCategory] = [];
   if (d.items[activeCategory][idx]) {
     d.items[activeCategory][idx][field] = val;
-    if (field === 'name') {
-      d.items[activeCategory][idx].id = val.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
-    }
+    // ID is immutable after creation — changing it orphans historical week data
     saveData(d);
   }
   render();
