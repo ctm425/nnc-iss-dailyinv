@@ -134,6 +134,18 @@ const SHEET_TYPES = {
     restaurants: ['nnc-iss']
   },
 
+  // ---- NNC ISSAQUAH WEEKLY TASKS ----
+  'nnc-weekly-tasks': {
+    name: 'Weekly Tasks',
+    category: 'operations',
+    frequency: 'daily',
+    icon: '📝',
+    description: 'Daily prep tasks and items to send to Renton — updated weekly',
+    allowedRoles: ['owner', 'manager', 'staff'],
+    page: 'weekly-tasks.html',
+    restaurants: ['nnc-iss']
+  },
+
   // ---- NNC ISSAQUAH VENDOR INVOICES ----
   'nnc-vendors': {
     name: 'Vendor Info / Invoices',

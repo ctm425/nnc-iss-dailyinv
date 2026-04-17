@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Issaquah — Weekly Tasks</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="shared.js"></script>
+<style>
+:root {
+  --primary: #1e3a5f; --primary-light: #2563eb; --primary-bg: #eff6ff;
+  --danger: #dc2626; --success: #16a34a;
+  --amber: #d97706; --amber-bg: #fffbeb;
+  --renton: #7c2d12; --renton-bg: #fff7ed; --renton-light: #ea580c;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+/* Login */
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-box button:hover{background:var(--primary)}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+/* Header */
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-white{background:#fff;color:var(--gray-700)}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-today{padding:8px 18px;border:none;border-radius:var(--radius);font-size:.88rem;font-weight:700;cursor:pointer;background:#fff;color:var(--primary-light);box-shadow:0 2px 8px rgba(37,99,235,.25);transition:all .15s;letter-spacing:.3px}
+.btn-today:hover{background:var(--primary-light);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.35);transform:translateY(-1px)}
+.btn-today.is-today{background:var(--primary-light);color:#fff;box-shadow:0 2px 12px rgba(37,99,235,.4)}
+
+/* View toggle */
+.view-toggle{display:flex;background:rgba(255,255,255,.1);border-radius:var(--radius);overflow:hidden;border:1px solid rgba(255,255,255,.2)}
+.view-toggle button{padding:8px 20px;border:none;background:transparent;font-weight:600;font-size:.85rem;cursor:pointer;color:rgba(255,255,255,.6)}
+.view-toggle button.active{background:#fff;color:var(--primary)}
+
+/* Date nav */
+.date-nav{background:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:center;gap:12px;border-bottom:1px solid var(--gray-200);flex-wrap:wrap}
+.date-nav button{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:var(--radius);padding:6px 14px;cursor:pointer;font-weight:600;font-size:.85rem}
+.date-nav button:hover{background:var(--gray-200)}
+.date-nav .current-date{font-size:1.1rem;font-weight:700;color:var(--primary);text-align:center}
+.date-picker-input{font-size:.95rem;font-weight:700;color:var(--primary);border:2px solid var(--primary-light);border-radius:var(--radius);padding:7px 12px;cursor:pointer;background:#fff;text-align:center}
+.date-picker-input:focus{outline:none;box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.week-label{font-size:.82rem;color:var(--gray-500);text-align:center}
+
+/* Day dots (quick nav) */
+.day-dots{display:flex;gap:4px;align-items:center}
+.day-dot{width:32px;height:32px;border-radius:50%;border:2px solid var(--gray-200);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;cursor:pointer;color:var(--gray-500);background:#fff;transition:all .15s}
+.day-dot:hover{border-color:var(--primary-light);color:var(--primary)}
+.day-dot.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.day-dot.has-data{border-color:var(--success)}
+.day-dot.has-data.active{background:var(--primary)}
+
+/* Stats */
+.stats-bar{display:flex;gap:12px;padding:16px 24px;flex-wrap:wrap}
+.stat-card{background:#fff;border-radius:var(--radius);padding:12px 18px;flex:1;min-width:120px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--gray-200)}
+.stat-card .label{font-size:.72rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px}
+.stat-card .value{font-size:1.3rem;font-weight:700;color:var(--primary);margin-top:2px}
+.stat-card .value.warn{color:var(--amber)}
+.stat-card .value.good{color:var(--success)}
+
+/* Task sections */
+.day-view{padding:0 24px 24px}
+.task-section{margin-top:20px}
+.section-title{font-size:.9rem;font-weight:700;color:#fff;padding:10px 16px;border-radius:var(--radius) var(--radius) 0 0;display:flex;justify-content:space-between;align-items:center}
+.section-title.prep{background:var(--primary)}
+.section-title.renton{background:var(--renton)}
+.section-title .count{font-size:.78rem;opacity:.8;font-weight:500}
+.section-title .email-badge{font-size:.7rem;background:rgba(255,255,255,.2);padding:3px 10px;border-radius:4px;font-weight:500}
+
+.task-list{background:#fff;border:1px solid var(--gray-200);border-top:none;border-radius:0 0 var(--radius) var(--radius)}
+.task-row{display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--gray-100);gap:10px;transition:background .1s}
+.task-row:hover{background:var(--gray-50)}
+.task-row.completed .task-name{text-decoration:line-through;color:var(--gray-400)}
+.task-row.renton-item{background:var(--renton-bg)}
+.task-row.renton-item:hover{background:#fed7aa}
+
+.task-checkbox{width:22px;height:22px;border-radius:6px;border:2px solid var(--gray-300);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;font-size:.75rem;user-select:none}
+.task-checkbox.checked{background:var(--success);border-color:var(--success);color:#fff}
+.task-checkbox:hover{border-color:var(--success)}
+.task-checkbox.renton-check.checked{background:var(--renton-light);border-color:var(--renton-light)}
+.task-checkbox.renton-check:hover{border-color:var(--renton-light)}
+
+.task-info{flex:1;min-width:0}
+.task-name{font-weight:600;font-size:.9rem}
+.task-note{font-size:.78rem;color:var(--gray-500);margin-top:2px;font-style:italic}
+.task-note-input{width:100%;padding:4px 8px;border:1px solid var(--gray-200);border-radius:4px;font-size:.78rem;margin-top:4px;font-style:italic;color:var(--gray-500)}
+.task-note-input:focus{outline:none;border-color:var(--primary-light)}
+
+.task-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.task-assignee{font-size:.78rem;color:var(--gray-700);font-weight:600;background:var(--gray-100);padding:2px 8px;border-radius:4px}
+.task-time{font-size:.76rem;color:var(--gray-400);white-space:nowrap}
+.task-time.done{color:var(--success);font-weight:600}
+.task-delete{font-size:.75rem;color:var(--gray-300);cursor:pointer;padding:2px 4px;border-radius:4px}
+.task-delete:hover{color:var(--danger);background:#fef2f2}
+
+.add-task-row{padding:10px 16px;display:flex;gap:8px;align-items:center;border-top:1px solid var(--gray-100)}
+.add-task-row input{flex:1;padding:8px 12px;border:1px dashed var(--gray-300);border-radius:var(--radius);font-size:.85rem;background:var(--gray-50)}
+.add-task-row input:focus{outline:none;border-color:var(--primary-light);border-style:solid;background:#fff}
+.add-task-renton{background:var(--renton-bg)}
+.add-task-renton input{background:#fff}
+
+.email-callout{margin-top:8px;background:var(--renton-bg);border:1px solid #fdba74;border-radius:var(--radius);padding:10px 16px;font-size:.82rem;color:var(--renton);display:flex;align-items:center;gap:8px}
+
+/* Week view */
+.week-view{padding:0 24px 24px}
+.week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
+.week-col-header{font-size:.75rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;text-align:center;padding:6px 0}
+.week-col{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);min-height:180px;display:flex;flex-direction:column;cursor:pointer;transition:all .15s}
+.week-col:hover{border-color:var(--primary-light);box-shadow:0 2px 8px rgba(37,99,235,.1)}
+.week-col.today{border-color:var(--primary-light);border-width:2px}
+.week-col-date{font-size:.82rem;font-weight:700;color:var(--gray-700);padding:8px 10px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center}
+.week-col-date .today-dot{width:8px;height:8px;border-radius:50%;background:var(--primary-light);display:inline-block;margin-left:4px}
+.week-col-date .progress-text{font-size:.7rem;color:var(--gray-400);font-weight:500}
+.week-col-date .progress-text.alldone{color:var(--success)}
+.week-section-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:5px 10px 2px}
+.week-section-label.prep-label{color:var(--primary)}
+.week-section-label.renton-label{color:var(--renton)}
+.week-task{font-size:.73rem;padding:2px 10px;display:flex;align-items:center;gap:5px}
+.week-task .mini-check{width:12px;height:12px;border-radius:3px;border:1.5px solid var(--gray-300);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.5rem}
+.week-task .mini-check.done{background:var(--success);border-color:var(--success);color:#fff}
+.week-task .mini-check.renton-done{background:var(--renton-light);border-color:var(--renton-light);color:#fff}
+.week-task .task-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--gray-600)}
+.week-task .task-text.done-text{text-decoration:line-through;color:var(--gray-400)}
+.week-separator{border-top:1px dashed var(--gray-200);margin:2px 10px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:10px 24px;border-radius:var(--radius);font-size:.85rem;font-weight:600;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.visible{opacity:1}
+
+/* Month view */
+.month-view{padding:0 24px 24px}
+.month-header{display:flex;align-items:center;justify-content:center;gap:16px;padding:12px 0 4px}
+.month-header .month-title{font-size:1.15rem;font-weight:700;color:var(--primary);min-width:200px;text-align:center}
+.month-header button{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:var(--radius);padding:6px 14px;cursor:pointer;font-weight:600;font-size:.85rem}
+.month-header button:hover{background:var(--gray-200)}
+.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px}
+.month-day-header{font-size:.72rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;text-align:center;padding:6px 0}
+.month-cell{background:#fff;border:1px solid var(--gray-200);border-radius:6px;min-height:72px;cursor:pointer;padding:4px 6px;transition:all .15s;position:relative}
+.month-cell:hover{border-color:var(--primary-light);box-shadow:0 1px 6px rgba(37,99,235,.1)}
+.month-cell.today{border-color:var(--primary-light);border-width:2px;background:var(--primary-bg)}
+.month-cell.selected{box-shadow:0 0 0 2px var(--primary-light)}
+.month-cell.outside{background:var(--gray-50);opacity:.4}
+.month-cell-date{font-size:.78rem;font-weight:700;color:var(--gray-700)}
+.month-cell.today .month-cell-date{color:var(--primary-light)}
+.month-cell-badges{display:flex;gap:3px;margin-top:3px;flex-wrap:wrap}
+.month-badge{font-size:.6rem;font-weight:600;padding:1px 5px;border-radius:3px}
+.month-badge.prep-badge{background:var(--primary-bg);color:var(--primary)}
+.month-badge.renton-badge{background:var(--renton-bg);color:var(--renton)}
+.month-badge.all-done{background:#dcfce7;color:var(--success)}
+
+@media(max-width:900px){.week-grid{grid-template-columns:repeat(1,1fr)}.week-col{min-height:auto}.week-col-header{display:none}.month-grid{grid-template-columns:repeat(7,1fr);gap:2px}.month-cell{min-height:52px;padding:3px 4px}.month-badge{font-size:.55rem}}
+@media(max-width:600px){.stats-bar{gap:6px}.stat-card{min-width:80px;padding:8px 12px}.stat-card .value{font-size:1.1rem}.task-right{gap:4px}.day-dots{gap:2px}.day-dot{width:28px;height:28px;font-size:.65rem}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Weekly Tasks</h2>
+    <div class="subtitle">NNC Issaquah — Sign in to continue</div>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1 id="pageTitle">📋 NNC Issaquah — Weekly Tasks</h1>
+    <div class="header-sub" id="pageSubtitle">Daily Prep & Renton Transfer Tracker</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div class="view-toggle" id="viewToggle">
+      <button class="active" onclick="setView('day')">Day</button>
+      <button onclick="setView('week')">Week</button>
+      <button onclick="setView('month')">Month</button>
+    </div>
+    <button class="btn btn-ghost" onclick="window.location.href='index.html'">Home</button>
+  </div>
+</div>
+
+<!-- DATE NAV -->
+<div class="date-nav">
+  <button onclick="changeDay(-1)">◀</button>
+  <div style="text-align:center">
+    <input type="date" class="date-picker-input" id="datePicker" onchange="onDatePick(this.value)">
+    <div class="week-label" id="weekLabel"></div>
+  </div>
+  <button onclick="changeDay(1)">▶</button>
+  <button class="btn btn-today" onclick="goToToday()" id="todayBtn">● Today</button>
+  <div class="day-dots" id="dayDots"></div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar" id="statsBar"></div>
+
+<!-- DAY VIEW -->
+<div class="day-view" id="dayView"></div>
+
+<!-- WEEK VIEW -->
+<div class="week-view" id="weekView" style="display:none"></div>
+
+<!-- MONTH VIEW -->
+<div class="month-view" id="monthView" style="display:none"></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== STATE ====================
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let currentDate = new Date();
+currentDate.setHours(0,0,0,0);
+let currentView = 'day';
+let currentUserEmail = '';
+let currentUserName = '';
+let unsubDay = null; // Firestore listener for current day
+
+// ==================== DATE HELPERS ====================
+function dateKey(date) {
+  const d = date || currentDate;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function formatDate(date) {
+  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${m[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+function formatDateFull(date) {
+  return `${DAY_NAMES[date.getDay()]}, ${formatDate(date)}`;
+}
+function getWeekStart(date) {
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  const day = d.getDay(); // 0=Sun
+  const diff = day === 0 ? 6 : day - 1; // Mon=0
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+function getWeekDates(refDate) {
+  const start = getWeekStart(refDate);
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    dates.push(d);
+  }
+  return dates;
+}
+
+// ==================== NAV ====================
+function changeDay(delta) {
+  currentDate = new Date(currentDate);
+  currentDate.setDate(currentDate.getDate() + delta);
+  setupDayListener();
+  render();
+}
+function goToToday() {
+  currentDate = new Date();
+  currentDate.setHours(0,0,0,0);
+  setupDayListener();
+  render();
+}
+function onDatePick(val) {
+  if (!val) return;
+  const parts = val.split('-');
+  currentDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  currentDate.setHours(0,0,0,0);
+  setupDayListener();
+  render();
+}
+function goToDate(date) {
+  currentDate = new Date(date);
+  currentDate.setHours(0,0,0,0);
+  setView('day');
+  setupDayListener();
+  render();
+}
+
+function setView(view) {
+  currentView = view;
+  const btns = document.querySelectorAll('#viewToggle button');
+  btns.forEach(b => b.classList.remove('active'));
+  document.getElementById('dayView').style.display = 'none';
+  document.getElementById('weekView').style.display = 'none';
+  document.getElementById('monthView').style.display = 'none';
+  document.getElementById('statsBar').style.display = 'none';
+  if (view === 'day') {
+    document.getElementById('dayView').style.display = '';
+    document.getElementById('statsBar').style.display = '';
+    btns[0].classList.add('active');
+  } else if (view === 'week') {
+    document.getElementById('weekView').style.display = '';
+    btns[1].classList.add('active');
+    renderWeekView();
+  } else if (view === 'month') {
+    document.getElementById('monthView').style.display = '';
+    btns[2].classList.add('active');
+    renderMonthView();
+  }
+}
+
+// ==================== DATA ====================
+// Firestore path: weekly-tasks/nnc-iss/days/{YYYY-MM-DD}
+// Doc structure: { prep: [...], renton: [...], updatedAt, updatedBy }
+// Each task: { id, text, done, assignee, completedAt, notes, createdBy, createdAt }
+
+let dayCache = {}; // dateKey -> { prep: [], renton: [] }
+
+function getDayData(dk) {
+  return dayCache[dk] || { prep: [], renton: [] };
+}
+
+function genId() {
+  return 'task-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+}
+
+async function saveDayData(dk, data) {
+  dayCache[dk] = data;
+  if (!auth.currentUser) return;
+  try {
+    await db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(dk).set({
+      prep: data.prep || [],
+      renton: data.renton || [],
+      updatedAt: new Date(),
+      updatedBy: auth.currentUser.email
+    });
+  } catch(e) {
+    console.error('Save error:', e);
+    showToast('Save failed — check connection');
+  }
+}
+
+function setupDayListener() {
+  if (unsubDay) { unsubDay(); unsubDay = null; }
+  const dk = dateKey();
+  unsubDay = db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(dk).onSnapshot(snap => {
+    if (snap.exists) {
+      const data = snap.data();
+      dayCache[dk] = { prep: data.prep || [], renton: data.renton || [] };
+    }
+    render();
+  });
+}
+
+// Fetch a week's worth of data for the week view
+async function fetchWeekData(refDate) {
+  const dates = getWeekDates(refDate);
+  const fetches = dates.map(async d => {
+    const dk = dateKey(d);
+    if (dayCache[dk]) return;
+    try {
+      const snap = await db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(dk).get();
+      if (snap.exists) {
+        const data = snap.data();
+        dayCache[dk] = { prep: data.prep || [], renton: data.renton || [] };
+      }
+    } catch(e) { /* silent */ }
+  });
+  await Promise.all(fetches);
+}
+
+// ==================== TASK ACTIONS ====================
+function addTask(section) {
+  const inputId = section === 'prep' ? 'prepInput' : 'rentonInput';
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  const dk = dateKey();
+  const data = getDayData(dk);
+  const tasks = [...(data[section] || [])];
+  tasks.push({
+    id: genId(),
+    text: text,
+    done: false,
+    assignee: '',
+    completedAt: null,
+    notes: '',
+    createdBy: currentUserEmail,
+    createdAt: new Date().toISOString()
+  });
+  data[section] = tasks;
+  saveDayData(dk, data);
+  input.value = '';
+  render();
+}
+
+function toggleTask(section, taskId) {
+  const dk = dateKey();
+  const data = getDayData(dk);
+  const tasks = [...(data[section] || [])];
+  const idx = tasks.findIndex(t => t.id === taskId);
+  if (idx === -1) return;
+  const task = { ...tasks[idx] };
+  task.done = !task.done;
+  if (task.done) {
+    task.completedAt = new Date().toISOString();
+    task.assignee = currentUserName || currentUserEmail;
+  } else {
+    task.completedAt = null;
+    task.assignee = '';
+  }
+  tasks[idx] = task;
+  data[section] = tasks;
+  saveDayData(dk, data);
+  render();
+}
+
+function deleteTask(section, taskId) {
+  if (!confirm('Remove this task?')) return;
+  const dk = dateKey();
+  const data = getDayData(dk);
+  data[section] = (data[section] || []).filter(t => t.id !== taskId);
+  saveDayData(dk, data);
+  render();
+}
+
+function updateTaskNotes(section, taskId, notes) {
+  const dk = dateKey();
+  const data = getDayData(dk);
+  const tasks = [...(data[section] || [])];
+  const idx = tasks.findIndex(t => t.id === taskId);
+  if (idx === -1) return;
+  tasks[idx] = { ...tasks[idx], notes: notes };
+  data[section] = tasks;
+  saveDayData(dk, data);
+}
+
+// ==================== RENDER ====================
+function render() {
+  document.getElementById('datePicker').value = dateKey();
+  // Week label
+  const weekDates = getWeekDates(currentDate);
+  const ws = weekDates[0], we = weekDates[6];
+  document.getElementById('weekLabel').textContent = `Week of ${formatDate(ws)} – ${formatDate(we)}`;
+  // Day dots
+  renderDayDots(weekDates);
+  // Stats
+  renderStats();
+  // Highlight Today button when not on today
+  const todayBtn = document.getElementById('todayBtn');
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (currentDate.getTime() === today.getTime()) {
+    todayBtn.classList.add('is-today');
+  } else {
+    todayBtn.classList.remove('is-today');
+  }
+  // Render current view
+  if (currentView === 'day') renderDayView();
+  else if (currentView === 'week') renderWeekView();
+  else if (currentView === 'month') renderMonthView();
+}
+
+function renderDayDots(weekDates) {
+  const container = document.getElementById('dayDots');
+  const today = new Date(); today.setHours(0,0,0,0);
+  let html = '';
+  weekDates.forEach(d => {
+    const dk = dateKey(d);
+    const isActive = dk === dateKey(currentDate);
+    const isToday = d.getTime() === today.getTime();
+    const data = dayCache[dk];
+    const hasData = data && ((data.prep && data.prep.length > 0) || (data.renton && data.renton.length > 0));
+    let classes = 'day-dot';
+    if (isActive) classes += ' active';
+    if (hasData && !isActive) classes += ' has-data';
+    const label = DAY_SHORT[d.getDay()];
+    const dotLabel = isToday && !isActive ? `<span style="font-size:.55rem;color:var(--primary-light)">today</span>` : label;
+    html += `<div class="${classes}" onclick="goToDate(new Date(${d.getTime()}))" title="${formatDateFull(d)}">${isActive ? label : dotLabel}</div>`;
+  });
+  container.innerHTML = html;
+}
+
+function renderStats() {
+  const dk = dateKey();
+  const data = getDayData(dk);
+  const prepTasks = data.prep || [];
+  const rentonTasks = data.renton || [];
+  const prepDone = prepTasks.filter(t => t.done).length;
+  const rentonDone = rentonTasks.filter(t => t.done).length;
+  const total = prepTasks.length + rentonTasks.length;
+  const totalDone = prepDone + rentonDone;
+  const pct = total > 0 ? Math.round(totalDone / total * 100) : 0;
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-card"><div class="label">Prep Tasks</div><div class="value">${prepDone} / ${prepTasks.length}</div></div>
+    <div class="stat-card"><div class="label">Send to Renton</div><div class="value">${rentonDone} / ${rentonTasks.length}</div></div>
+    <div class="stat-card"><div class="label">Today's Progress</div><div class="value ${pct>=100?'good':pct>0?'warn':''}">${total>0?pct+'%':'—'}</div></div>
+  `;
+}
+
+function renderDayView() {
+  const dk = dateKey();
+  const data = getDayData(dk);
+  const prepTasks = data.prep || [];
+  const rentonTasks = data.renton || [];
+  const prepDone = prepTasks.filter(t => t.done).length;
+  const rentonDone = rentonTasks.filter(t => t.done).length;
+
+  // Figure out the "email sent" date (day before current)
+  const prevDate = new Date(currentDate);
+  prevDate.setDate(prevDate.getDate() - 1);
+  const emailDateStr = `${prevDate.getMonth()+1}/${prevDate.getDate()}`;
+
+  let html = '';
+
+  // ---- PREP SECTION ----
+  html += `<div class="task-section">
+    <div class="section-title prep">
+      <span>🔪 Prep</span>
+      <span class="count">${prepDone} of ${prepTasks.length} completed</span>
+    </div>
+    <div class="task-list">`;
+
+  prepTasks.forEach(t => {
+    const doneClass = t.done ? ' completed' : '';
+    const checkClass = t.done ? ' checked' : '';
+    const timeStr = t.completedAt ? formatTime(t.completedAt) : 'Pending';
+    const timeClass = t.done ? 'task-time done' : 'task-time';
+    html += `<div class="task-row${doneClass}">
+      <div class="task-checkbox${checkClass}" onclick="toggleTask('prep','${t.id}')">${t.done?'✓':''}</div>
+      <div class="task-info">
+        <div class="task-name">${esc(t.text)}</div>
+        ${t.notes ? `<div class="task-note">${esc(t.notes)}</div>` : ''}
+        ${!t.done ? `<input class="task-note-input" placeholder="Add note..." value="${esc(t.notes||'')}" onchange="updateTaskNotes('prep','${t.id}',this.value)" onclick="event.stopPropagation()">` : ''}
+      </div>
+      <div class="task-right">
+        ${t.assignee ? `<span class="task-assignee">${esc(t.assignee)}</span>` : ''}
+        <span class="${timeClass}">${timeStr}</span>
+        <span class="task-delete" onclick="deleteTask('prep','${t.id}')" title="Remove">✕</span>
+      </div>
+    </div>`;
+  });
+
+  if (prepTasks.length === 0) {
+    html += `<div style="padding:20px;text-align:center;color:var(--gray-400);font-size:.85rem">No prep tasks for this day yet</div>`;
+  }
+
+  html += `<div class="add-task-row">
+    <input type="text" id="prepInput" placeholder="+ Add prep task..." onkeydown="if(event.key==='Enter')addTask('prep')">
+    <button class="btn btn-sm btn-primary" onclick="addTask('prep')">Add</button>
+  </div></div></div>`;
+
+  // ---- SEND TO RENTON SECTION ----
+  html += `<div class="task-section">
+    <div class="section-title renton">
+      <span>🚚 Send to Renton</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="email-badge">In ${emailDateStr} kitchen order email</span>
+        <span class="count">${rentonDone} of ${rentonTasks.length} sent</span>
+      </div>
+    </div>
+    <div class="task-list">`;
+
+  rentonTasks.forEach(t => {
+    const doneClass = t.done ? ' completed' : '';
+    const checkClass = t.done ? ' checked' : '';
+    const timeStr = t.completedAt ? formatTime(t.completedAt) : 'Pending';
+    const timeClass = t.done ? 'task-time done' : 'task-time';
+    html += `<div class="task-row renton-item${doneClass}">
+      <div class="task-checkbox renton-check${checkClass}" onclick="toggleTask('renton','${t.id}')">${t.done?'✓':''}</div>
+      <div class="task-info">
+        <div class="task-name">${esc(t.text)}</div>
+        ${t.notes ? `<div class="task-note">${esc(t.notes)}</div>` : ''}
+        ${!t.done ? `<input class="task-note-input" placeholder="Add note..." value="${esc(t.notes||'')}" onchange="updateTaskNotes('renton','${t.id}',this.value)" onclick="event.stopPropagation()">` : ''}
+      </div>
+      <div class="task-right">
+        ${t.assignee ? `<span class="task-assignee">${esc(t.assignee)}</span>` : ''}
+        <span class="${timeClass}">${timeStr}</span>
+        <span class="task-delete" onclick="deleteTask('renton','${t.id}')" title="Remove">✕</span>
+      </div>
+    </div>`;
+  });
+
+  if (rentonTasks.length === 0) {
+    html += `<div style="padding:20px;text-align:center;color:var(--gray-400);font-size:.85rem">No Renton transfers for this day yet</div>`;
+  }
+
+  html += `<div class="add-task-row add-task-renton">
+    <input type="text" id="rentonInput" placeholder="+ Add item to send to Renton..." onkeydown="if(event.key==='Enter')addTask('renton')">
+    <button class="btn btn-sm" style="background:var(--renton-light);color:#fff" onclick="addTask('renton')">Add</button>
+  </div></div>`;
+
+  html += `<div class="email-callout">
+    <span style="font-size:1.1rem">📧</span>
+    <span>Send to Renton items are included in the <strong>daily kitchen order email sent on ${emailDateStr}</strong> so Renton knows what to expect.</span>
+  </div></div>`;
+
+  document.getElementById('dayView').innerHTML = html;
+}
+
+async function renderWeekView() {
+  const weekDates = getWeekDates(currentDate);
+  await fetchWeekData(currentDate);
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let html = `<div style="padding:8px 0 0;font-size:.85rem;color:var(--gray-500)">Click any day to switch to day view.</div>`;
+  html += '<div class="week-grid">';
+
+  // Headers
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => {
+    html += `<div class="week-col-header">${d}</div>`;
+  });
+
+  weekDates.forEach(d => {
+    const dk = dateKey(d);
+    const data = dayCache[dk] || { prep: [], renton: [] };
+    const isToday = d.getTime() === today.getTime();
+    const totalTasks = (data.prep||[]).length + (data.renton||[]).length;
+    const doneTasks = (data.prep||[]).filter(t=>t.done).length + (data.renton||[]).filter(t=>t.done).length;
+    const allDone = totalTasks > 0 && doneTasks === totalTasks;
+    const dayLabel = `${DAY_SHORT[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}`;
+
+    html += `<div class="week-col${isToday?' today':''}" onclick="goToDate(new Date(${d.getTime()}))">`;
+    html += `<div class="week-col-date"><span>${dayLabel}${isToday?'<span class="today-dot"></span>':''}</span>`;
+    html += `<span class="progress-text${allDone?' alldone':''}">${totalTasks>0?doneTasks+'/'+totalTasks+(allDone?' ✓':''):'—'}</span></div>`;
+
+    // Prep tasks
+    if ((data.prep||[]).length > 0) {
+      html += `<div class="week-section-label prep-label">Prep</div>`;
+      (data.prep||[]).slice(0, 5).forEach(t => {
+        html += `<div class="week-task"><span class="mini-check${t.done?' done':''}">${t.done?'✓':''}</span><span class="task-text${t.done?' done-text':''}">${esc(t.text)}</span></div>`;
+      });
+      if ((data.prep||[]).length > 5) {
+        html += `<div style="font-size:.68rem;color:var(--primary-light);padding:1px 10px;font-weight:600">+${data.prep.length - 5} more</div>`;
+      }
+    }
+
+    // Renton tasks
+    if ((data.renton||[]).length > 0) {
+      html += `<div class="week-separator"></div>`;
+      html += `<div class="week-section-label renton-label">Renton</div>`;
+      (data.renton||[]).slice(0, 4).forEach(t => {
+        html += `<div class="week-task"><span class="mini-check${t.done?(t.done?' renton-done':''):''}">${t.done?'✓':''}</span><span class="task-text${t.done?' done-text':''}">${esc(t.text)}</span></div>`;
+      });
+      if ((data.renton||[]).length > 4) {
+        html += `<div style="font-size:.68rem;color:var(--renton-light);padding:1px 10px;font-weight:600">+${data.renton.length - 4} more</div>`;
+      }
+    }
+
+    if (totalTasks === 0) {
+      html += `<div style="padding:12px 10px;color:var(--gray-300);font-size:.75rem;text-align:center">No tasks</div>`;
+    }
+
+    html += '</div>';
+  });
+
+  html += '</div>';
+  document.getElementById('weekView').innerHTML = html;
+}
+
+// ==================== MONTH VIEW ====================
+let monthViewMonth = null; // track which month is currently rendered
+
+function changeMonth(delta) {
+  currentDate = new Date(currentDate);
+  currentDate.setMonth(currentDate.getMonth() + delta, 1);
+  currentDate.setHours(0,0,0,0);
+  setupDayListener();
+  render();
+}
+
+async function fetchMonthData(year, month) {
+  // Fetch all days visible in the month grid (including partial weeks at start/end)
+  const firstOfMonth = new Date(year, month, 1);
+  const lastOfMonth = new Date(year, month + 1, 0);
+  // Grid starts on Monday of the week containing the 1st
+  const gridStart = getWeekStart(firstOfMonth);
+  // Grid ends on Sunday of the week containing the last day
+  const gridEndDate = new Date(lastOfMonth);
+  const endDay = gridEndDate.getDay();
+  const daysToAdd = endDay === 0 ? 0 : 7 - endDay;
+  gridEndDate.setDate(gridEndDate.getDate() + daysToAdd);
+
+  const fetches = [];
+  const d = new Date(gridStart);
+  while (d <= gridEndDate) {
+    const dk = dateKey(d);
+    if (!dayCache[dk]) {
+      const dkCopy = dk; // closure capture
+      fetches.push(
+        db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(dkCopy).get()
+          .then(snap => {
+            if (snap.exists) {
+              const data = snap.data();
+              dayCache[dkCopy] = { prep: data.prep || [], renton: data.renton || [] };
+            }
+          })
+          .catch(() => {})
+      );
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  await Promise.all(fetches);
+}
+
+async function renderMonthView() {
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  await fetchMonthData(year, month);
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  const firstOfMonth = new Date(year, month, 1);
+  const lastOfMonth = new Date(year, month + 1, 0);
+  const gridStart = getWeekStart(firstOfMonth);
+  const gridEndDate = new Date(lastOfMonth);
+  const endDay = gridEndDate.getDay();
+  const daysToAdd = endDay === 0 ? 0 : 7 - endDay;
+  gridEndDate.setDate(gridEndDate.getDate() + daysToAdd);
+
+  let html = `<div class="month-header">
+    <button onclick="changeMonth(-1)">◀</button>
+    <div class="month-title">${MONTH_NAMES[month]} ${year}</div>
+    <button onclick="changeMonth(1)">▶</button>
+  </div>`;
+  html += '<div class="month-grid">';
+
+  // Day-of-week headers
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => {
+    html += `<div class="month-day-header">${d}</div>`;
+  });
+
+  // Calendar cells
+  const d = new Date(gridStart);
+  while (d <= gridEndDate) {
+    const dk = dateKey(d);
+    const isToday = d.getTime() === today.getTime();
+    const isSelected = dk === dateKey(currentDate);
+    const isOutside = d.getMonth() !== month;
+    const data = dayCache[dk] || { prep: [], renton: [] };
+    const prepCount = (data.prep || []).length;
+    const rentonCount = (data.renton || []).length;
+    const prepDone = (data.prep || []).filter(t => t.done).length;
+    const rentonDone = (data.renton || []).filter(t => t.done).length;
+    const totalTasks = prepCount + rentonCount;
+    const totalDone = prepDone + rentonDone;
+    const allDone = totalTasks > 0 && totalDone === totalTasks;
+
+    let classes = 'month-cell';
+    if (isToday) classes += ' today';
+    if (isSelected) classes += ' selected';
+    if (isOutside) classes += ' outside';
+
+    html += `<div class="${classes}" onclick="goToDate(new Date(${d.getTime()}))">`;
+    html += `<div class="month-cell-date">${d.getDate()}</div>`;
+
+    if (totalTasks > 0) {
+      html += '<div class="month-cell-badges">';
+      if (allDone) {
+        html += `<span class="month-badge all-done">✓ ${totalDone}/${totalTasks}</span>`;
+      } else {
+        if (prepCount > 0) html += `<span class="month-badge prep-badge">P:${prepDone}/${prepCount}</span>`;
+        if (rentonCount > 0) html += `<span class="month-badge renton-badge">R:${rentonDone}/${rentonCount}</span>`;
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
+    d.setDate(d.getDate() + 1);
+  }
+
+  html += '</div>';
+  document.getElementById('monthView').innerHTML = html;
+}
+
+// ==================== HELPERS ====================
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatTime(isoStr) {
+  try {
+    const d = new Date(isoStr);
+    const h = d.getHours(), m = d.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${ampm}`;
+  } catch(e) { return ''; }
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 3000);
+}
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  if (!email || !password) { err.textContent = 'Please enter email and password.'; err.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in...'; err.style.display = 'none';
+  try { await auth.signInWithEmailAndPassword(email, password); }
+  catch(e) { err.textContent = e.message; err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+
+auth.onAuthStateChanged(async user => {
+  const overlay = document.getElementById('loginOverlay');
+  if (user) {
+    overlay.classList.add('hidden');
+    currentUserEmail = user.email;
+    const profile = await loadUserProfile();
+    currentUserName = profile?.displayName || user.email.split('@')[0];
+    setupDayListener();
+    render();
+  } else {
+    overlay.classList.remove('hidden');
+  }
+});
+</script>
+</body>
+</html>

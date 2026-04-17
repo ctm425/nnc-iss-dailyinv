@@ -300,6 +300,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <div class="send-to-box renton">
       <div class="send-to-label">&#x1F4E6; Send to Renton</div>
       <textarea id="sendToRenton" placeholder="Type items to send to Renton..." onchange="saveSendToField('sendToRenton',this.value)" oninput="saveSendToField('sendToRenton',this.value)"></textarea>
+      <div id="rentonTasksIndicator" style="display:none;font-size:.72rem;color:#7c2d12;padding:4px 8px;background:#fff7ed;border-radius:0 0 6px 6px;border:1px solid #fdba74;border-top:none">📋 Auto-loaded from Weekly Tasks — edit freely or add more items</div>
     </div>
     <div class="send-to-box issaquah">
       <div class="send-to-label">&#x1F4E6; Send to Issaquah</div>
@@ -695,6 +696,62 @@ function loadSendToFields(){
   const st=dd.__sendTo||{};
   document.getElementById('sendToRenton').value=st.sendToRenton||'';
   document.getElementById('sendToIssaquah').value=st.sendToIssaquah||'';
+  // After loading saved fields, fetch weekly-tasks for next day's Renton items
+  fetchRentonTasksForNextDay();
+}
+
+// Track what was auto-populated so we don't overwrite manual edits
+let lastAutoPopulatedRenton='';
+
+async function fetchRentonTasksForNextDay(){
+  const indicator=document.getElementById('rentonTasksIndicator');
+  if(indicator)indicator.style.display='none';
+  if(!auth.currentUser)return;
+  try{
+    // The kitchen order sent on date X is for items needed on X+1
+    // Weekly-tasks "Send to Renton" for date X+1 = what Renton needs on X+1
+    const nextDay=new Date(currentDate);
+    nextDay.setDate(nextDay.getDate()+1);
+    const nextDk=`${nextDay.getFullYear()}-${String(nextDay.getMonth()+1).padStart(2,'0')}-${String(nextDay.getDate()).padStart(2,'0')}`;
+
+    const snap=await db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(nextDk).get();
+    if(!snap.exists)return;
+    const data=snap.data();
+    const rentonTasks=(data.renton||[]).filter(t=>t.text&&t.text.trim());
+    if(rentonTasks.length===0)return;
+
+    // Format tasks as a bullet list
+    const taskLines=rentonTasks.map(t=>{
+      let line='• '+t.text.trim();
+      if(t.notes&&t.notes.trim())line+=' ('+t.notes.trim()+')';
+      if(t.done)line+=' ✓';
+      return line;
+    }).join('\n');
+
+    const textarea=document.getElementById('sendToRenton');
+    const currentVal=(textarea.value||'').trim();
+
+    // Only auto-populate if:
+    // 1. The textarea is empty, OR
+    // 2. The current content matches what we previously auto-populated (user hasn't edited it)
+    if(currentVal===''||currentVal===lastAutoPopulatedRenton){
+      textarea.value=taskLines;
+      lastAutoPopulatedRenton=taskLines;
+      // Save to the day's data so it persists and shows up in the email
+      saveSendToField('sendToRenton',taskLines);
+      if(indicator)indicator.style.display='block';
+    }else if(currentVal&&!currentVal.includes(taskLines)){
+      // User has manual content that differs — show indicator but don't overwrite
+      // They can see that weekly tasks exist but their manual edits are preserved
+      if(indicator){
+        indicator.textContent='📋 Weekly Tasks has '+rentonTasks.length+' Renton item(s) for tomorrow — your manual edits are preserved';
+        indicator.style.display='block';
+      }
+    }
+  }catch(e){
+    console.warn('Failed to fetch weekly-tasks for Renton:',e);
+    // Non-fatal — the send-to-renton field still works manually
+  }
 }
 
 // ==================== AUTHENTICATION ====================
