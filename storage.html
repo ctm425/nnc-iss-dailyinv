@@ -334,6 +334,7 @@ let activeSubCat = 'all';
 let settingsVisible = false;
 let restaurantKey = 'nnc-iss';
 let transferModalItem = null;
+let unsubWeekListeners = []; // Active week data listeners
 
 // ==================== DEFAULT ITEMS (from actual storage inventory) ====================
 const DEFAULT_ITEMS = {
@@ -429,10 +430,12 @@ function formatDate(date) {
 function changeWeek(delta) {
   currentWeekStart = new Date(currentWeekStart);
   currentWeekStart.setDate(currentWeekStart.getDate() + (delta * 7));
+  setupWeekListeners();
   render();
 }
 function goToThisWeek() {
   currentWeekStart = getWeekStart(new Date());
+  setupWeekListeners();
   render();
 }
 function onWeekDatePick(val) {
@@ -441,6 +444,7 @@ function onWeekDatePick(val) {
   const selectedDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   selectedDate.setHours(0,0,0,0);
   currentWeekStart = getWeekStart(selectedDate);
+  setupWeekListeners();
   render();
 }
 
@@ -494,6 +498,7 @@ function setField(wk, category, itemId, field, val) {
 }
 
 function setupFirestoreListener() {
+  // Config listener
   db.collection('storage_config').doc(fsDocId()).onSnapshot(snap => {
     if (!snap.exists) return;
     const config = snap.data();
@@ -506,6 +511,7 @@ function setupFirestoreListener() {
     render();
   });
 
+  // Transfers listener
   db.collection('storage_transfers').orderBy('timestamp', 'desc').limit(100).onSnapshot(snap => {
     cachedTransfers = [];
     snap.forEach(doc => {
@@ -513,6 +519,60 @@ function setupFirestoreListener() {
     });
     if (activeCategory === 'transfers') renderTransfersTab();
   });
+
+  // Week data listeners — sync counts from Firestore so all devices stay current
+  setupWeekListeners();
+}
+
+function setupWeekListeners() {
+  // Detach previous week listeners (e.g. when navigating weeks)
+  unsubWeekListeners.forEach(fn => fn());
+  unsubWeekListeners = [];
+
+  const wk = weekKey();
+  const cats = Object.keys(CATEGORIES);
+  cats.forEach(cat => {
+    const docId = `${fsDocId()}_${wk}_${cat}`;
+    const unsub = db.collection('storage_weeks').doc(docId).onSnapshot(snap => {
+      if (!snap.exists) return;
+      const weekData = snap.data();
+      const d = loadData();
+      if (!d.weeks) d.weeks = {};
+      d.weeks[`${wk}_${cat}`] = weekData;
+      localStorage.setItem(fsDocId(), JSON.stringify(d));
+      render();
+    });
+    unsubWeekListeners.push(unsub);
+  });
+
+  // Also fetch the previous week's data so Prev Count works on a fresh device
+  fetchPreviousWeek();
+}
+
+async function fetchPreviousWeek() {
+  const prevStart = new Date(currentWeekStart);
+  prevStart.setDate(prevStart.getDate() - 7);
+  const prevWk = weekKey(prevStart);
+  const cats = Object.keys(CATEGORIES);
+  let fetched = false;
+
+  for (const cat of cats) {
+    const key = `${prevWk}_${cat}`;
+    const d = loadData();
+    // Skip if we already have data for this week+category
+    if (d.weeks && d.weeks[key] && Object.keys(d.weeks[key]).some(k => k !== '__meta' && d.weeks[key][k]?.count !== undefined)) continue;
+    try {
+      const snap = await db.collection('storage_weeks').doc(`${fsDocId()}_${prevWk}_${cat}`).get();
+      if (snap.exists) {
+        const d2 = loadData();
+        if (!d2.weeks) d2.weeks = {};
+        d2.weeks[key] = snap.data();
+        localStorage.setItem(fsDocId(), JSON.stringify(d2));
+        fetched = true;
+      }
+    } catch(e) { /* silent */ }
+  }
+  if (fetched) render();
 }
 
 // ==================== AUTH ====================

@@ -399,6 +399,7 @@ let currentDate = new Date();
 currentDate.setHours(0,0,0,0);
 let activeSection = 'frozen'; // which section tab
 let activeSubCat = 'all';     // which sub-category
+let unsubWeekListeners = []; // Active week data listeners
 let settingsVisible = false;
 let restaurantKey = 'renton-wh';
 let transferModalItem = null;
@@ -589,11 +590,13 @@ function changeDay(delta) {
   currentDate = new Date(currentDate);
   currentDate.setDate(currentDate.getDate() + delta);
   currentDate.setHours(0,0,0,0);
+  setupWeekListeners();
   render();
 }
 function goToToday() {
   currentDate = new Date();
   currentDate.setHours(0,0,0,0);
+  setupWeekListeners();
   render();
 }
 function onDatePick(val) {
@@ -601,6 +604,7 @@ function onDatePick(val) {
   const parts = val.split('-');
   currentDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   currentDate.setHours(0,0,0,0);
+  setupWeekListeners();
   render();
 }
 
@@ -678,6 +682,7 @@ function setField(wk, section, itemId, field, val) {
 }
 
 function setupFirestoreListener() {
+  // Config listener
   db.collection('warehouse_config').doc(fsDocId()).onSnapshot(snap => {
     if (!snap.exists) return;
     const config = snap.data();
@@ -689,6 +694,59 @@ function setupFirestoreListener() {
     localStorage.setItem(fsDocId(), JSON.stringify(d));
     render();
   });
+
+  // Week data listeners — sync counts from Firestore so all devices stay current
+  setupWeekListeners();
+}
+
+function setupWeekListeners() {
+  // Detach previous listeners (e.g. when navigating dates)
+  unsubWeekListeners.forEach(fn => fn());
+  unsubWeekListeners = [];
+
+  const dk = dateKey();
+  const sections = Object.keys(SECTIONS);
+  sections.forEach(sec => {
+    const docId = `${fsDocId()}_${dk}_${sec}`;
+    const unsub = db.collection('warehouse_weeks').doc(docId).onSnapshot(snap => {
+      if (!snap.exists) return;
+      const weekData = snap.data();
+      const d = loadData();
+      if (!d.weeks) d.weeks = {};
+      d.weeks[`${dk}_${sec}`] = weekData;
+      localStorage.setItem(fsDocId(), JSON.stringify(d));
+      render();
+    });
+    unsubWeekListeners.push(unsub);
+  });
+
+  // Fetch the previous day's data so Prev Count works on a fresh device
+  fetchPreviousDay();
+}
+
+async function fetchPreviousDay() {
+  const prev = new Date(currentDate);
+  prev.setDate(prev.getDate() - 1);
+  const prevDk = dateKey(prev);
+  const sections = Object.keys(SECTIONS);
+  let fetched = false;
+
+  for (const sec of sections) {
+    const key = `${prevDk}_${sec}`;
+    const d = loadData();
+    if (d.weeks && d.weeks[key] && Object.keys(d.weeks[key]).some(k => k !== '__meta' && d.weeks[key][k]?.count !== undefined)) continue;
+    try {
+      const snap = await db.collection('warehouse_weeks').doc(`${fsDocId()}_${prevDk}_${sec}`).get();
+      if (snap.exists) {
+        const d2 = loadData();
+        if (!d2.weeks) d2.weeks = {};
+        d2.weeks[key] = snap.data();
+        localStorage.setItem(fsDocId(), JSON.stringify(d2));
+        fetched = true;
+      }
+    } catch(e) { /* silent */ }
+  }
+  if (fetched) render();
 }
 
 // ==================== AUTH ====================
