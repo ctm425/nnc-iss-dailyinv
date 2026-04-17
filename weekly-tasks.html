@@ -115,6 +115,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .add-task-row{padding:10px 16px;display:flex;gap:8px;align-items:center;border-top:1px solid var(--gray-100)}
 .add-task-row input{flex:1;padding:8px 12px;border:1px dashed var(--gray-300);border-radius:var(--radius);font-size:.85rem;background:var(--gray-50)}
 .add-task-row input:focus{outline:none;border-color:var(--primary-light);border-style:solid;background:#fff}
+.suggestions-dropdown{position:absolute;bottom:100%;left:0;right:0;background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:0 -4px 16px rgba(0,0,0,.1);max-height:200px;overflow-y:auto;z-index:50}
+.suggestion-item{padding:8px 14px;font-size:.85rem;cursor:pointer;border-bottom:1px solid var(--gray-100)}
+.suggestion-item:hover{background:var(--primary-bg);color:var(--primary)}
+.suggestion-item:last-child{border-bottom:none}
 .add-task-renton{background:var(--renton-bg)}
 .add-task-renton input{background:#fff}
 
@@ -328,6 +332,7 @@ function setView(view) {
 // Each task: { id, text, done, assignee, completedAt, notes, createdBy, createdAt }
 
 let dayCache = {}; // dateKey -> { prep: [], renton: [] }
+let taskSuggestions = { prep: [], renton: [] }; // previously used task texts
 
 function getDayData(dk) {
   return dayCache[dk] || { prep: [], renton: [] };
@@ -382,6 +387,72 @@ async function fetchWeekData(refDate) {
   await Promise.all(fetches);
 }
 
+// ==================== SUGGESTIONS ====================
+// Stored in Firestore at weekly-tasks/nnc-iss (the parent doc) as { suggestions: { prep: [...], renton: [...] } }
+async function loadSuggestions() {
+  try {
+    const snap = await db.collection('weekly-tasks').doc('nnc-iss').get();
+    if (snap.exists && snap.data().suggestions) {
+      taskSuggestions = snap.data().suggestions;
+    }
+  } catch(e) { console.warn('Could not load suggestions:', e); }
+}
+
+async function saveSuggestion(section, text) {
+  const normalized = text.trim();
+  if (!normalized) return;
+  const list = taskSuggestions[section] || [];
+  // Don't add duplicates (case-insensitive check)
+  if (list.some(s => s.toLowerCase() === normalized.toLowerCase())) return;
+  list.push(normalized);
+  // Cap at 100 suggestions per section
+  if (list.length > 100) list.shift();
+  taskSuggestions[section] = list;
+  try {
+    await db.collection('weekly-tasks').doc('nnc-iss').set({ suggestions: taskSuggestions }, { merge: true });
+  } catch(e) { console.warn('Could not save suggestion:', e); }
+}
+
+function showSuggestions(section, inputEl) {
+  const query = (inputEl.value || '').trim().toLowerCase();
+  const containerId = section + 'Suggestions';
+  let container = document.getElementById(containerId);
+  // Remove existing dropdown
+  if (container) container.remove();
+
+  const list = taskSuggestions[section] || [];
+  if (list.length === 0) return;
+
+  // Filter: show all if empty input, or matching items
+  const filtered = query === ''
+    ? list.slice(-15).reverse()
+    : list.filter(s => s.toLowerCase().includes(query)).slice(0, 10);
+  if (filtered.length === 0) return;
+
+  container = document.createElement('div');
+  container.id = containerId;
+  container.className = 'suggestions-dropdown';
+  filtered.forEach(text => {
+    const item = document.createElement('div');
+    item.className = 'suggestion-item';
+    item.textContent = text;
+    item.onmousedown = (e) => {
+      e.preventDefault(); // prevent blur before click registers
+      inputEl.value = text;
+      container.remove();
+      addTask(section);
+    };
+    container.appendChild(item);
+  });
+  inputEl.parentElement.style.position = 'relative';
+  inputEl.parentElement.appendChild(container);
+}
+
+function hideSuggestions(section) {
+  const el = document.getElementById(section + 'Suggestions');
+  if (el) setTimeout(() => el.remove(), 150);
+}
+
 // ==================== TASK ACTIONS ====================
 function addTask(section) {
   const inputId = section === 'prep' ? 'prepInput' : 'rentonInput';
@@ -404,7 +475,10 @@ function addTask(section) {
   });
   data[section] = tasks;
   saveDayData(dk, data);
+  saveSuggestion(section, text);
   input.value = '';
+  // Clear any open suggestions dropdown
+  hideSuggestions(section);
   render();
 }
 
@@ -560,7 +634,7 @@ function renderDayView() {
   }
 
   html += `<div class="add-task-row">
-    <input type="text" id="prepInput" placeholder="+ Add prep task..." onkeydown="if(event.key==='Enter')addTask('prep')">
+    <input type="text" id="prepInput" placeholder="+ Add prep task..." onkeydown="if(event.key==='Enter')addTask('prep')" onfocus="showSuggestions('prep',this)" oninput="showSuggestions('prep',this)" onblur="hideSuggestions('prep')">
     <button class="btn btn-sm btn-primary" onclick="addTask('prep')">Add</button>
   </div></div></div>`;
 
@@ -600,7 +674,7 @@ function renderDayView() {
   }
 
   html += `<div class="add-task-row add-task-renton">
-    <input type="text" id="rentonInput" placeholder="+ Add item to send to Renton..." onkeydown="if(event.key==='Enter')addTask('renton')">
+    <input type="text" id="rentonInput" placeholder="+ Add item to send to Renton..." onkeydown="if(event.key==='Enter')addTask('renton')" onfocus="showSuggestions('renton',this)" oninput="showSuggestions('renton',this)" onblur="hideSuggestions('renton')">
     <button class="btn btn-sm" style="background:var(--renton-light);color:#fff" onclick="addTask('renton')">Add</button>
   </div></div>`;
 
@@ -829,6 +903,7 @@ auth.onAuthStateChanged(async user => {
     currentUserEmail = user.email;
     const profile = await loadUserProfile();
     currentUserName = profile?.displayName || user.email.split('@')[0];
+    loadSuggestions();
     setupDayListener();
     render();
   } else {

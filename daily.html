@@ -696,23 +696,26 @@ function loadSendToFields(){
   const st=dd.__sendTo||{};
   document.getElementById('sendToRenton').value=st.sendToRenton||'';
   document.getElementById('sendToIssaquah').value=st.sendToIssaquah||'';
-  // After loading saved fields, fetch weekly-tasks Renton items for current day
-  fetchRentonTasksForDay();
+  // After loading saved fields, fetch weekly-tasks Renton items for next day
+  // Email sent on 4/17 = delivery on 4/18, so fetch 4/18's Renton tasks
+  fetchRentonTasksForNextDay();
 }
 
 // Track what was auto-populated so we don't overwrite manual edits
 let lastAutoPopulatedRenton='';
 
-async function fetchRentonTasksForDay(){
+async function fetchRentonTasksForNextDay(){
   const indicator=document.getElementById('rentonTasksIndicator');
   if(indicator)indicator.style.display='none';
   if(!auth.currentUser)return;
   try{
-    // Weekly-tasks "Send to Renton" for date X = items to send today
-    // The kitchen order email sent on date X includes these same-day Renton items
-    const taskDk=dk(currentDate);
+    // Email sent on date X covers delivery on X+1
+    // Weekly-tasks "Send to Renton" for X+1 = what needs to go to Renton tomorrow
+    const nextDay=new Date(currentDate);
+    nextDay.setDate(nextDay.getDate()+1);
+    const nextDk=`${nextDay.getFullYear()}-${String(nextDay.getMonth()+1).padStart(2,'0')}-${String(nextDay.getDate()).padStart(2,'0')}`;
 
-    const snap=await db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(taskDk).get();
+    const snap=await db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(nextDk).get();
     if(!snap.exists)return;
     const data=snap.data();
     const rentonTasks=(data.renton||[]).filter(t=>t.text&&t.text.trim());
