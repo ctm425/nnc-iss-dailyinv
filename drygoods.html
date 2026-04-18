@@ -1004,14 +1004,15 @@ function setupFirestoreListener() {
 }
 
 // One-time fetch of the previous 7 days of inventory data for Prev Count
+// Fetch previous 7 days from Firestore.
+// Always fetches to pick up received qty / manualOrder edits
+// that may have been entered after the initial count was cached.
 async function fetchRecentDays(fsDocPrefix, lsKey) {
   const fetched = {};
   for (let i = 1; i <= 7; i++) {
     const prev = new Date(currentDate);
     prev.setDate(prev.getDate() - i);
     const dk = dateKey(prev);
-    const existing = loadData();
-    if (existing.weeks && existing.weeks[dk] && Object.keys(existing.weeks[dk]).some(k => k !== '__meta' && existing.weeks[dk][k]?.count !== undefined)) continue;
     try {
       const snap = await db.collection('inventory_weeks').doc(`${fsDocPrefix}_${dk}`).get();
       if (snap.exists) fetched[dk] = snap.data();
@@ -1160,7 +1161,9 @@ function setupMultiSourceListeners() {
   });
 }
 
-// One-time fetch of the previous 7 days for a multi-source storageKey
+// Fetch previous 7 days for a multi-source storageKey
+// Always fetches from Firestore to pick up received qty / manualOrder edits
+// that may have been entered after the initial count was cached.
 async function fetchRecentDaysMultiSource(storageKey) {
   const fetched = {};
   const fsPrefix = `${storageKey}_${restaurantKey}`;
@@ -1168,8 +1171,6 @@ async function fetchRecentDaysMultiSource(storageKey) {
     const prev = new Date(currentDate);
     prev.setDate(prev.getDate() - i);
     const dk = dateKey(prev);
-    const existing = loadSourceData(storageKey);
-    if (existing.weeks && existing.weeks[dk] && Object.keys(existing.weeks[dk]).some(k => k !== '__meta' && existing.weeks[dk][k]?.count !== undefined)) continue;
     try {
       const snap = await db.collection('inventory_weeks').doc(`${fsPrefix}_${dk}`).get();
       if (snap.exists) fetched[dk] = snap.data();
