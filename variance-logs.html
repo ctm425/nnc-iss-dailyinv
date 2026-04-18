@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Issaquah — Variance Logs</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="shared.js"></script>
+<style>
+:root {
+  --primary: #1e3a5f; --primary-light: #2563eb; --primary-bg: #eff6ff;
+  --danger: #dc2626; --success: #16a34a;
+  --amber: #d97706; --amber-bg: #fffbeb;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+  --radius: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-box button:hover{background:var(--primary)}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:16px 24px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header-sub{opacity:.85;font-size:.85rem;margin-top:2px}
+.header a{display:inline-block;margin-top:6px;color:rgba(255,255,255,.85);font-size:.8rem;font-weight:600;cursor:pointer;text-decoration:none;background:rgba(255,255,255,.12);padding:4px 12px;border-radius:6px}
+.header a:hover{background:rgba(255,255,255,.25)}
+
+.access-denied{max-width:500px;margin:80px auto;text-align:center;padding:40px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.access-denied h2{color:var(--danger);margin-bottom:12px}
+.access-denied p{color:var(--gray-500)}
+
+.filters{padding:16px 24px;background:#fff;border-bottom:1px solid var(--gray-200);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.filters label{font-size:.82rem;font-weight:600;color:var(--gray-500)}
+.filters input,.filters select{padding:7px 12px;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:.85rem}
+.filters input:focus,.filters select:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-primary:hover{background:var(--primary)}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+
+.summary{padding:16px 24px;display:flex;gap:12px;flex-wrap:wrap}
+.summary-card{background:#fff;border-radius:var(--radius);padding:12px 18px;flex:1;min-width:140px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--gray-200)}
+.summary-card .label{font-size:.72rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px}
+.summary-card .value{font-size:1.3rem;font-weight:700;color:var(--primary);margin-top:2px}
+
+.table-wrap{padding:0 24px 24px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem;background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+thead th{background:var(--primary);color:#fff;padding:10px 12px;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{background:#162d4a}
+.filter-row td{background:var(--gray-100);padding:4px 6px}
+.col-filter{width:100%;padding:4px 6px;border:1px solid var(--gray-300);border-radius:4px;font-size:.75rem;background:#fff}
+.col-filter:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+thead th.sorted-asc::after{content:' ▲';font-size:.6rem}
+thead th.sorted-desc::after{content:' ▼';font-size:.6rem}
+tbody td{padding:8px 12px;border-bottom:1px solid var(--gray-100);vertical-align:top}
+tbody tr:hover{background:var(--gray-50)}
+.variance-pos{color:var(--danger);font-weight:700}
+.reason-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600}
+.reason-prev_qty_wrong{background:#fef3c7;color:#92400e}
+.reason-delivery_received{background:#dbeafe;color:#1e40af}
+.reason-found_stock{background:#d1fae5;color:#065f46}
+.reason-transfer_in{background:#ede9fe;color:#5b21b6}
+.reason-other{background:var(--gray-100);color:var(--gray-700)}
+.page-tag{font-size:.75rem;color:var(--gray-500);background:var(--gray-100);padding:2px 6px;border-radius:3px}
+.empty-state{text-align:center;padding:60px 24px;color:var(--gray-400)}
+.empty-state h3{font-size:1.1rem;margin-bottom:8px;color:var(--gray-500)}
+.loading{text-align:center;padding:60px;color:var(--gray-400);font-size:.9rem}
+
+@media(max-width:768px){
+  .filters{flex-direction:column;align-items:stretch}
+  table{font-size:.78rem}
+  thead th,tbody td{padding:6px 8px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Variance Logs</h2>
+    <div class="subtitle">NNC Issaquah — Owner access only</div>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- ACCESS DENIED (non-owner) -->
+<div class="access-denied" id="accessDenied" style="display:none">
+  <h2>Access Denied</h2>
+  <p>Variance logs are only visible to the owner.</p>
+  <a href="index.html?open=nnc-iss" style="display:inline-block;margin-top:16px;color:var(--primary-light);font-weight:600;text-decoration:none">← Back to Dashboard</a>
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="mainContent" style="display:none">
+
+<div class="header">
+  <h1>⚠️ Variance Logs</h1>
+  <div class="header-sub">Inventory count exceptions — when entered qty exceeds expected max</div>
+  <a onclick="window.location.href='index.html?open=nnc-iss'">← Back to Issaquah Dashboard</a>
+</div>
+
+<div class="filters">
+  <div>
+    <label>Date Range</label>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input type="date" id="dateFrom" onchange="applyFilters()">
+      <span style="color:var(--gray-400)">→</span>
+      <input type="date" id="dateTo" onchange="applyFilters()">
+    </div>
+  </div>
+  <button class="btn btn-sm" style="background:var(--gray-100);color:var(--gray-700)" onclick="resetFilters()">Reset All</button>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="table-wrap">
+  <div class="loading" id="loadingMsg">Loading variance logs...</div>
+  <table id="logsTable" style="display:none">
+    <thead>
+      <tr>
+        <th onclick="sortBy('timestamp')">Date/Time</th>
+        <th onclick="sortBy('dateKey')">Inv. Date</th>
+        <th onclick="sortBy('itemName')">Item</th>
+        <th onclick="sortBy('page')">Page</th>
+        <th onclick="sortBy('enteredValue')">Entered</th>
+        <th onclick="sortBy('expectedMax')">Expected</th>
+        <th onclick="sortBy('variance')">Variance</th>
+        <th onclick="sortBy('reason')">Reason</th>
+        <th onclick="sortBy('enteredBy')">By</th>
+      </tr>
+      <tr class="filter-row">
+        <td><input type="text" class="col-filter" id="fTimestamp" placeholder="Filter..." oninput="applyFilters()"></td>
+        <td><input type="text" class="col-filter" id="fDateKey" placeholder="Filter..." oninput="applyFilters()"></td>
+        <td><input type="text" class="col-filter" id="fItem" placeholder="Filter..." oninput="applyFilters()"></td>
+        <td><select class="col-filter" id="fPage" onchange="applyFilters()"><option value="">All</option></select></td>
+        <td><input type="text" class="col-filter" id="fEntered" placeholder="Filter..." oninput="applyFilters()" style="width:50px"></td>
+        <td><input type="text" class="col-filter" id="fExpected" placeholder="Filter..." oninput="applyFilters()" style="width:50px"></td>
+        <td><input type="text" class="col-filter" id="fVariance" placeholder="Filter..." oninput="applyFilters()" style="width:50px"></td>
+        <td><select class="col-filter" id="fReason" onchange="applyFilters()"><option value="">All</option></select></td>
+        <td><input type="text" class="col-filter" id="fBy" placeholder="Filter..." oninput="applyFilters()"></td>
+      </tr>
+    </thead>
+    <tbody id="logsBody"></tbody>
+  </table>
+  <div class="empty-state" id="emptyState" style="display:none">
+    <h3>No variance logs found</h3>
+    <p>Adjust your filters or check back later.</p>
+  </div>
+</div>
+
+</div>
+
+<script>
+let allLogs = [];
+let filteredLogs = [];
+let currentSort = { key: 'timestamp', dir: 'desc' };
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  if (!email || !password) { err.textContent = 'Please enter email and password.'; err.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in...'; err.style.display = 'none';
+  try { await auth.signInWithEmailAndPassword(email, password); }
+  catch(e) { err.textContent = e.message; err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+
+auth.onAuthStateChanged(async user => {
+  const overlay = document.getElementById('loginOverlay');
+  if (user) {
+    overlay.classList.add('hidden');
+    const profile = await loadUserProfile();
+    if (profile.role !== 'owner' && !OWNER_EMAILS.includes(user.email)) {
+      document.getElementById('accessDenied').style.display = '';
+      return;
+    }
+    document.getElementById('mainContent').style.display = '';
+    initDateFilters();
+    await fetchLogs();
+  } else {
+    overlay.classList.remove('hidden');
+  }
+});
+
+// ==================== DATA ====================
+async function fetchLogs() {
+  try {
+    const snap = await db.collection('variance_logs')
+      .orderBy('timestamp', 'desc')
+      .limit(1000)
+      .get();
+    allLogs = snap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        timestamp: d.timestamp?.toDate ? d.timestamp.toDate() : new Date(d.timestamp),
+        dateKey: d.dateKey || '',
+        itemId: d.itemId || '',
+        itemName: d.itemName || d.itemId || '',
+        page: d.page || '',
+        field: d.field || 'count',
+        enteredValue: d.enteredValue ?? '',
+        expectedMax: d.expectedMax ?? '',
+        variance: d.variance ?? '',
+        reason: d.reason || '',
+        explanation: d.explanation || '',
+        enteredBy: d.enteredBy || '',
+        userEmail: d.userEmail || ''
+      };
+    });
+    populateColumnFilters();
+    applyFilters();
+  } catch(e) {
+    console.error('Failed to fetch variance logs:', e);
+    document.getElementById('loadingMsg').textContent = 'Failed to load logs. Check Firestore rules.';
+  }
+}
+
+function populateColumnFilters() {
+  // Page dropdown
+  const pages = [...new Set(allLogs.map(l => l.page).filter(Boolean))].sort();
+  const pageSel = document.getElementById('fPage');
+  pageSel.innerHTML = '<option value="">All</option>' +
+    pages.map(p => `<option value="${p}">${cleanPageName(p)}</option>`).join('');
+
+  // Reason dropdown
+  const reasons = [...new Set(allLogs.map(l => l.reason).filter(Boolean))].sort();
+  const reasonSel = document.getElementById('fReason');
+  reasonSel.innerHTML = '<option value="">All</option>' +
+    reasons.map(r => `<option value="${r}">${formatReason(r)}</option>`).join('');
+}
+
+function cleanPageName(p) {
+  return p.replace(/\.html$/i, '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ==================== FILTERS ====================
+function initDateFilters() {
+  const today = new Date();
+  const thirtyAgo = new Date(today);
+  thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+  document.getElementById('dateTo').value = fmt(today);
+  document.getElementById('dateFrom').value = fmt(thirtyAgo);
+}
+
+function fmt(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function applyFilters() {
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  const fTimestamp = (document.getElementById('fTimestamp').value || '').trim().toLowerCase();
+  const fDateKey = (document.getElementById('fDateKey').value || '').trim().toLowerCase();
+  const fItem = (document.getElementById('fItem').value || '').trim().toLowerCase();
+  const fPage = document.getElementById('fPage').value;
+  const fEntered = (document.getElementById('fEntered').value || '').trim();
+  const fExpected = (document.getElementById('fExpected').value || '').trim();
+  const fVariance = (document.getElementById('fVariance').value || '').trim();
+  const fReason = document.getElementById('fReason').value;
+  const fBy = (document.getElementById('fBy').value || '').trim().toLowerCase();
+
+  filteredLogs = allLogs.filter(l => {
+    const ts = fmt(l.timestamp);
+    // Date range filter
+    if (from && ts < from) return false;
+    if (to && ts > to) return false;
+    // Column filters
+    if (fTimestamp) {
+      const timeStr = `${l.timestamp.getMonth()+1}/${l.timestamp.getDate()}/${l.timestamp.getFullYear()} ${formatTime(l.timestamp)}`.toLowerCase();
+      if (!timeStr.includes(fTimestamp)) return false;
+    }
+    if (fDateKey && !l.dateKey.toLowerCase().includes(fDateKey)) return false;
+    if (fItem && !l.itemName.toLowerCase().includes(fItem) && !l.itemId.toLowerCase().includes(fItem)) return false;
+    if (fPage && l.page !== fPage) return false;
+    if (fEntered && !String(l.enteredValue).includes(fEntered)) return false;
+    if (fExpected && !String(l.expectedMax).includes(fExpected)) return false;
+    if (fVariance && !String(Math.round(Number(l.variance)*100)/100).includes(fVariance)) return false;
+    if (fReason && l.reason !== fReason) return false;
+    if (fBy && !l.enteredBy.toLowerCase().includes(fBy) && !l.userEmail.toLowerCase().includes(fBy)) return false;
+    return true;
+  });
+
+  sortLogs();
+  renderSummary();
+  renderTable();
+}
+
+function resetFilters() {
+  initDateFilters();
+  ['fTimestamp','fDateKey','fItem','fEntered','fExpected','fVariance','fBy'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('fPage').value = '';
+  document.getElementById('fReason').value = '';
+  applyFilters();
+}
+
+// ==================== SORT ====================
+function sortBy(key) {
+  if (currentSort.key === key) {
+    currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    currentSort.key = key;
+    currentSort.dir = key === 'timestamp' ? 'desc' : 'asc';
+  }
+  sortLogs();
+  renderTable();
+}
+
+function sortLogs() {
+  const { key, dir } = currentSort;
+  filteredLogs.sort((a, b) => {
+    let va = a[key], vb = b[key];
+    if (va instanceof Date) { va = va.getTime(); vb = vb.getTime(); }
+    if (typeof va === 'number' && typeof vb === 'number') return dir === 'asc' ? va - vb : vb - va;
+    va = String(va || '').toLowerCase();
+    vb = String(vb || '').toLowerCase();
+    return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+}
+
+// ==================== RENDER ====================
+function renderSummary() {
+  const total = filteredLogs.length;
+  const totalVariance = filteredLogs.reduce((sum, l) => sum + (Number(l.variance) || 0), 0);
+  const uniqueItems = new Set(filteredLogs.map(l => l.itemId)).size;
+  const uniquePeople = new Set(filteredLogs.map(l => l.enteredBy).filter(Boolean)).size;
+  const topReason = getMostCommon(filteredLogs.map(l => l.reason).filter(Boolean));
+
+  document.getElementById('summary').innerHTML = `
+    <div class="summary-card"><div class="label">Total Variances</div><div class="value">${total}</div></div>
+    <div class="summary-card"><div class="label">Total Excess Units</div><div class="value variance-pos">+${Math.round(totalVariance * 100)/100}</div></div>
+    <div class="summary-card"><div class="label">Unique Items</div><div class="value">${uniqueItems}</div></div>
+    <div class="summary-card"><div class="label">People</div><div class="value">${uniquePeople}</div></div>
+    <div class="summary-card"><div class="label">Top Reason</div><div class="value" style="font-size:.85rem">${topReason ? formatReason(topReason) : '—'}</div></div>
+  `;
+}
+
+function getMostCommon(arr) {
+  if (arr.length === 0) return null;
+  const counts = {};
+  arr.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+  return Object.entries(counts).sort((a,b) => b[1] - a[1])[0][0];
+}
+
+function renderTable() {
+  document.getElementById('loadingMsg').style.display = 'none';
+  const table = document.getElementById('logsTable');
+  const empty = document.getElementById('emptyState');
+
+  if (filteredLogs.length === 0) {
+    table.style.display = 'none';
+    empty.style.display = '';
+    return;
+  }
+  table.style.display = '';
+  empty.style.display = 'none';
+
+  // Update sort indicators
+  document.querySelectorAll('thead th').forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+  });
+  const headers = document.querySelectorAll('thead th');
+  const colMap = ['timestamp','dateKey','itemName','page','enteredValue','expectedMax','variance','reason','enteredBy'];
+  const idx = colMap.indexOf(currentSort.key);
+  if (idx >= 0) headers[idx].classList.add(currentSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+
+  const tbody = document.getElementById('logsBody');
+  tbody.innerHTML = filteredLogs.map(l => {
+    const ts = l.timestamp;
+    const timeStr = `${ts.getMonth()+1}/${ts.getDate()}/${ts.getFullYear()} ${formatTime(ts)}`;
+    const reasonClass = `reason-${l.reason}`;
+    const tooltip = l.explanation ? ` title="${esc(l.explanation)}"` : '';
+
+    return `<tr>
+      <td style="white-space:nowrap;font-size:.78rem;color:var(--gray-500)">${timeStr}</td>
+      <td style="white-space:nowrap;font-weight:600">${l.dateKey || '—'}</td>
+      <td><strong>${esc(l.itemName)}</strong></td>
+      <td><span class="page-tag">${esc(cleanPageName(l.page))}</span></td>
+      <td style="text-align:center;font-weight:600">${l.enteredValue}</td>
+      <td style="text-align:center;color:var(--gray-500)">${l.expectedMax}</td>
+      <td style="text-align:center" class="variance-pos">+${Math.round(Number(l.variance)*100)/100}</td>
+      <td><span class="reason-tag ${reasonClass}"${tooltip}>${esc(formatReason(l.reason))}${l.reason==='other'&&l.explanation?' — '+esc(l.explanation):''}</span></td>
+      <td style="white-space:nowrap">${esc(l.enteredBy)}${l.userEmail?`<br><span style="font-size:.7rem;color:var(--gray-400)">${esc(l.userEmail)}</span>`:''}</td>
+    </tr>`;
+  }).join('');
+}
+
+const REASON_LABELS = {
+  'prev_qty_wrong': 'Prev Qty Wrong',
+  'delivery_received': 'Delivery Received',
+  'found_stock': 'Found Stock',
+  'transfer_in': 'Transfer In',
+  'other': 'Other'
+};
+
+function formatReason(r) {
+  return REASON_LABELS[r] || r;
+}
+
+function formatTime(d) {
+  const h = d.getHours(), m = d.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

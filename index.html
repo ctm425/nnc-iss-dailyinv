@@ -700,7 +700,8 @@ function showIssaquahDetail(container, loc, color) {
 
   // Build all sections
   const ownerReport = section('Owner Reports', 'Daily Recap', [
-    tile('nnc-daily-report', '#0f766e', '📊', 'Daily Kitchen Report', 'All daily operations summarized — totals, usage, exceptions', 'daily')
+    tile('nnc-daily-report', '#0f766e', '📊', 'Daily Kitchen Report', 'All daily operations summarized — totals, usage, exceptions', 'daily'),
+    tile('nnc-variance-logs', '#dc2626', '⚠️', 'Variance Logs', 'Count exceptions — when entered qty exceeds expected max', 'ongoing')
   ], false);
 
   const dailyOps = section('Daily Operations', 'AM/PM Tracking', [

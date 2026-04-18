@@ -286,6 +286,17 @@ const SHEET_TYPES = {
     restaurants: ['nnc-iss']
   },
 
+  'nnc-variance-logs': {
+    name: 'Variance Logs',
+    category: 'reports',
+    frequency: 'ongoing',
+    icon: '⚠️',
+    description: 'Inventory count exceptions — when entered qty exceeds expected max',
+    allowedRoles: ['owner'],
+    page: 'variance-logs.html',
+    restaurants: ['nnc-iss']
+  },
+
   // ---- PREP DATA (cross-location) ----
   'prep-iss': {
     name: 'Issaquah Prep Log',
