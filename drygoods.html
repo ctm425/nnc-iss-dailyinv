@@ -695,17 +695,36 @@ function getPreviousCountData() {
   let earliestDate = null;
   let latestDate = null;
 
+  // Pass 1: find the most recent COUNT for each item
   for (const dk of dates) {
     const wd = d.weeks[dk] || {};
     for (const itemId of Object.keys(wd)) {
       if (itemId === '__meta') continue;
-      // Only use this date for this item if we haven't found a newer count already
       if (merged[itemId]) continue;
       if (wd[itemId]?.count !== undefined && wd[itemId].count !== '') {
-        merged[itemId] = wd[itemId];
+        merged[itemId] = { ...wd[itemId] };
         itemDates[itemId] = dk;
         if (!latestDate || dk > latestDate) latestDate = dk;
         if (!earliestDate || dk < earliestDate) earliestDate = dk;
+      }
+    }
+  }
+
+  // Pass 2: scan for received quantities (manualOrder + orderQty) entered on
+  // dates AFTER the count date but before today. This handles the common case
+  // where a count is done on one day and received qty is logged on a later day.
+  const datesAsc = dates.slice().reverse(); // oldest → newest
+  for (const dk of datesAsc) {
+    const wd = d.weeks[dk] || {};
+    for (const itemId of Object.keys(wd)) {
+      if (itemId === '__meta') continue;
+      if (!merged[itemId]) continue; // no count found for this item, skip
+      const countDate = itemDates[itemId];
+      if (dk <= countDate) continue; // only look at dates after the count
+      // If this later date has a received qty, apply it to the merged data
+      if (wd[itemId]?.manualOrder && wd[itemId]?.orderQty !== undefined) {
+        merged[itemId].manualOrder = true;
+        merged[itemId].orderQty = Number(wd[itemId].orderQty);
       }
     }
   }
