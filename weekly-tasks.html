@@ -14,6 +14,7 @@
   --danger: #dc2626; --success: #16a34a;
   --amber: #d97706; --amber-bg: #fffbeb;
   --renton: #7c2d12; --renton-bg: #fff7ed; --renton-light: #ea580c;
+  --issaquah: #0f766e; --issaquah-bg: #f0fdfa; --issaquah-light: #14b8a6;
   --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
   --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
   --radius: 8px;
@@ -83,6 +84,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .section-title{font-size:.9rem;font-weight:700;color:#fff;padding:10px 16px;border-radius:var(--radius) var(--radius) 0 0;display:flex;justify-content:space-between;align-items:center}
 .section-title.prep{background:var(--primary)}
 .section-title.renton{background:var(--renton)}
+.section-title.issaquah{background:var(--issaquah)}
 .section-title .count{font-size:.78rem;opacity:.8;font-weight:500}
 .section-title .email-badge{font-size:.7rem;background:rgba(255,255,255,.2);padding:3px 10px;border-radius:4px;font-weight:500}
 
@@ -92,12 +94,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .task-row.completed .task-name{text-decoration:line-through;color:var(--gray-400)}
 .task-row.renton-item{background:var(--renton-bg)}
 .task-row.renton-item:hover{background:#fed7aa}
+.task-row.issaquah-item{background:var(--issaquah-bg)}
+.task-row.issaquah-item:hover{background:#ccfbf1}
 
 .task-checkbox{width:22px;height:22px;border-radius:6px;border:2px solid var(--gray-300);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;font-size:.75rem;user-select:none}
 .task-checkbox.checked{background:var(--success);border-color:var(--success);color:#fff}
 .task-checkbox:hover{border-color:var(--success)}
 .task-checkbox.renton-check.checked{background:var(--renton-light);border-color:var(--renton-light)}
 .task-checkbox.renton-check:hover{border-color:var(--renton-light)}
+.task-checkbox.issaquah-check.checked{background:var(--issaquah-light);border-color:var(--issaquah-light)}
+.task-checkbox.issaquah-check:hover{border-color:var(--issaquah-light)}
 
 .task-info{flex:1;min-width:0}
 .task-name{font-weight:600;font-size:.9rem}
@@ -121,8 +127,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .suggestion-item:last-child{border-bottom:none}
 .add-task-renton{background:var(--renton-bg)}
 .add-task-renton input{background:#fff}
+.add-task-issaquah{background:var(--issaquah-bg)}
+.add-task-issaquah input{background:#fff}
 
 .email-callout{margin-top:8px;background:var(--renton-bg);border:1px solid #fdba74;border-radius:var(--radius);padding:10px 16px;font-size:.82rem;color:var(--renton);display:flex;align-items:center;gap:8px}
+.email-callout.issaquah-callout{background:var(--issaquah-bg);border-color:#5eead4;color:var(--issaquah)}
 
 /* Week view */
 .week-view{padding:0 24px 24px}
@@ -138,10 +147,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .week-section-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:5px 10px 2px}
 .week-section-label.prep-label{color:var(--primary)}
 .week-section-label.renton-label{color:var(--renton)}
+.week-section-label.issaquah-label{color:var(--issaquah)}
 .week-task{font-size:.73rem;padding:2px 10px;display:flex;align-items:center;gap:5px}
 .week-task .mini-check{width:12px;height:12px;border-radius:3px;border:1.5px solid var(--gray-300);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.5rem}
 .week-task .mini-check.done{background:var(--success);border-color:var(--success);color:#fff}
 .week-task .mini-check.renton-done{background:var(--renton-light);border-color:var(--renton-light);color:#fff}
+.week-task .mini-check.issaquah-done{background:var(--issaquah-light);border-color:var(--issaquah-light);color:#fff}
 .week-task .task-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--gray-600)}
 .week-task .task-text.done-text{text-decoration:line-through;color:var(--gray-400)}
 .week-separator{border-top:1px dashed var(--gray-200);margin:2px 10px}
@@ -169,6 +180,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .month-badge{font-size:.6rem;font-weight:600;padding:1px 5px;border-radius:3px}
 .month-badge.prep-badge{background:var(--primary-bg);color:var(--primary)}
 .month-badge.renton-badge{background:var(--renton-bg);color:var(--renton)}
+.month-badge.issaquah-badge{background:var(--issaquah-bg);color:var(--issaquah)}
 .month-badge.all-done{background:#dcfce7;color:var(--success)}
 
 @media(max-width:900px){.week-grid{grid-template-columns:repeat(1,1fr)}.week-col{min-height:auto}.week-col-header{display:none}.month-grid{grid-template-columns:repeat(7,1fr);gap:2px}.month-cell{min-height:52px;padding:3px 4px}.month-badge{font-size:.55rem}}
@@ -328,14 +340,14 @@ function setView(view) {
 
 // ==================== DATA ====================
 // Firestore path: weekly-tasks/nnc-iss/days/{YYYY-MM-DD}
-// Doc structure: { prep: [...], renton: [...], updatedAt, updatedBy }
+// Doc structure: { prep: [...], renton: [...], issaquah: [...], updatedAt, updatedBy }
 // Each task: { id, text, done, assignee, completedAt, notes, createdBy, createdAt }
 
-let dayCache = {}; // dateKey -> { prep: [], renton: [] }
-let taskSuggestions = { prep: [], renton: [] }; // previously used task texts
+let dayCache = {}; // dateKey -> { prep: [], renton: [], issaquah: [] }
+let taskSuggestions = { prep: [], renton: [], issaquah: [] }; // previously used task texts
 
 function getDayData(dk) {
-  return dayCache[dk] || { prep: [], renton: [] };
+  return dayCache[dk] || { prep: [], renton: [], issaquah: [] };
 }
 
 function genId() {
@@ -349,6 +361,7 @@ async function saveDayData(dk, data) {
     await db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(dk).set({
       prep: data.prep || [],
       renton: data.renton || [],
+      issaquah: data.issaquah || [],
       updatedAt: new Date(),
       updatedBy: auth.currentUser.email
     });
@@ -364,7 +377,7 @@ function setupDayListener() {
   unsubDay = db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(dk).onSnapshot(snap => {
     if (snap.exists) {
       const data = snap.data();
-      dayCache[dk] = { prep: data.prep || [], renton: data.renton || [] };
+      dayCache[dk] = { prep: data.prep || [], renton: data.renton || [], issaquah: data.issaquah || [] };
     }
     render();
   });
@@ -380,7 +393,7 @@ async function fetchWeekData(refDate) {
       const snap = await db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(dk).get();
       if (snap.exists) {
         const data = snap.data();
-        dayCache[dk] = { prep: data.prep || [], renton: data.renton || [] };
+        dayCache[dk] = { prep: data.prep || [], renton: data.renton || [], issaquah: data.issaquah || [] };
       }
     } catch(e) { /* silent */ }
   });
@@ -388,7 +401,7 @@ async function fetchWeekData(refDate) {
 }
 
 // ==================== SUGGESTIONS ====================
-// Stored in Firestore at weekly-tasks/nnc-iss (the parent doc) as { suggestions: { prep: [...], renton: [...] } }
+// Stored in Firestore at weekly-tasks/nnc-iss (the parent doc) as { suggestions: { prep: [...], renton: [...], issaquah: [...] } }
 async function loadSuggestions() {
   try {
     const snap = await db.collection('weekly-tasks').doc('nnc-iss').get();
@@ -455,7 +468,7 @@ function hideSuggestions(section) {
 
 // ==================== TASK ACTIONS ====================
 function addTask(section) {
-  const inputId = section === 'prep' ? 'prepInput' : 'rentonInput';
+  const inputId = section === 'prep' ? 'prepInput' : (section === 'renton' ? 'rentonInput' : 'issaquahInput');
   const input = document.getElementById(inputId);
   if (!input) return;
   const text = input.value.trim();
@@ -573,15 +586,18 @@ function renderStats() {
   const data = getDayData(dk);
   const prepTasks = data.prep || [];
   const rentonTasks = data.renton || [];
+  const issaquahTasks = data.issaquah || [];
   const prepDone = prepTasks.filter(t => t.done).length;
   const rentonDone = rentonTasks.filter(t => t.done).length;
-  const total = prepTasks.length + rentonTasks.length;
-  const totalDone = prepDone + rentonDone;
+  const issaquahDone = issaquahTasks.filter(t => t.done).length;
+  const total = prepTasks.length + rentonTasks.length + issaquahTasks.length;
+  const totalDone = prepDone + rentonDone + issaquahDone;
   const pct = total > 0 ? Math.round(totalDone / total * 100) : 0;
 
   document.getElementById('statsBar').innerHTML = `
     <div class="stat-card"><div class="label">Prep Tasks</div><div class="value">${prepDone} / ${prepTasks.length}</div></div>
     <div class="stat-card"><div class="label">Send to Renton</div><div class="value">${rentonDone} / ${rentonTasks.length}</div></div>
+    <div class="stat-card"><div class="label">Send to Issaquah</div><div class="value">${issaquahDone} / ${issaquahTasks.length}</div></div>
     <div class="stat-card"><div class="label">Today's Progress</div><div class="value ${pct>=100?'good':pct>0?'warn':''}">${total>0?pct+'%':'—'}</div></div>
   `;
 }
@@ -591,8 +607,10 @@ function renderDayView() {
   const data = getDayData(dk);
   const prepTasks = data.prep || [];
   const rentonTasks = data.renton || [];
+  const issaquahTasks = data.issaquah || [];
   const prepDone = prepTasks.filter(t => t.done).length;
   const rentonDone = rentonTasks.filter(t => t.done).length;
+  const issaquahDone = issaquahTasks.filter(t => t.done).length;
 
   // Figure out the "email sent" date (day before current)
   const prevDate = new Date(currentDate);
@@ -683,6 +701,51 @@ function renderDayView() {
     <span>Send to Renton items are included in the <strong>daily kitchen order email sent on ${emailDateStr}</strong> so Renton knows what to expect.</span>
   </div></div>`;
 
+  // ---- SEND TO ISSAQUAH SECTION ----
+  html += `<div class="task-section">
+    <div class="section-title issaquah">
+      <span>📥 Send to Issaquah</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="email-badge">In ${emailDateStr} kitchen order email</span>
+        <span class="count">${issaquahDone} of ${issaquahTasks.length} received</span>
+      </div>
+    </div>
+    <div class="task-list">`;
+
+  issaquahTasks.forEach(t => {
+    const doneClass = t.done ? ' completed' : '';
+    const checkClass = t.done ? ' checked' : '';
+    const timeStr = t.completedAt ? formatTime(t.completedAt) : 'Pending';
+    const timeClass = t.done ? 'task-time done' : 'task-time';
+    html += `<div class="task-row issaquah-item${doneClass}">
+      <div class="task-checkbox issaquah-check${checkClass}" onclick="toggleTask('issaquah','${t.id}')">${t.done?'✓':''}</div>
+      <div class="task-info">
+        <div class="task-name">${esc(t.text)}</div>
+        ${t.notes ? `<div class="task-note">${esc(t.notes)}</div>` : ''}
+        ${!t.done ? `<input class="task-note-input" placeholder="Add note..." value="${esc(t.notes||'')}" onchange="updateTaskNotes('issaquah','${t.id}',this.value)" onclick="event.stopPropagation()">` : ''}
+      </div>
+      <div class="task-right">
+        ${t.assignee ? `<span class="task-assignee">${esc(t.assignee)}</span>` : ''}
+        <span class="${timeClass}">${timeStr}</span>
+        <span class="task-delete" onclick="deleteTask('issaquah','${t.id}')" title="Remove">✕</span>
+      </div>
+    </div>`;
+  });
+
+  if (issaquahTasks.length === 0) {
+    html += `<div style="padding:20px;text-align:center;color:var(--gray-400);font-size:.85rem">No items requested from Renton for this day yet</div>`;
+  }
+
+  html += `<div class="add-task-row add-task-issaquah">
+    <input type="text" id="issaquahInput" placeholder="+ Add item to request from Renton..." onkeydown="if(event.key==='Enter')addTask('issaquah')" onfocus="showSuggestions('issaquah',this)" oninput="showSuggestions('issaquah',this)" onblur="hideSuggestions('issaquah')">
+    <button class="btn btn-sm" style="background:var(--issaquah-light);color:#fff" onclick="addTask('issaquah')">Add</button>
+  </div></div>`;
+
+  html += `<div class="email-callout issaquah-callout">
+    <span style="font-size:1.1rem">📧</span>
+    <span>Send to Issaquah items are included in the <strong>daily kitchen order email sent on ${emailDateStr}</strong> — these are items Issaquah is requesting from Renton.</span>
+  </div></div>`;
+
   document.getElementById('dayView').innerHTML = html;
 }
 
@@ -701,10 +764,10 @@ async function renderWeekView() {
 
   weekDates.forEach(d => {
     const dk = dateKey(d);
-    const data = dayCache[dk] || { prep: [], renton: [] };
+    const data = dayCache[dk] || { prep: [], renton: [], issaquah: [] };
     const isToday = d.getTime() === today.getTime();
-    const totalTasks = (data.prep||[]).length + (data.renton||[]).length;
-    const doneTasks = (data.prep||[]).filter(t=>t.done).length + (data.renton||[]).filter(t=>t.done).length;
+    const totalTasks = (data.prep||[]).length + (data.renton||[]).length + (data.issaquah||[]).length;
+    const doneTasks = (data.prep||[]).filter(t=>t.done).length + (data.renton||[]).filter(t=>t.done).length + (data.issaquah||[]).filter(t=>t.done).length;
     const allDone = totalTasks > 0 && doneTasks === totalTasks;
     const dayLabel = `${DAY_SHORT[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}`;
 
@@ -732,6 +795,18 @@ async function renderWeekView() {
       });
       if ((data.renton||[]).length > 4) {
         html += `<div style="font-size:.68rem;color:var(--renton-light);padding:1px 10px;font-weight:600">+${data.renton.length - 4} more</div>`;
+      }
+    }
+
+    // Issaquah tasks
+    if ((data.issaquah||[]).length > 0) {
+      html += `<div class="week-separator"></div>`;
+      html += `<div class="week-section-label issaquah-label">Issaquah</div>`;
+      (data.issaquah||[]).slice(0, 4).forEach(t => {
+        html += `<div class="week-task"><span class="mini-check${t.done?' issaquah-done':''}">${t.done?'✓':''}</span><span class="task-text${t.done?' done-text':''}">${esc(t.text)}</span></div>`;
+      });
+      if ((data.issaquah||[]).length > 4) {
+        html += `<div style="font-size:.68rem;color:var(--issaquah-light);padding:1px 10px;font-weight:600">+${data.issaquah.length - 4} more</div>`;
       }
     }
 
@@ -780,7 +855,7 @@ async function fetchMonthData(year, month) {
           .then(snap => {
             if (snap.exists) {
               const data = snap.data();
-              dayCache[dkCopy] = { prep: data.prep || [], renton: data.renton || [] };
+              dayCache[dkCopy] = { prep: data.prep || [], renton: data.renton || [], issaquah: data.issaquah || [] };
             }
           })
           .catch(() => {})
@@ -826,13 +901,15 @@ async function renderMonthView() {
     const isToday = d.getTime() === today.getTime();
     const isSelected = dk === dateKey(currentDate);
     const isOutside = d.getMonth() !== month;
-    const data = dayCache[dk] || { prep: [], renton: [] };
+    const data = dayCache[dk] || { prep: [], renton: [], issaquah: [] };
     const prepCount = (data.prep || []).length;
     const rentonCount = (data.renton || []).length;
+    const issaquahCount = (data.issaquah || []).length;
     const prepDone = (data.prep || []).filter(t => t.done).length;
     const rentonDone = (data.renton || []).filter(t => t.done).length;
-    const totalTasks = prepCount + rentonCount;
-    const totalDone = prepDone + rentonDone;
+    const issaquahDone = (data.issaquah || []).filter(t => t.done).length;
+    const totalTasks = prepCount + rentonCount + issaquahCount;
+    const totalDone = prepDone + rentonDone + issaquahDone;
     const allDone = totalTasks > 0 && totalDone === totalTasks;
 
     let classes = 'month-cell';
@@ -850,6 +927,7 @@ async function renderMonthView() {
       } else {
         if (prepCount > 0) html += `<span class="month-badge prep-badge">P:${prepDone}/${prepCount}</span>`;
         if (rentonCount > 0) html += `<span class="month-badge renton-badge">R:${rentonDone}/${rentonCount}</span>`;
+        if (issaquahCount > 0) html += `<span class="month-badge issaquah-badge">I:${issaquahDone}/${issaquahCount}</span>`;
       }
       html += '</div>';
     }

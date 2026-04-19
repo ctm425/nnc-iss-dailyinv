@@ -305,6 +305,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <div class="send-to-box issaquah">
       <div class="send-to-label">&#x1F4E6; Send to Issaquah</div>
       <textarea id="sendToIssaquah" placeholder="Type items to send to Issaquah..." onchange="saveSendToField('sendToIssaquah',this.value)" oninput="saveSendToField('sendToIssaquah',this.value)"></textarea>
+      <div id="issaquahTasksIndicator" style="display:none;font-size:.72rem;color:#0f766e;padding:4px 8px;background:#f0fdfa;border-radius:0 0 6px 6px;border:1px solid #5eead4;border-top:none">📋 Auto-loaded from Weekly Tasks — edit freely or add more items</div>
     </div>
   </div>
 
@@ -696,13 +697,15 @@ function loadSendToFields(){
   const st=dd.__sendTo||{};
   document.getElementById('sendToRenton').value=st.sendToRenton||'';
   document.getElementById('sendToIssaquah').value=st.sendToIssaquah||'';
-  // After loading saved fields, fetch weekly-tasks Renton items for next day
-  // Email sent on 4/17 = delivery on 4/18, so fetch 4/18's Renton tasks
+  // After loading saved fields, fetch weekly-tasks items for next day
+  // Email sent on 4/17 = delivery on 4/18, so fetch 4/18's tasks
   fetchRentonTasksForNextDay();
+  fetchIssaquahTasksForNextDay();
 }
 
 // Track what was auto-populated so we don't overwrite manual edits
 let lastAutoPopulatedRenton='';
+let lastAutoPopulatedIssaquah='';
 
 async function fetchRentonTasksForNextDay(){
   const indicator=document.getElementById('rentonTasksIndicator');
@@ -752,6 +755,56 @@ async function fetchRentonTasksForNextDay(){
   }catch(e){
     console.warn('Failed to fetch weekly-tasks for Renton:',e);
     // Non-fatal — the send-to-renton field still works manually
+  }
+}
+
+async function fetchIssaquahTasksForNextDay(){
+  const indicator=document.getElementById('issaquahTasksIndicator');
+  if(indicator)indicator.style.display='none';
+  if(!auth.currentUser)return;
+  try{
+    // Email sent on date X covers delivery on X+1
+    // Weekly-tasks "Send to Issaquah" for X+1 = what Issaquah is requesting from Renton tomorrow
+    const nextDay=new Date(currentDate);
+    nextDay.setDate(nextDay.getDate()+1);
+    const nextDk=`${nextDay.getFullYear()}-${String(nextDay.getMonth()+1).padStart(2,'0')}-${String(nextDay.getDate()).padStart(2,'0')}`;
+
+    const snap=await db.collection('weekly-tasks').doc('nnc-iss').collection('days').doc(nextDk).get();
+    if(!snap.exists)return;
+    const data=snap.data();
+    const issaquahTasks=(data.issaquah||[]).filter(t=>t.text&&t.text.trim());
+    if(issaquahTasks.length===0)return;
+
+    // Format tasks as a bullet list
+    const taskLines=issaquahTasks.map(t=>{
+      let line='• '+t.text.trim();
+      if(t.notes&&t.notes.trim())line+=' ('+t.notes.trim()+')';
+      if(t.done)line+=' ✓';
+      return line;
+    }).join('\n');
+
+    const textarea=document.getElementById('sendToIssaquah');
+    const currentVal=(textarea.value||'').trim();
+
+    // Only auto-populate if:
+    // 1. The textarea is empty, OR
+    // 2. The current content matches what we previously auto-populated (user hasn't edited it)
+    if(currentVal===''||currentVal===lastAutoPopulatedIssaquah){
+      textarea.value=taskLines;
+      lastAutoPopulatedIssaquah=taskLines;
+      // Save to the day's data so it persists and shows up in the email
+      saveSendToField('sendToIssaquah',taskLines);
+      if(indicator)indicator.style.display='block';
+    }else if(currentVal&&!currentVal.includes(taskLines)){
+      // User has manual content that differs — show indicator but don't overwrite
+      if(indicator){
+        indicator.textContent='📋 Weekly Tasks has '+issaquahTasks.length+' Issaquah item(s) for tomorrow — your manual edits are preserved';
+        indicator.style.display='block';
+      }
+    }
+  }catch(e){
+    console.warn('Failed to fetch weekly-tasks for Issaquah:',e);
+    // Non-fatal — the send-to-issaquah field still works manually
   }
 }
 
