@@ -573,10 +573,68 @@
 
         populateCategoryFilter();
         render();
+        setupRealtimeListeners();
       } catch (error) {
         console.error('Error loading data:', error);
         tableContainer.innerHTML = '<div class="empty-state"><p>Error loading data. Please refresh.</p></div>';
       }
+    }
+
+    // ==================== REAL-TIME LISTENERS ====================
+    // Subscribe to transfer collections so that when any transfer is submitted
+    // or accepted, we re-run loadAllData to pick up the source decrement and
+    // destination increment. Keep the subscription array so we can unsubscribe
+    // on re-run (prevents duplicate listeners if loadAllData is called again).
+    let transferUnsubs = [];
+    let reloadDebounce = null;
+    function setupRealtimeListeners() {
+      // Tear down any existing subscriptions first
+      transferUnsubs.forEach(fn => { try { fn(); } catch(e) {} });
+      transferUnsubs = [];
+
+      const scheduleReload = () => {
+        clearTimeout(reloadDebounce);
+        // Debounce: a transfer typically writes multiple docs in quick succession
+        // (ledger + source + destination). Wait for the flurry to settle.
+        reloadDebounce = setTimeout(() => {
+          if (dataLoaded) {
+            console.log('[total-inventory] Transfer detected — reloading');
+            loadAllData();
+          }
+        }, 800);
+      };
+
+      // Helper: onSnapshot fires immediately on attach with the current top-1
+      // doc. If we reacted to that, we'd loop forever (reload → resubscribe →
+      // initial fire → reload). Skip the first snapshot per listener.
+      const subscribeSkipFirst = (query, label) => {
+        let first = true;
+        return query.onSnapshot(() => {
+          if (first) { first = false; return; }
+          scheduleReload();
+        }, err => console.warn(`${label} listener error:`, err));
+      };
+
+      try {
+        transferUnsubs.push(subscribeSkipFirst(
+          db.collection('storage_transfers').orderBy('timestamp', 'desc').limit(1),
+          'storage_transfers'
+        ));
+      } catch(e) { console.warn('Could not subscribe to storage_transfers:', e); }
+
+      try {
+        transferUnsubs.push(subscribeSkipFirst(
+          db.collection('inter_transfers').orderBy('createdAt', 'desc').limit(1),
+          'inter_transfers'
+        ));
+      } catch(e) { console.warn('Could not subscribe to inter_transfers:', e); }
+
+      try {
+        transferUnsubs.push(subscribeSkipFirst(
+          db.collection('warehouse_transfers').orderBy('timestamp', 'desc').limit(1),
+          'warehouse_transfers'
+        ));
+      } catch(e) { console.warn('Could not subscribe to warehouse_transfers:', e); }
     }
 
     // ==================== WAREHOUSE (renton-wh) ====================

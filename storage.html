@@ -933,11 +933,14 @@ async function confirmTransfer() {
   }
 
   if (isOwner) {
-    // Owner: immediately adjust inventory count
+    // Owner: immediately adjust source inventory count
     const wk = weekKey();
     const newCount = transferModalItem.currentCount - qty;
     setField(wk, activeCategory, transferModalItem.itemId, 'count', newCount);
     showToast(`Transferred ${qty} ${transferModalItem.itemName.split('(')[0]}`);
+    // Also increment the destination (nnc-iss) inventory so total-inventory reflects the move.
+    // Fire-and-forget — don't block the modal close on this.
+    incrementDestinationForTransfer(transferModalItem.itemId, transferModalItem.itemName, qty, 'nnc-iss');
   } else {
     // Non-owner: do NOT adjust count — wait for owner approval
     showToast('Transfer request submitted — awaiting owner approval');
@@ -945,6 +948,71 @@ async function confirmTransfer() {
 
   closeTransferModal();
   render();
+}
+
+// When a storage→location transfer is accepted, increment the destination's
+// inventory_weeks doc so total-inventory.html reflects the physical move.
+// Strategy: look up the item ID in the destination's inventory_config docs
+// (frozen/drygoods/supplies). If matched in exactly one, atomically increment
+// today's inventory_weeks doc using FieldValue.increment. On 0 or >1 matches,
+// surface a warning so the user can reconcile manually.
+async function incrementDestinationForTransfer(itemId, itemName, qty, destKey) {
+  if (!auth.currentUser || !itemId || !qty) return;
+  const DEST_CATEGORIES = ['frozen', 'drygoods', 'supplies'];
+  try {
+    // Find which destination config(s) contain this item ID
+    const matches = [];
+    for (const cat of DEST_CATEGORIES) {
+      try {
+        const configDoc = await db.collection('inventory_config').doc(`${cat}_${destKey}`).get();
+        if (!configDoc.exists) continue;
+        const items = configDoc.data().items || [];
+        if (Array.isArray(items) && items.some(i => i && i.id === itemId)) {
+          matches.push(cat);
+        }
+      } catch(e) { console.warn(`Destination config check failed for ${cat}:`, e); }
+    }
+
+    if (matches.length === 0) {
+      showToast(`⚠ "${itemName}" not found in Issaquah inventory — please add it there manually`);
+      console.warn(`No destination config match for itemId=${itemId} in ${destKey}`);
+      return;
+    }
+    if (matches.length > 1) {
+      showToast(`⚠ "${itemName}" exists in multiple Issaquah lists (${matches.join(', ')}) — count not auto-updated, verify manually`);
+      console.warn(`Multiple destination configs for itemId=${itemId}: ${matches.join(', ')}`);
+      return;
+    }
+
+    const cat = matches[0];
+    // Target today's doc — managers enter daily counts, so incrementing today's
+    // is the least surprising place for the new stock to appear.
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const docPath = `${cat}_${destKey}_${today}`;
+
+    // Atomic increment via FieldValue.increment — set+merge creates the doc
+    // if it doesn't exist and preserves any sibling items already written today.
+    await db.collection('inventory_weeks').doc(docPath).set({
+      [itemId]: {
+        count: firebase.firestore.FieldValue.increment(qty)
+      },
+      __lastTransferIn: {
+        itemId,
+        itemName,
+        qty,
+        from: 'storage',
+        at: new Date().toISOString(),
+        by: auth.currentUser.email
+      },
+      updatedAt: new Date(),
+      updatedBy: auth.currentUser.email
+    }, { merge: true });
+    console.log(`Incremented ${qty} of ${itemId} in inventory_weeks/${docPath}`);
+  } catch(e) {
+    console.error('Destination increment error:', e);
+    showToast('⚠ Failed to update Issaquah inventory — source was still deducted');
+  }
 }
 
 // ==================== TRANSFERS TAB ====================
