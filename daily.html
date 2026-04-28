@@ -2578,7 +2578,345 @@ function buildReportHTML(){
   return tableRows;
 }
 
+// ==================== PRE-SEND VALIDATION DIALOG ====================
+// Four-check pre-send validator. Wraps sendReport() to surface staff errors
+// before the email goes out. See memory: precheck-order-validator.md for the
+// full spec and how to port this to other order pages (produce-daily.html etc).
+//
+// Checks performed (in display order):
+//   1. MISSING PM   — d.pm is undefined/null/'' → hard block (with "Not stocked
+//                     today — skip" override that pulls the item from this list
+//                     and re-runs the other checks against it).
+//   2. EXTRA QTY    — d.extraOrder > 0 and no reason → hard block. Reason
+//                     dropdown shown inline; picking a reason persists via
+//                     setField(key,itemId,'reason',value).
+//   3. SHORT TMRW   — total === 0 AND pm < tmrwPar → soft block. Per-item
+//                     "I know — accept shortage" checkbox required.
+//   4. ZERO ORDER   — total === 0 AND pm >= tmrwPar → soft block. Per-item
+//                     "Confirmed — not needed" checkbox required.
+// On Sundays with sundayOrdersEnabled=false, totals are forced to 0; we skip
+// checks 3 + 4 entirely on those days. Checks 1 + 2 still run.
+//
+// Default UI language is Spanish (kitchen staff). Toggle persists per-device.
+
+const PRECHECK_I18N = {
+  en: {
+    titleConfirm:'Confirm Daily Order',
+    titleReview:'Review Order Before Sending',
+    cleanSummary:'<b>Looks good.</b> No missing reasons, no unexpected zero orders, no short items.',
+    cleanSummarySunday:'<i>Sunday no-order day — zero-order checks skipped.</i>',
+    cleanCta:'Press <b>Send Order</b> to email the kitchen order to recipients.',
+    summaryFound:'Found', summaryResolve:'. Resolve below before sending.',
+    summaryNoIssues:'No issues found',
+    summaryReady:'All checks complete — ready to send',
+    summaryWaiting:'Resolve all items above to enable Send',
+    blockerMissing:'<b>Send blocked:</b> PM count must be entered for every item (or marked "not stocked today").',
+    blockerExtra:'<b>Send blocked:</b> reasons must be selected for all items in the "Extra Quantity" section.',
+    bitsMissing:'missing PM', bitsShort:'short tomorrow',
+    bitsZero:'zero-order to confirm', bitsExtra:'extra qty needing reason',
+    secMissingTitle:'Missing PM count',
+    secMissingHelp:'No PM count was entered for these items. Without a count, the order math can\'t be trusted. Cancel and enter the PM counts on the grid, or flag the item as "not stocked today" if it genuinely isn\'t being used.',
+    secShortTitle:'Short tomorrow',
+    secShortHelp:'PM count is below tomorrow\'s par AND nothing is being ordered. The kitchen <b>will run out</b> tomorrow unless you order or confirm you accept the shortage.',
+    secZeroTitle:'Zero order — confirm not needed',
+    secZeroHelp:'These items have no order placed. PM count looks adequate — confirm that\'s intentional, or cancel and add to the order on the grid.',
+    secExtraTitle:'Extra quantity — reason required',
+    secExtraHelp:'An "Extra" amount was added on top of the normal order. Pick a reason so the kitchen and warehouse know why.',
+    statAm:'AM', statPm:'PM', statTmrwPar:'Tmrw par', statOrder:'Order', statExtra:'Extra', statMissing:'— missing —',
+    ackShort:'I know — accept shortage', ackZero:'Confirmed — not needed', ackSkip:'Not stocked today — skip',
+    pickReason:'— pick reason —', btnSend:'Send Order', btnCancel:'Cancel — back to grid',
+    items:(n)=> n===1?'item':'items',
+    reasons:{slow:'Business Slow',sufficient:'Sufficient Qty on Hand',catering:'Catering/Large Order',holiday:'Holiday',prep:'Additional Prep Needed',other:'Other'}
+  },
+  es: {
+    titleConfirm:'Confirmar Orden Diaria',
+    titleReview:'Revisar Orden Antes de Enviar',
+    cleanSummary:'<b>Todo bien.</b> No faltan razones, no hay órdenes en cero inesperadas, ni artículos faltantes.',
+    cleanSummarySunday:'<i>Domingo sin orden — verificaciones de orden cero omitidas.</i>',
+    cleanCta:'Presione <b>Enviar Orden</b> para enviar la orden de cocina por correo.',
+    summaryFound:'Encontrado', summaryResolve:'. Resuelva los puntos antes de enviar.',
+    summaryNoIssues:'Sin problemas',
+    summaryReady:'Todo listo — puede enviar',
+    summaryWaiting:'Resuelva los puntos de arriba para habilitar Enviar',
+    blockerMissing:'<b>Envío bloqueado:</b> debe ingresar el conteo PM de cada artículo (o marcar "no se usa hoy").',
+    blockerExtra:'<b>Envío bloqueado:</b> debe seleccionar una razón para cada artículo en "Cantidad Extra".',
+    bitsMissing:'PM faltante', bitsShort:'faltará mañana',
+    bitsZero:'orden cero por confirmar', bitsExtra:'cantidad extra necesita razón',
+    secMissingTitle:'Falta el conteo PM',
+    secMissingHelp:'No se ingresó el conteo PM para estos artículos. Sin el conteo, los cálculos de la orden no son confiables. Cancele e ingrese los conteos PM en la tabla, o marque "no se usa hoy" si el artículo realmente no se está usando.',
+    secShortTitle:'Faltará mañana',
+    secShortHelp:'El conteo PM está por debajo del par de mañana Y no se está ordenando nada. La cocina <b>se quedará sin producto</b> mañana a menos que ordene o confirme que acepta la falta.',
+    secZeroTitle:'Orden cero — confirmar que no se necesita',
+    secZeroHelp:'Estos artículos no tienen orden. El conteo PM parece adecuado — confirme que es intencional, o cancele y añada a la orden en la tabla.',
+    secExtraTitle:'Cantidad extra — se requiere razón',
+    secExtraHelp:'Se agregó una cantidad "Extra" sobre la orden normal. Elija una razón para que la cocina y el almacén sepan por qué.',
+    statAm:'AM', statPm:'PM', statTmrwPar:'Par mañana', statOrder:'Orden', statExtra:'Extra', statMissing:'— falta —',
+    ackShort:'Lo sé — acepto la falta', ackZero:'Confirmado — no se necesita', ackSkip:'No se usa hoy — omitir',
+    pickReason:'— elija una razón —', btnSend:'Enviar Orden', btnCancel:'Cancelar — volver',
+    items:(n)=> n===1?'artículo':'artículos',
+    reasons:{slow:'Negocio lento',sufficient:'Cantidad suficiente',catering:'Catering / Orden grande',holiday:'Día festivo',prep:'Necesita más preparación',other:'Otro'}
+  }
+};
+
+let _precheckLang = (function(){try{return localStorage.getItem('nnc.dailyDialog.lang')||'es'}catch(e){return 'es'}})();
+let _precheckPendingReasons = {};      // itemId -> reason key (persisted on confirm)
+let _precheckChecks = {};              // 'short_'+id, 'zero_'+id, 'skip_'+id -> bool
+let _precheckOnConfirm = null;         // post-validation send callback
+
+function _pcT(k){const e=PRECHECK_I18N[_precheckLang];return e&&e[k]!==undefined?e[k]:PRECHECK_I18N.en[k]}
+function _pcReason(k){const e=PRECHECK_I18N[_precheckLang];return (e&&e.reasons&&e.reasons[k])||REASON_LABELS[k]||k}
+function _pcSetLang(l){
+  _precheckLang=(l==='en')?'en':'es';
+  try{localStorage.setItem('nnc.dailyDialog.lang',_precheckLang)}catch(e){}
+  const en=document.getElementById('pcLangEn'),es=document.getElementById('pcLangEs');
+  if(en)en.classList.toggle('active',_precheckLang==='en');
+  if(es)es.classList.toggle('active',_precheckLang==='es');
+  if(document.getElementById('pcModalBack')&&document.getElementById('pcModalBack').classList.contains('show'))_renderPrecheckModal();
+}
+
+function _classifyOrder(){
+  const out={missingPM:[],short:[],zeroConfirm:[],extraNoReason:[]};
+  const dd=getDayData(dk(currentDate));
+  const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
+  const kitchenItems=items.filter(i=>i.category==='kitchen'&&!i.excludeFromEmail);
+  const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+  kitchenItems.forEach(item=>{
+    const d=dd[item.id]||{};
+    const pm=d.pm;
+    const pmMissing=(pm===undefined||pm===null||pm==='');
+    const tmrwPar=getPar(item,nextDay);
+    const autoNo=calcNormalOrder(item,pm);
+    const no=(d.manualOrder===true&&d.normalOrder!==undefined)?Number(d.normalOrder):autoNo;
+    const eo=Number(d.extraOrder||0);
+    const total=sunNoOrder?0:r2((Number(no)||0)+eo);
+    const hasReason=!!(d.reason && String(d.reason).trim()) || !!(_precheckPendingReasons[item.id] && String(_precheckPendingReasons[item.id]).trim());
+    const ctx={item,pm,no,eo,total,tmrwPar,unit:item.unit||''};
+
+    if(pmMissing){
+      if(!_precheckChecks['skip_'+item.id]){out.missingPM.push(ctx);return}
+    }
+    if(eo>0 && !hasReason){out.extraNoReason.push(ctx)}
+    if(!sunNoOrder && total===0 && !pmMissing){
+      if(Number(pm) < Number(tmrwPar)) out.short.push(ctx); else out.zeroConfirm.push(ctx);
+    }
+  });
+  return out;
+}
+
+function _ensurePrecheckUI(){
+  if(document.getElementById('pcModalBack'))return;
+  const style=document.createElement('style');
+  style.textContent=`
+    .pc-back{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:flex-start;justify-content:center;padding:30px 16px;overflow-y:auto;z-index:9999}
+    .pc-back.show{display:flex}
+    .pc-modal{background:#fff;width:100%;max-width:720px;border-radius:12px;box-shadow:0 25px 60px rgba(0,0,0,.25);overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+    .pc-head{padding:16px 20px;background:var(--primary);color:#fff;display:flex;justify-content:space-between;align-items:center}
+    .pc-head h2{margin:0;font-size:15px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
+    .pc-head-right{display:flex;align-items:center;gap:10px}
+    .pc-lang{display:flex;background:rgba(255,255,255,.15);border-radius:999px;padding:2px;font-size:11px;font-weight:700}
+    .pc-lang button{background:transparent;color:#fff;border:none;padding:4px 10px;border-radius:999px;cursor:pointer;letter-spacing:.5px}
+    .pc-lang button.active{background:#fff;color:var(--primary)}
+    .pc-x{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1}
+    .pc-body{padding:14px 20px;max-height:70vh;overflow-y:auto;color:#1f2937}
+    .pc-foot{padding:14px 20px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#fafafa;gap:10px;flex-wrap:wrap}
+    .pc-foot-left{font-size:12px;color:#6b7280}
+    .pc-foot button{padding:9px 16px;border-radius:6px;border:none;font-weight:700;font-size:13px;cursor:pointer}
+    .pc-ghost{background:#fff;color:#1f2937;border:1px solid #e5e7eb}
+    .pc-send{background:var(--success);color:#fff}
+    .pc-send:disabled{background:#9ca3af;cursor:not-allowed}
+    .pc-summary{background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;font-size:12px;margin-bottom:12px}
+    .pc-blocker{background:#fef2f2;color:var(--danger);border:1px solid #fecaca;border-radius:6px;padding:8px 10px;font-size:12px;margin-bottom:10px}
+    .pc-section{border-radius:8px;border:1px solid;padding:12px 14px;margin-bottom:12px}
+    .pc-section h3{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
+    .pc-section p.help{margin:0 0 10px;font-size:12px;line-height:1.5;color:#374151}
+    .pc-missing{background:#1f2937;border-color:#111827;color:#fff}
+    .pc-missing h3{color:#fef2f2}
+    .pc-missing p.help{color:#fef3c7}
+    .pc-short{background:#fef2f2;border-color:#fecaca}
+    .pc-short h3{color:var(--danger)}
+    .pc-confirm{background:#fffbeb;border-color:#fde68a}
+    .pc-confirm h3{color:#b45309}
+    .pc-extra{background:#fff7ed;border-color:#fed7aa}
+    .pc-extra h3{color:#9a3412}
+    .pc-items{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+    .pc-items li{background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:10px;font-size:12px;flex-wrap:wrap}
+    .pc-items li .nm{font-weight:700;flex:1;min-width:160px}
+    .pc-items li .stat{color:#6b7280;font-size:11px}
+    .pc-items li .stat b{color:#1f2937}
+    .pc-items li select{font-size:12px;padding:5px 7px;border:1px solid #e5e7eb;border-radius:4px;font-family:inherit}
+    .pc-required select{border-color:var(--danger)}
+    .pc-check{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer}
+    .pc-check input{transform:scale(1.1)}
+  `;
+  document.head.appendChild(style);
+  const back=document.createElement('div');
+  back.id='pcModalBack';back.className='pc-back';
+  back.innerHTML=`<div class="pc-modal" role="dialog" aria-modal="true" aria-labelledby="pcModalTitle">
+    <div class="pc-head">
+      <h2 id="pcModalTitle">Confirmar Orden Diaria</h2>
+      <div class="pc-head-right">
+        <div class="pc-lang">
+          <button id="pcLangEn" type="button">EN</button>
+          <button id="pcLangEs" type="button" class="active">ES</button>
+        </div>
+        <button class="pc-x" type="button" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="pc-body" id="pcModalBody"></div>
+    <div class="pc-foot">
+      <div class="pc-foot-left" id="pcModalFootLeft"></div>
+      <div>
+        <button class="pc-ghost" id="pcCancelBtn" type="button">Cancelar — volver</button>
+        <button class="pc-send" id="pcSendBtn" type="button">Enviar Orden</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(back);
+  // wire static handlers
+  document.getElementById('pcLangEn').addEventListener('click',()=>_pcSetLang('en'));
+  document.getElementById('pcLangEs').addEventListener('click',()=>_pcSetLang('es'));
+  back.querySelector('.pc-x').addEventListener('click',_closePrecheck);
+  document.getElementById('pcCancelBtn').addEventListener('click',_closePrecheck);
+  document.getElementById('pcSendBtn').addEventListener('click',_confirmPrecheckAndSend);
+  back.addEventListener('click',e=>{if(e.target===back)_closePrecheck()});
+}
+
+function _openPrecheck(onConfirm){
+  _ensurePrecheckUI();
+  _precheckPendingReasons={};
+  _precheckChecks={};
+  _precheckOnConfirm=onConfirm;
+  _pcSetLang(_precheckLang); // refresh toggle
+  _renderPrecheckModal();
+  document.getElementById('pcModalBack').classList.add('show');
+}
+function _closePrecheck(){
+  const b=document.getElementById('pcModalBack');if(b)b.classList.remove('show');
+  _precheckOnConfirm=null;
+}
+function _confirmPrecheckAndSend(){
+  // Persist any picked reasons via setField (writes localStorage + Firestore)
+  const key=dk(currentDate);
+  Object.entries(_precheckPendingReasons).forEach(([itemId,reason])=>{
+    if(reason && String(reason).trim()) setField(key,itemId,'reason',reason);
+  });
+  const cb=_precheckOnConfirm;
+  _closePrecheck();
+  if(typeof cb==='function') cb();
+}
+
+function _renderPrecheckModal(){
+  const c=_classifyOrder();
+  const sunNoOrder=isSunday(currentDate)&&!sundayOrdersEnabled;
+  const totalIssues=c.missingPM.length+c.short.length+c.zeroConfirm.length+c.extraNoReason.length;
+  const titleEl=document.getElementById('pcModalTitle');
+  const bodyEl=document.getElementById('pcModalBody');
+  const footEl=document.getElementById('pcModalFootLeft');
+  const sendBtn=document.getElementById('pcSendBtn');
+  const cancelBtn=document.getElementById('pcCancelBtn');
+  cancelBtn.textContent=_pcT('btnCancel');
+  sendBtn.textContent=_pcT('btnSend');
+
+  if(totalIssues===0){
+    titleEl.textContent=_pcT('titleConfirm');
+    bodyEl.innerHTML=`<div class="pc-summary">${_pcT('cleanSummary')} ${sunNoOrder?'<br>'+_pcT('cleanSummarySunday'):''}</div>
+      <p style="font-size:13px;color:#374151">${_pcT('cleanCta')}</p>`;
+    footEl.textContent=_pcT('summaryNoIssues');
+    sendBtn.disabled=false;
+    return;
+  }
+  titleEl.textContent=_pcT('titleReview');
+  let html='';
+  const bits=[];
+  if(c.missingPM.length) bits.push(`<b style="color:#111">${c.missingPM.length}</b> ${_pcT('bitsMissing')}`);
+  if(c.short.length) bits.push(`<b style="color:var(--danger)">${c.short.length}</b> ${_pcT('bitsShort')}`);
+  if(c.zeroConfirm.length) bits.push(`<b style="color:#b45309">${c.zeroConfirm.length}</b> ${_pcT('bitsZero')}`);
+  if(c.extraNoReason.length) bits.push(`<b style="color:#9a3412">${c.extraNoReason.length}</b> ${_pcT('bitsExtra')}`);
+  html+=`<div class="pc-summary">${_pcT('summaryFound')} ${bits.join(', ')}${_pcT('summaryResolve')}</div>`;
+  if(c.missingPM.length) html+=`<div class="pc-blocker">${_pcT('blockerMissing')}</div>`;
+  if(c.extraNoReason.length) html+=`<div class="pc-blocker">${_pcT('blockerExtra')}</div>`;
+
+  if(c.missingPM.length){
+    html+=`<div class="pc-section pc-missing"><h3>⛔ ${_pcT('secMissingTitle')} — ${c.missingPM.length} ${_pcT('items')(c.missingPM.length)}</h3><p class="help">${_pcT('secMissingHelp')}</p><ul class="pc-items">`;
+    c.missingPM.forEach(ctx=>{
+      const it=ctx.item;
+      html+=`<li><span class="nm">${it.name}</span>
+        <span class="stat">${_pcT('statAm')} <b>${calcAM(it.id)!==null?r2(calcAM(it.id)):'-'}</b> ${ctx.unit} · ${_pcT('statPm')} <b style="color:var(--danger)">${_pcT('statMissing')}</b> · ${_pcT('statTmrwPar')} <b>${ctx.tmrwPar}</b></span>
+        <label class="pc-check"><input type="checkbox" data-pc-skip="${it.id}" ${_precheckChecks['skip_'+it.id]?'checked':''}> ${_pcT('ackSkip')}</label></li>`;
+    });
+    html+=`</ul></div>`;
+  }
+  if(c.extraNoReason.length){
+    html+=`<div class="pc-section pc-extra"><h3>📝 ${_pcT('secExtraTitle')} (${c.extraNoReason.length})</h3><p class="help">${_pcT('secExtraHelp')}</p><ul class="pc-items">`;
+    c.extraNoReason.forEach(ctx=>{
+      const it=ctx.item;const cur=_precheckPendingReasons[it.id]||'';
+      html+=`<li><span class="nm">${it.name}</span>
+        <span class="stat">${_pcT('statOrder')} <b>${ctx.no}</b> · ${_pcT('statExtra')} <b>+${ctx.eo}</b> = <b>${r2((Number(ctx.no)||0)+ctx.eo)}</b> ${ctx.unit}</span>
+        <span class="${cur?'':'pc-required'}"><select data-pc-reason="${it.id}">
+          <option value="">${_pcT('pickReason')}</option>
+          ${Object.keys(REASON_LABELS).map(k=>`<option value="${k}" ${cur===k?'selected':''}>${_pcReason(k)}</option>`).join('')}
+        </select></span></li>`;
+    });
+    html+=`</ul></div>`;
+  }
+  if(c.short.length){
+    html+=`<div class="pc-section pc-short"><h3>🚨 ${_pcT('secShortTitle')} — ${c.short.length} ${_pcT('items')(c.short.length)}</h3><p class="help">${_pcT('secShortHelp')}</p><ul class="pc-items">`;
+    c.short.forEach(ctx=>{
+      const it=ctx.item;
+      html+=`<li><span class="nm">${it.name}</span>
+        <span class="stat">${_pcT('statPm')} <b>${r2(ctx.pm)}</b> ${ctx.unit} · ${_pcT('statTmrwPar')} <b>${ctx.tmrwPar}</b> · ${_pcT('statOrder')} <b>0</b></span>
+        <label class="pc-check"><input type="checkbox" data-pc-short="${it.id}" ${_precheckChecks['short_'+it.id]?'checked':''}> ${_pcT('ackShort')}</label></li>`;
+    });
+    html+=`</ul></div>`;
+  }
+  if(c.zeroConfirm.length){
+    html+=`<div class="pc-section pc-confirm"><h3>⚠️ ${_pcT('secZeroTitle')} (${c.zeroConfirm.length})</h3><p class="help">${_pcT('secZeroHelp')}</p><ul class="pc-items">`;
+    c.zeroConfirm.forEach(ctx=>{
+      const it=ctx.item;
+      html+=`<li><span class="nm">${it.name}</span>
+        <span class="stat">${_pcT('statPm')} <b>${r2(ctx.pm)}</b> ${ctx.unit} · ${_pcT('statTmrwPar')} <b>${ctx.tmrwPar}</b></span>
+        <label class="pc-check"><input type="checkbox" data-pc-zero="${it.id}" ${_precheckChecks['zero_'+it.id]?'checked':''}> ${_pcT('ackZero')}</label></li>`;
+    });
+    html+=`</ul></div>`;
+  }
+  bodyEl.innerHTML=html;
+  bodyEl.querySelectorAll('[data-pc-reason]').forEach(sel=>{
+    sel.addEventListener('change',e=>{_precheckPendingReasons[e.target.dataset.pcReason]=e.target.value;_renderPrecheckModal()});
+  });
+  bodyEl.querySelectorAll('[data-pc-skip]').forEach(cb=>{
+    cb.addEventListener('change',e=>{_precheckChecks['skip_'+e.target.dataset.pcSkip]=e.target.checked;_renderPrecheckModal()});
+  });
+  bodyEl.querySelectorAll('[data-pc-short]').forEach(cb=>{
+    cb.addEventListener('change',e=>{_precheckChecks['short_'+e.target.dataset.pcShort]=e.target.checked;_updatePrecheckSendBtn()});
+  });
+  bodyEl.querySelectorAll('[data-pc-zero]').forEach(cb=>{
+    cb.addEventListener('change',e=>{_precheckChecks['zero_'+e.target.dataset.pcZero]=e.target.checked;_updatePrecheckSendBtn()});
+  });
+  _updatePrecheckSendBtn();
+}
+function _updatePrecheckSendBtn(){
+  const c=_classifyOrder();
+  const ready=c.missingPM.length===0
+    && c.extraNoReason.length===0
+    && c.short.every(ctx=>_precheckChecks['short_'+ctx.item.id])
+    && c.zeroConfirm.every(ctx=>_precheckChecks['zero_'+ctx.item.id]);
+  const sendBtn=document.getElementById('pcSendBtn');
+  const footEl=document.getElementById('pcModalFootLeft');
+  if(sendBtn) sendBtn.disabled=!ready;
+  if(footEl) footEl.textContent=ready?_pcT('summaryReady'):_pcT('summaryWaiting');
+}
+
+// ==================== END PRE-SEND VALIDATION DIALOG ====================
+
 function sendReport(){
+  // Person-name precheck stays out front so we don't open a validation dialog
+  // only to bail on a missing field after the user resolves all the items.
+  const person=loadInventoryPerson();
+  if(!person){alert('Please enter the inventory person name before sending the report.');document.getElementById('inventoryPerson').focus();return}
+  _openPrecheck(_sendReportNow);
+}
+
+function _sendReportNow(){
   const d=loadData();
   const emails=d.emails||[];
   const person=loadInventoryPerson();
