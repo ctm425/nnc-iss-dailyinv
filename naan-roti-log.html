@@ -536,6 +536,7 @@ const FIELD_DEFS = [
   { key: 'naan_flour_bags', label: 'Naan Bags (50lb)', color: '#4f46e5', default: false, source: 'prep' },
   { key: 'roti_total_trays', label: 'Roti Prep Trays', color: '#7c2d12', default: true, source: 'prep' },
   { key: 'roti_total_doughballs', label: 'Roti Doughballs', color: '#b45309', default: false, source: 'prep' },
+  { key: 'roti_flour', label: 'Roti Flour (lbs)', color: '#c2410c', default: false, source: 'prep' },
   { key: 'roti_flour_bags', label: 'Roti Bags (20lb)', color: '#9a3412', default: false, source: 'prep' },
   { key: 'naan_am', label: 'Naan AM', color: '#0ea5e9', default: false, source: 'usage' },
   { key: 'naan_made', label: 'Naan Made', color: '#6366f1', default: false, source: 'usage' },
@@ -996,6 +997,26 @@ async function loadAllData() {
   }
 }
 
+// Back-fill the new flour fields on legacy prep docs saved before this feature was added.
+// Safe to call repeatedly; only fills fields that are undefined or null.
+// Modifies the in-memory copy only — does NOT persist back to Firestore.
+function backfillFlour(pd) {
+  if (!pd) return pd;
+  if (pd.naan_flour_lbs === undefined || pd.naan_flour_lbs === null) {
+    pd.naan_flour_lbs = (pd.naan_batches || 0) * 16;
+  }
+  if (pd.naan_flour_bags === undefined || pd.naan_flour_bags === null) {
+    pd.naan_flour_bags = Math.round((pd.naan_flour_lbs / 50) * 10) / 10;
+  }
+  if (pd.roti_flour_lbs === undefined || pd.roti_flour_lbs === null) {
+    pd.roti_flour_lbs = pd.roti_flour || 0;
+  }
+  if (pd.roti_flour_bags === undefined || pd.roti_flour_bags === null) {
+    pd.roti_flour_bags = Math.round((pd.roti_flour_lbs / 20) * 10) / 10;
+  }
+  return pd;
+}
+
 async function loadWeekData() {
   const dates = getWeekDates(currentDate);
   prepWeekData = {};
@@ -1004,7 +1025,7 @@ async function loadWeekData() {
   const promises = dates.flatMap(d => {
     const ds = formatDate(d);
     return [
-      db.doc(prepDocPath(ds)).get().then(doc => { if (doc.exists) prepWeekData[ds] = doc.data(); }),
+      db.doc(prepDocPath(ds)).get().then(doc => { if (doc.exists) prepWeekData[ds] = backfillFlour(doc.data()); }),
       db.doc(usageDocPath(ds)).get().then(doc => { if (doc.exists) usageWeekData[ds] = doc.data(); })
     ];
   });
@@ -1062,8 +1083,8 @@ function renderNaanWeekly() {
     { label: 'Partial Trays', key: 'naan_trays_partial', source: 'prep' },
     { label: 'Total Trays', key: 'naan_total_trays', source: 'prep', rowClass: 'naan-total' },
     { label: 'Total Doughballs', key: 'naan_total_doughballs', source: 'prep', rowClass: 'naan-total' },
-    { label: 'Flour (lbs)', key: 'naan_flour_lbs', source: 'prep', rowClass: 'naan-total' },
-    { label: 'Bags of flour (50lb)', key: 'naan_flour_bags', source: 'prep', rowClass: 'naan-total', decimals: 1 },
+    { label: 'Naan Flour (lbs)', key: 'naan_flour_lbs', source: 'prep', rowClass: 'naan-total' },
+    { label: 'Naan Bags (50lb)', key: 'naan_flour_bags', source: 'prep', rowClass: 'naan-total', decimals: 1 },
     { label: '---' },
     { label: 'Trays AM', key: 'naan_am', source: 'usage' },
     { label: 'Made', key: 'naan_made', source: 'usage' },
@@ -1082,12 +1103,12 @@ function renderRotiWeekly() {
   weeklyHeader(dates, 'rotiWeeklyHead');
 
   const rows = [
-    { label: 'Flour (lbs)', key: 'roti_flour', source: 'prep' },
+    { label: 'Roti Flour (lbs)', key: 'roti_flour', source: 'prep' },
     { label: 'Full Trays (12)', key: 'roti_trays_full', source: 'prep' },
     { label: 'Partial Trays', key: 'roti_trays_partial', source: 'prep' },
     { label: 'Total Trays', key: 'roti_total_trays', source: 'prep', rowClass: 'roti-total' },
     { label: 'Total Doughballs', key: 'roti_total_doughballs', source: 'prep', rowClass: 'roti-total' },
-    { label: 'Bags of flour (20lb)', key: 'roti_flour_bags', source: 'prep', rowClass: 'roti-total', decimals: 1 },
+    { label: 'Roti Bags (20lb)', key: 'roti_flour_bags', source: 'prep', rowClass: 'roti-total', decimals: 1 },
     { label: '---' },
     { label: 'Trays AM', key: 'roti_am', source: 'usage' },
     { label: 'Made', key: 'roti_made', source: 'usage' },
@@ -1127,7 +1148,7 @@ async function loadAnalytics() {
   const promises = dates.flatMap(dt => {
     const ds = formatDate(dt);
     return [
-      db.doc(prepDocPath(ds)).get().then(doc => { if (doc.exists) prepMap[ds] = doc.data(); }),
+      db.doc(prepDocPath(ds)).get().then(doc => { if (doc.exists) prepMap[ds] = backfillFlour(doc.data()); }),
       db.doc(usageDocPath(ds)).get().then(doc => { if (doc.exists) usageMap[ds] = doc.data(); })
     ];
   });
