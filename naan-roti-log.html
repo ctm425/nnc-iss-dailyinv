@@ -282,6 +282,16 @@ body.historical-mode input.auto-linked{background:#fefce8!important;border-color
         <label style="color:var(--naan-color)">Total Naan Doughballs:</label>
         <div class="total-val naan-prep" id="naan_total_doughballs">0</div>
       </div>
+      <hr class="divider">
+      <div class="totals-row">
+        <label style="color:var(--naan-color)">Total flour used: <span style="font-size:.7rem;font-weight:500;color:var(--gray-400);display:block">batches × 16</span></label>
+        <div class="total-val naan-prep"><span id="naan_flour_lbs">0</span><span style="font-size:.78rem;font-weight:600;opacity:.7;margin-left:3px">lbs</span></div>
+      </div>
+      <div class="totals-row">
+        <label style="color:var(--naan-color)">Bags of flour used: <span style="font-size:.7rem;font-weight:500;color:var(--gray-400);display:block">lbs ÷ 50 (50lb bags)</span></label>
+        <div class="total-val naan-prep"><span id="naan_flour_bags">0</span><span style="font-size:.78rem;font-weight:600;opacity:.7;margin-left:3px">bags</span></div>
+      </div>
+      <hr class="divider">
     </div>
   </div>
 
@@ -378,6 +388,16 @@ body.historical-mode input.auto-linked{background:#fefce8!important;border-color
         <label style="color:var(--roti-color)">Total Roti Doughballs:</label>
         <div class="total-val roti-prep" id="roti_total_doughballs">0</div>
       </div>
+      <hr class="divider">
+      <div class="totals-row">
+        <label style="color:var(--roti-color)">Total flour used: <span style="font-size:.7rem;font-weight:500;color:var(--gray-400);display:block">from input above</span></label>
+        <div class="total-val roti-prep"><span id="roti_flour_lbs">0</span><span style="font-size:.78rem;font-weight:600;opacity:.7;margin-left:3px">lbs</span></div>
+      </div>
+      <div class="totals-row">
+        <label style="color:var(--roti-color)">Bags of flour used: <span style="font-size:.7rem;font-weight:500;color:var(--gray-400);display:block">lbs ÷ 20 (20lb bags)</span></label>
+        <div class="total-val roti-prep"><span id="roti_flour_bags">0</span><span style="font-size:.78rem;font-weight:600;opacity:.7;margin-left:3px">bags</span></div>
+      </div>
+      <hr class="divider">
     </div>
   </div>
 
@@ -512,8 +532,11 @@ let sortAsc = true;
 const FIELD_DEFS = [
   { key: 'naan_total_trays', label: 'Naan Prep Trays', color: '#1e3a5f', default: true, source: 'prep' },
   { key: 'naan_total_doughballs', label: 'Naan Doughballs', color: '#2563eb', default: false, source: 'prep' },
+  { key: 'naan_flour_lbs', label: 'Naan Flour (lbs)', color: '#3730a3', default: false, source: 'prep' },
+  { key: 'naan_flour_bags', label: 'Naan Bags (50lb)', color: '#4f46e5', default: false, source: 'prep' },
   { key: 'roti_total_trays', label: 'Roti Prep Trays', color: '#7c2d12', default: true, source: 'prep' },
   { key: 'roti_total_doughballs', label: 'Roti Doughballs', color: '#b45309', default: false, source: 'prep' },
+  { key: 'roti_flour_bags', label: 'Roti Bags (20lb)', color: '#9a3412', default: false, source: 'prep' },
   { key: 'naan_am', label: 'Naan AM', color: '#0ea5e9', default: false, source: 'usage' },
   { key: 'naan_made', label: 'Naan Made', color: '#6366f1', default: false, source: 'usage' },
   { key: 'naan_pm', label: 'Naan PM', color: '#8b5cf6', default: false, source: 'usage' },
@@ -627,6 +650,16 @@ function histRecalcTotals() {
   document.getElementById('roti_total_trays').textContent = rotiFullTrays + rotiPartialTrays;
   document.getElementById('roti_total_doughballs').textContent = num('roti_doughballs_full') + num('roti_other_count');
 
+  // Flour totals — kept consistent with calcNaanPrep / calcRotiPrep
+  const naanFlourLbs = num('naan_batches') * 16;
+  const naanFlourBags = naanFlourLbs / 50;
+  document.getElementById('naan_flour_lbs').textContent = naanFlourLbs;
+  document.getElementById('naan_flour_bags').textContent = naanFlourBags ? naanFlourBags.toFixed(1) : '0';
+  const rotiFlourLbs = num('roti_flour');
+  const rotiFlourBags = rotiFlourLbs / 20;
+  document.getElementById('roti_flour_lbs').textContent = rotiFlourLbs;
+  document.getElementById('roti_flour_bags').textContent = rotiFlourBags ? rotiFlourBags.toFixed(1) : '0';
+
   // Naan usage total
   const naanUsage = num('naan_usage');
   document.getElementById('naan_total_usage').textContent = naanUsage;
@@ -732,6 +765,12 @@ function calcNaanPrep() {
   document.getElementById('naan_other_count').value = pt * bp || '';
   document.getElementById('naan_total_trays').textContent = trays + pt;
   document.getElementById('naan_total_doughballs').textContent = (trays * 24) + (pt * bp);
+  // Flour: derived from 16lb batches; 50lb bags
+  const batches = num('naan_batches');
+  const flourLbs = batches * 16;
+  const flourBags = flourLbs / 50;
+  document.getElementById('naan_flour_lbs').textContent = flourLbs;
+  document.getElementById('naan_flour_bags').textContent = flourBags ? flourBags.toFixed(1) : '0';
   linkNaanPrepToUsage();
   calcNaanUsage();
 }
@@ -745,6 +784,11 @@ function calcRotiPrep() {
   document.getElementById('roti_other_count').value = pt * bp || '';
   document.getElementById('roti_total_trays').textContent = trays + pt;
   document.getElementById('roti_total_doughballs').textContent = (trays * 12) + (pt * bp);
+  // Flour: mirrors the input value above; 20lb bags
+  const flourLbs = num('roti_flour');
+  const flourBags = flourLbs / 20;
+  document.getElementById('roti_flour_lbs').textContent = flourLbs;
+  document.getElementById('roti_flour_bags').textContent = flourBags ? flourBags.toFixed(1) : '0';
   linkRotiPrepToUsage();
   calcRotiUsage();
 }
@@ -807,6 +851,11 @@ function collectAllData() {
     prep.roti_total_trays = num('roti_trays_full') + num('roti_trays_partial');
     prep.roti_total_doughballs = (num('roti_trays_full') * 12) + (num('roti_trays_partial') * num('roti_balls_per_partial'));
   }
+  // Flour totals (always derived from inputs — works in both historical and current modes)
+  prep.naan_flour_lbs = num('naan_batches') * 16;
+  prep.naan_flour_bags = Math.round((prep.naan_flour_lbs / 50) * 10) / 10;
+  prep.roti_flour_lbs = num('roti_flour');
+  prep.roti_flour_bags = Math.round((prep.roti_flour_lbs / 20) * 10) / 10;
   prep.updatedAt = new Date().toISOString();
   prep.updatedBy = auth.currentUser ? auth.currentUser.email : 'unknown';
 
@@ -863,7 +912,8 @@ async function loadAllData() {
    'naan_doughballs_full','naan_other_count','roti_doughballs_full','roti_other_count'].forEach(f => {
     document.getElementById(f).value = '';
   });
-  ['naan_total_trays','naan_total_doughballs','roti_total_trays','roti_total_doughballs'].forEach(f => {
+  ['naan_total_trays','naan_total_doughballs','roti_total_trays','roti_total_doughballs',
+   'naan_flour_lbs','naan_flour_bags','roti_flour_lbs','roti_flour_bags'].forEach(f => {
     document.getElementById(f).textContent = '0';
   });
   ['naan_total_usage','roti_total_usage'].forEach(f => {
@@ -892,6 +942,15 @@ async function loadAllData() {
         ['naan_total_trays','naan_total_doughballs','roti_total_trays','roti_total_doughballs'].forEach(f => {
           document.getElementById(f).textContent = pd[f] || 0;
         });
+        // Flour displays — back-fill from raw inputs for legacy days saved before this feature
+        const naanFlourLbs = (pd.naan_flour_lbs !== undefined) ? pd.naan_flour_lbs : ((pd.naan_batches || 0) * 16);
+        const naanFlourBags = (pd.naan_flour_bags !== undefined) ? pd.naan_flour_bags : (naanFlourLbs / 50);
+        document.getElementById('naan_flour_lbs').textContent = naanFlourLbs || 0;
+        document.getElementById('naan_flour_bags').textContent = naanFlourBags ? Number(naanFlourBags).toFixed(1) : '0';
+        const rotiFlourLbs = (pd.roti_flour_lbs !== undefined) ? pd.roti_flour_lbs : (pd.roti_flour || 0);
+        const rotiFlourBags = (pd.roti_flour_bags !== undefined) ? pd.roti_flour_bags : (rotiFlourLbs / 20);
+        document.getElementById('roti_flour_lbs').textContent = rotiFlourLbs || 0;
+        document.getElementById('roti_flour_bags').textContent = rotiFlourBags ? Number(rotiFlourBags).toFixed(1) : '0';
       }
     }
     calcNaanPrep();
@@ -972,6 +1031,10 @@ function weeklyRows(rows, dates, prepMap, usageMap, todayStr) {
       html += `<tr><td colspan="${dates.length+2}" style="padding:6px;border-bottom:2px solid var(--gray-200)"></td></tr>`;
       return;
     }
+    const fmt = v => {
+      if (!v) return '';
+      return row.decimals ? Number(v).toFixed(row.decimals) : v;
+    };
     const cls = row.rowClass ? ` class="total-row ${row.rowClass}"` : '';
     html += `<tr${cls}><td>${row.label}</td>`;
     let wt = 0;
@@ -981,9 +1044,9 @@ function weeklyRows(rows, dates, prepMap, usageMap, todayStr) {
       const val = map[ds] ? (map[ds][row.key] || 0) : 0;
       wt += val;
       const tc = ds === todayStr ? ' class="today-col"' : '';
-      html += `<td${tc}>${val || ''}</td>`;
+      html += `<td${tc}>${fmt(val)}</td>`;
     });
-    html += `<td style="font-weight:700">${wt || ''}</td></tr>`;
+    html += `<td style="font-weight:700">${fmt(wt)}</td></tr>`;
   });
   return html;
 }
@@ -999,6 +1062,8 @@ function renderNaanWeekly() {
     { label: 'Partial Trays', key: 'naan_trays_partial', source: 'prep' },
     { label: 'Total Trays', key: 'naan_total_trays', source: 'prep', rowClass: 'naan-total' },
     { label: 'Total Doughballs', key: 'naan_total_doughballs', source: 'prep', rowClass: 'naan-total' },
+    { label: 'Flour (lbs)', key: 'naan_flour_lbs', source: 'prep', rowClass: 'naan-total' },
+    { label: 'Bags of flour (50lb)', key: 'naan_flour_bags', source: 'prep', rowClass: 'naan-total', decimals: 1 },
     { label: '---' },
     { label: 'Trays AM', key: 'naan_am', source: 'usage' },
     { label: 'Made', key: 'naan_made', source: 'usage' },
@@ -1022,6 +1087,7 @@ function renderRotiWeekly() {
     { label: 'Partial Trays', key: 'roti_trays_partial', source: 'prep' },
     { label: 'Total Trays', key: 'roti_total_trays', source: 'prep', rowClass: 'roti-total' },
     { label: 'Total Doughballs', key: 'roti_total_doughballs', source: 'prep', rowClass: 'roti-total' },
+    { label: 'Bags of flour (20lb)', key: 'roti_flour_bags', source: 'prep', rowClass: 'roti-total', decimals: 1 },
     { label: '---' },
     { label: 'Trays AM', key: 'roti_am', source: 'usage' },
     { label: 'Made', key: 'roti_made', source: 'usage' },
