@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catering — NNC Inventory</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{--primary:#1e3a5f;--primary-light:#2563eb;--danger:#dc2626;--success:#16a34a;--warn:#92400e;--warn-bg:#fef3c7;
+--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-700:#374151;--gray-900:#111827;--radius:10px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+.access-denied{max-width:480px;margin:120px auto;background:#fff;border-radius:14px;padding:40px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+.access-denied h2{color:var(--danger);margin-bottom:8px}
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.header h1{font-size:1.25rem;font-weight:800}
+.header-sub{opacity:.7;font-size:.82rem;margin-top:2px}
+.header a{color:#fff;font-size:.85rem;text-decoration:none;opacity:.9;cursor:pointer;border:1px solid rgba(255,255,255,.3);padding:7px 14px;border-radius:8px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px}
+.card{background:#fff;border:1px solid var(--gray-200);border-radius:12px;padding:20px 22px;margin-bottom:18px}
+.sec-title{font-size:.74rem;text-transform:uppercase;letter-spacing:.4px;color:var(--gray-500);font-weight:700;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.grid.cols5{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+label{font-size:.76rem;color:var(--gray-500);display:block;margin-bottom:3px}
+label .hint{color:var(--gray-400)}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--gray-300);border-radius:7px;font-size:.88rem;font-family:inherit;background:#fff}
+textarea{resize:vertical}
+.flag{font-size:.78rem;min-height:18px;margin-top:6px}
+.btn{padding:9px 16px;border:none;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-ghost{background:#fff;border:1px solid var(--gray-300);color:var(--gray-700)}
+.btn-danger{background:#fff;border:1px solid #fecaca;color:var(--danger)}
+.btn-dark{background:var(--primary);color:#fff}
+/* menu table */
+.mhead,.mrow{display:grid;grid-template-columns:1.6fr 70px 116px 84px 84px 28px;gap:8px;align-items:center}
+.mhead{font-size:.68rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;padding:0 2px 6px}
+.mrow{padding:8px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;align-items:start}
+.mrow.adj{background:var(--warn-bg);border-color:#fcd34d}
+.stepper{display:flex;align-items:center;justify-content:center;gap:5px}
+.stepper button{width:26px;height:26px;border:1px solid var(--gray-300);background:#fff;border-radius:6px;cursor:pointer;font-size:1rem;line-height:1;padding:0}
+.stepper button:disabled{opacity:.4;cursor:default}
+.stepper .kq{min-width:18px;text-align:center;font-weight:700}
+.right{text-align:right}
+.muted{color:var(--gray-400)}
+.totbar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;background:var(--gray-50);border-radius:8px;padding:10px 14px;font-size:.88rem;margin-top:6px}
+.comm{display:flex;gap:10px;padding:9px 11px;background:var(--gray-50);border-radius:8px;margin-bottom:8px}
+.comm .meta{font-size:.72rem;color:var(--gray-400)}
+.comm .txt{font-size:.86rem}
+.savebar{position:sticky;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid var(--gray-200);padding:14px 24px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.savebar .msg{margin-right:auto;font-size:.82rem}
+@media(max-width:768px){.wrap{padding:12px}.mhead{display:none}.mrow{grid-template-columns:1fr 1fr;gap:6px}input,select,textarea{font-size:16px}}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Catering</h2>
+    <div class="subtitle">NNC — Owner access only</div>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<div class="access-denied" id="accessDenied" style="display:none">
+  <h2>Access Denied</h2>
+  <p class="muted">Caterings are only visible to the owner.</p>
+  <a href="index.html" style="display:inline-block;margin-top:16px;color:var(--primary-light);font-weight:600;text-decoration:none">← Back to Dashboard</a>
+</div>
+
+<div id="mainContent" style="display:none">
+  <div class="header">
+    <div>
+      <h1 id="pageTitle">New catering</h1>
+      <div class="header-sub">Booking details, menu, payment &amp; communication log</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a onclick="navigateTo('caterings.html')">← All caterings</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- CUSTOMER -->
+    <div class="card">
+      <div class="sec-title">Customer</div>
+      <div class="grid">
+        <div><label>Name</label><input id="custName" placeholder="e.g. Priya Sharma"></div>
+        <div><label>Email</label><input id="custEmail" type="email" placeholder="name@email.com"></div>
+        <div><label>Phone</label><input id="custPhone" type="tel" placeholder="(425) 555-0123"></div>
+      </div>
+    </div>
+
+    <!-- EVENT -->
+    <div class="card">
+      <div class="sec-title">Event</div>
+      <div class="grid">
+        <div><label>Type</label>
+          <select id="evType">
+            <option>Graduation</option><option>Wedding</option><option>Birthday party</option>
+            <option>Anniversary</option><option>Retirement</option><option>Eid al-Adha</option>
+            <option>Eid ul-Fitr</option><option>Other</option>
+          </select></div>
+        <div><label>Status</label>
+          <select id="status">
+            <option value="inquiry">Inquiry</option><option value="quoted">Quoted</option>
+            <option value="confirmed">Confirmed</option><option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select></div>
+        <div><label>Date of event</label><input id="evDate" type="date"></div>
+        <div><label>Guest arrival</label><input id="evArrival" type="time"></div>
+        <div><label>Food serving time</label><input id="evServe" type="time"></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div><label>Billing restaurant <span class="hint">(who invoices)</span></label><select id="billing"></select></div>
+        <div><label>Fulfilling restaurant <span class="hint">(who makes it)</span></label><select id="fulfilling"></select></div>
+      </div>
+    </div>
+
+    <!-- VENUE -->
+    <div class="card">
+      <div class="sec-title">Venue</div>
+      <div class="grid">
+        <div><label>Venue type</label>
+          <select id="venType"><option>Hotel</option><option>Home</option><option>Community center</option><option>General event venue</option></select></div>
+        <div><label>Venue name <span class="hint">(if not a home)</span></label><input id="venName" placeholder="e.g. Hilton Bellevue"></div>
+      </div>
+      <div style="margin-top:12px"><label>Address</label><input id="venAddr" placeholder="Street, city, ZIP"></div>
+      <div class="grid" style="margin-top:12px">
+        <div><label>Venue contact name <span class="hint">(coordinator)</span></label><input id="venContact" placeholder="e.g. event manager"></div>
+        <div><label>Venue contact phone</label><input id="venPhone" type="tel"></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div><label>Day-of contact name <span class="hint">(if different from customer)</span></label><input id="dayName" placeholder="e.g. planner / family member"></div>
+        <div><label>Day-of contact phone</label><input id="dayPhone" type="tel"></div>
+      </div>
+    </div>
+
+    <!-- GUESTS -->
+    <div class="card">
+      <div class="sec-title">Guests</div>
+      <div class="grid cols5">
+        <div><label>Total</label><input id="gTotal" type="number" min="0" oninput="checkGuests()"></div>
+        <div><label>Adults</label><input id="gAdult" type="number" min="0" oninput="checkGuests()"></div>
+        <div><label>Children</label><input id="gChild" type="number" min="0" oninput="checkGuests()"></div>
+        <div><label>Vegetarian</label><input id="gVeg" type="number" min="0" oninput="checkGuests()"></div>
+        <div><label>Non-vegetarian</label><input id="gNon" type="number" min="0" oninput="checkGuests()"></div>
+      </div>
+      <div class="flag" id="guestFlag"></div>
+    </div>
+
+    <!-- MENU -->
+    <div class="card">
+      <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Menu &amp; pricing</span>
+        <a class="muted" style="font-size:.72rem;text-decoration:none;cursor:pointer" onclick="navigateTo('catering-menu.html')">Manage menu items →</a>
+      </div>
+      <div class="mhead">
+        <div>Item / description</div><div class="right">Billed</div><div style="text-align:center">Kitchen makes</div>
+        <div class="right">Unit $</div><div class="right">Billed total</div><div></div>
+      </div>
+      <div id="menuLines"></div>
+      <button class="btn btn-ghost" style="margin-top:6px" onclick="addLine()">+ Add menu line</button>
+      <div class="totbar">
+        <div>Quote total <strong id="quoteTotal">$0</strong></div>
+        <div class="muted">− deposit <span id="depShown">$0</span> (if paid)</div>
+        <div style="margin-left:auto">Balance due <strong id="balanceDue" style="color:var(--primary-light)">$0</strong></div>
+      </div>
+      <div class="flag" id="menuFlag" style="margin-top:8px"></div>
+    </div>
+
+    <!-- FULFILLMENT -->
+    <div class="card">
+      <div class="sec-title">Fulfillment</div>
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="radio" name="ful" value="delivery" style="width:auto" onchange="onFulMode()" checked> Delivery</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="radio" name="ful" value="pickup" style="width:auto" onchange="onFulMode()"> Pickup</label>
+      </div>
+      <div class="grid">
+        <div id="driverWrap"><label>Delivered by</label><input id="fulDriver" placeholder="driver name / service"></div>
+        <div><label>Ready by</label><input id="fulReady" type="time"></div>
+      </div>
+    </div>
+
+    <!-- PAYMENT -->
+    <div class="card">
+      <div class="sec-title">Payment</div>
+      <div class="grid">
+        <div>
+          <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="depReq" style="width:auto" onchange="recalc()"> Deposit required</label>
+          <input id="depAmount" type="number" min="0" step="0.01" placeholder="$ amount" style="margin-top:5px" oninput="recalc()">
+        </div>
+        <div><label>Deposit status</label>
+          <select id="depStatus" onchange="recalc()"><option>Not paid</option><option>Paid</option><option>Partial</option></select></div>
+        <div><label>Payment terms</label>
+          <select id="payTerms">
+            <option>Balance due day of event</option><option>50% deposit / 50% on event</option>
+            <option>Net 7 after event</option><option>Paid in full upfront</option>
+          </select></div>
+      </div>
+    </div>
+
+    <!-- OTHER FOOD + KITCHEN NOTES -->
+    <div class="card">
+      <div class="sec-title">Notes</div>
+      <div style="margin-bottom:12px"><label>Other food being served <span class="hint">(by host / outside caterer)</span></label><textarea id="otherFood" rows="2"></textarea></div>
+      <div><label>Special kitchen notes <span class="hint">(allergies, packing, prints on the kitchen order)</span></label><textarea id="kitchenNotes" rows="2"></textarea></div>
+    </div>
+
+    <!-- COMMUNICATION LOG -->
+    <div class="card">
+      <div class="sec-title">Communication log</div>
+      <div id="commList"><div class="muted" style="font-size:.82rem">No notes yet.</div></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <select id="commDir" style="max-width:150px"><option value="note">Note</option><option value="incoming">Call — in</option><option value="outgoing">Call — out</option></select>
+        <input id="commText" placeholder="Add a note from a call…" style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter')addComm()">
+        <button class="btn btn-ghost" onclick="addComm()">Add note</button>
+      </div>
+    </div>
+
+    <div style="height:60px"></div>
+  </div>
+
+  <div class="savebar">
+    <span class="msg muted" id="saveMsg"></span>
+    <button class="btn btn-danger" id="deleteBtn" onclick="deleteBooking()" style="display:none">Delete</button>
+    <button class="btn btn-dark" onclick="printKitchenOrder()">🖨 Kitchen order PDF</button>
+    <button class="btn btn-primary" onclick="saveBooking()">Save booking</button>
+  </div>
+</div>
+
+<script src="shared.js?v=20260405"></script>
+<script>
+let docId=getParam('id')||'new';
+let isNew=(docId==='new');
+let menuItems=[];          // catalog from catering-menu-items
+let lines=[];              // current booking menu lines
+let comms=[];              // communication log entries
+let loadedDoc=null;
+
+async function handleLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pw=document.getElementById('loginPassword').value;
+  const err=document.getElementById('loginError');const btn=document.getElementById('loginBtn');
+  if(!email||!pw){err.textContent='Please enter email and password.';err.style.display='block';return;}
+  btn.disabled=true;btn.textContent='Signing in...';err.style.display='none';
+  try{await auth.signInWithEmailAndPassword(email,pw);}
+  catch(e){err.textContent=e.message;err.style.display='block';btn.disabled=false;btn.textContent='Sign In';}
+}
+
+auth.onAuthStateChanged(async user=>{
+  const overlay=document.getElementById('loginOverlay');
+  if(user){
+    overlay.classList.add('hidden');
+    const profile=await loadUserProfile();
+    if(profile.role!=='owner' && !OWNER_EMAILS.includes(user.email)){
+      document.getElementById('accessDenied').style.display='';return;
+    }
+    document.getElementById('mainContent').style.display='';
+    buildRestaurantPickers();
+    await loadMenuCatalog();
+    if(isNew){
+      lines=[blankLine()];renderLines();
+      document.getElementById('pageTitle').textContent='New catering';
+    }else{
+      await loadBooking();
+    }
+    onFulMode();checkGuests();recalc();
+  }else{
+    overlay.classList.remove('hidden');
+  }
+});
+
+function buildRestaurantPickers(){
+  const keys=Object.keys(RESTAURANTS);
+  const opts=keys.map(k=>`<option value="${k}">${RESTAURANTS[k].shortName}</option>`).join('');
+  document.getElementById('billing').innerHTML=opts;
+  document.getElementById('fulfilling').innerHTML=opts;
+  document.getElementById('billing').value='nnc-iss';
+  document.getElementById('fulfilling').value='nnc-iss';
+}
+
+async function loadMenuCatalog(){
+  try{
+    const snap=await db.collection('catering-menu-items').get();
+    menuItems=snap.docs.map(d=>{const x=d.data();return {id:d.id,name:x.name||'',description:x.description||'',price:Number(x.price)||0};});
+    menuItems.sort((a,b)=>a.name.localeCompare(b.name));
+  }catch(e){console.error('menu catalog',e);}
+}
+
+function blankLine(){return {name:'',description:'',billedQty:1,kitchenQty:1,unitPrice:0,notes:'',isCustom:false,saveToMenu:true};}
+
+// ---------- menu line rendering ----------
+function renderLines(){
+  const c=document.getElementById('menuLines');c.innerHTML='';
+  lines.forEach((ln,i)=>c.appendChild(buildRow(ln,i)));
+  recalc();
+}
+function buildRow(ln,i){
+  const row=document.createElement('div');row.className='mrow';row.dataset.i=i;
+  const opts=menuItems.map(m=>`<option value="${escAttr(m.name)}" ${(!ln.isCustom&&m.name===ln.name)?'selected':''}>${escHtml(m.name)}</option>`).join('');
+  const customSel=ln.isCustom?'selected':'';
+  row.innerHTML=
+    `<div>
+       <select onchange="onPick(${i},this.value)">
+         <option value="">— choose item —</option>
+         ${opts}
+         <option value="__custom" ${customSel}>+ Custom / add new…</option>
+       </select>
+       <input class="customName" placeholder="custom item name" value="${escAttr(ln.isCustom?ln.name:'')}" style="margin-top:6px;display:${ln.isCustom?'block':'none'}" oninput="lines[${i}].name=this.value">
+       <input placeholder="description" value="${escAttr(ln.description)}" style="margin-top:6px;font-size:.8rem;color:var(--gray-600)" oninput="lines[${i}].description=this.value">
+       <div style="display:flex;align-items:center;gap:5px;margin-top:6px">
+         <span class="muted" style="font-size:.72rem">🌶 notes</span>
+         <input placeholder="spice level, adjustments, requests" value="${escAttr(ln.notes)}" style="font-size:.8rem" oninput="lines[${i}].notes=this.value">
+       </div>
+     </div>
+     <div><input type="number" min="0" class="right" value="${ln.billedQty}" oninput="onBilled(${i},this.value)"></div>
+     <div class="stepper">
+       <button onclick="stepKitchen(${i},-1)" aria-label="one fewer">−</button>
+       <span class="kq" id="kq${i}">${ln.kitchenQty}</span>
+       <button onclick="stepKitchen(${i},1)" aria-label="one more">+</button>
+     </div>
+     <div><input type="number" min="0" step="0.01" class="right" value="${ln.unitPrice}" oninput="onUnit(${i},this.value)"></div>
+     <div class="right" id="lt${i}" style="padding-top:8px;font-size:.86rem">$0</div>
+     <div style="text-align:center;padding-top:4px"><button class="btn btn-ghost" style="padding:4px 8px" onclick="removeLine(${i})" title="Remove">✕</button></div>`;
+  return row;
+}
+function onPick(i,val){
+  const ln=lines[i];
+  if(val==='__custom'){ln.isCustom=true;ln.name='';}
+  else if(val===''){ln.isCustom=false;ln.name='';}
+  else{
+    ln.isCustom=false;ln.name=val;
+    const m=menuItems.find(m=>m.name===val);
+    if(m){ln.description=m.description;ln.unitPrice=m.price;}
+  }
+  renderLines();
+}
+function onBilled(i,v){
+  const b=Math.max(0,parseInt(v||0,10));lines[i].billedQty=b;
+  if(lines[i].kitchenQty>b){lines[i].kitchenQty=b;document.getElementById('kq'+i).textContent=b;}
+  refreshRowState(i);recalc();
+}
+function onUnit(i,v){lines[i].unitPrice=parseFloat(v||0)||0;recalc();}
+function stepKitchen(i,delta){
+  const ln=lines[i];const b=Number(ln.billedQty)||0;
+  let k=(Number(ln.kitchenQty)||0)+delta;
+  if(k<0)k=0;if(k>b)k=b;
+  ln.kitchenQty=k;document.getElementById('kq'+i).textContent=k;
+  refreshRowState(i);
+}
+function refreshRowState(i){
+  const row=document.querySelector('.mrow[data-i="'+i+'"]');if(!row)return;
+  const ln=lines[i];
+  row.classList.toggle('adj', Number(ln.kitchenQty)<Number(ln.billedQty));
+  const btns=row.querySelectorAll('.stepper button');
+  if(btns[0])btns[0].disabled=(Number(ln.kitchenQty)<=0);
+  if(btns[1])btns[1].disabled=(Number(ln.kitchenQty)>=Number(ln.billedQty));
+}
+function addLine(){lines.push(blankLine());renderLines();}
+function removeLine(i){lines.splice(i,1);if(!lines.length)lines.push(blankLine());renderLines();}
+
+function recalc(){
+  let sub=0,adj=0;
+  lines.forEach((ln,i)=>{
+    const t=(Number(ln.billedQty)||0)*(Number(ln.unitPrice)||0);sub+=t;
+    const cell=document.getElementById('lt'+i);if(cell)cell.textContent=money(t);
+    if(Number(ln.kitchenQty)<Number(ln.billedQty))adj++;
+    refreshRowState(i);
+  });
+  const depReq=document.getElementById('depReq').checked;
+  const depPaid=document.getElementById('depStatus').value==='Paid';
+  const dep=depReq?(parseFloat(document.getElementById('depAmount').value||0)||0):0;
+  document.getElementById('quoteTotal').textContent=money(sub);
+  document.getElementById('depShown').textContent=money(depPaid?dep:0);
+  document.getElementById('balanceDue').textContent=money(Math.max(sub-(depPaid?dep:0),0));
+  const mf=document.getElementById('menuFlag');
+  if(adj){mf.style.color='var(--warn)';mf.textContent='⚠ '+adj+' line'+(adj>1?'s':'')+' making fewer than billed';}
+  else{mf.style.color='var(--gray-400)';mf.textContent='Kitchen matches billed on all lines.';}
+}
+
+function checkGuests(){
+  const t=int('gTotal'),a=int('gAdult'),c=int('gChild'),v=int('gVeg'),n=int('gNon');
+  const f=document.getElementById('guestFlag');const msgs=[];
+  if(t>0){
+    if(a+c!==t)msgs.push('adults + children ('+(a+c)+') ≠ total ('+t+')');
+    if(v+n!==t)msgs.push('veg + non-veg ('+(v+n)+') ≠ total ('+t+')');
+  }
+  if(msgs.length){f.style.color='var(--warn)';f.textContent='⚠ '+msgs.join('  ·  ');}
+  else if(t>0){f.style.color='var(--success)';f.textContent='✓ guest counts balance';}
+  else{f.textContent='';}
+}
+function int(id){return parseInt(document.getElementById(id).value||0,10)||0;}
+function money(n){return '$'+(Math.round(Number(n)||0)).toLocaleString();}
+function escAttr(s){return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function escHtml(s){return String(s==null?'':s).replace(/</g,'&lt;');}
+
+function onFulMode(){
+  const mode=document.querySelector('input[name="ful"]:checked').value;
+  document.getElementById('driverWrap').style.display=(mode==='delivery')?'':'none';
+}
+
+// ---------- load existing ----------
+async function loadBooking(){
+  try{
+    const snap=await db.collection('caterings').doc(docId).get();
+    if(!snap.exists){alert('Catering not found.');navigateTo('caterings.html');return;}
+    const x=snap.data();loadedDoc=x;
+    document.getElementById('pageTitle').textContent=(x.customer&&x.customer.name)?('Catering — '+x.customer.name):'Catering';
+    document.getElementById('deleteBtn').style.display='';
+    setV('custName',x.customer&&x.customer.name);setV('custEmail',x.customer&&x.customer.email);setV('custPhone',x.customer&&x.customer.phone);
+    setV('evType',x.event&&x.event.type);setV('status',x.status||'inquiry');
+    setV('evDate',x.event&&x.event.date);setV('evArrival',x.event&&x.event.arrivalTime);setV('evServe',x.event&&x.event.serveTime);
+    if(x.billingRestaurant)setV('billing',x.billingRestaurant);
+    if(x.fulfillingRestaurant)setV('fulfilling',x.fulfillingRestaurant);
+    setV('venType',x.venue&&x.venue.type);setV('venName',x.venue&&x.venue.name);setV('venAddr',x.venue&&x.venue.address);
+    setV('venContact',x.venue&&x.venue.contactName);setV('venPhone',x.venue&&x.venue.contactPhone);
+    setV('dayName',x.dayOfContact&&x.dayOfContact.name);setV('dayPhone',x.dayOfContact&&x.dayOfContact.phone);
+    if(x.guests){setV('gTotal',x.guests.total);setV('gAdult',x.guests.adults);setV('gChild',x.guests.children);setV('gVeg',x.guests.veg);setV('gNon',x.guests.nonVeg);}
+    setV('otherFood',x.otherFood);setV('kitchenNotes',x.kitchenNotes);
+    if(x.fulfillment){
+      const r=document.querySelector('input[name="ful"][value="'+(x.fulfillment.mode||'delivery')+'"]');if(r)r.checked=true;
+      setV('fulDriver',x.fulfillment.driver);setV('fulReady',x.fulfillment.readyTime);
+    }
+    if(x.payment){document.getElementById('depReq').checked=!!x.payment.depositRequired;setV('depAmount',x.payment.depositAmount);setV('depStatus',x.payment.depositStatus||'Not paid');setV('payTerms',x.payment.terms);}
+    lines=(x.menu&&x.menu.length)?x.menu.map(normalizeLine):[blankLine()];
+    renderLines();
+    await loadComms();
+  }catch(e){console.error('loadBooking',e);alert('Could not load: '+e.message);}
+}
+function normalizeLine(li){
+  const known=menuItems.some(m=>m.name===li.name);
+  return {name:li.name||'',description:li.description||'',billedQty:Number(li.billedQty)||0,kitchenQty:(li.kitchenQty!=null?Number(li.kitchenQty):Number(li.billedQty)||0),unitPrice:Number(li.unitPrice)||0,notes:li.notes||'',isCustom:!!li.isCustom&&!known,saveToMenu:false};
+}
+function setV(id,v){const el=document.getElementById(id);if(el!=null&&v!=null)el.value=v;}
+function getV(id){const el=document.getElementById(id);return el?el.value.trim():'';}
+
+// ---------- communication log ----------
+async function loadComms(){
+  if(isNew)return;
+  try{
+    const snap=await db.collection('caterings').doc(docId).collection('comms').orderBy('at','desc').get();
+    comms=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){console.error('loadComms',e);}
+  renderComms();
+}
+function renderComms(){
+  const c=document.getElementById('commList');
+  if(!comms.length){c.innerHTML='<div class="muted" style="font-size:.82rem">No notes yet.</div>';return;}
+  const icon={incoming:'📞 in',outgoing:'📞 out',note:'📝 note'};
+  c.innerHTML=comms.map(m=>`<div class="comm"><div><div class="meta">${escHtml(m.atLabel||m.at||'')} · ${icon[m.direction]||'note'}</div><div class="txt">${escHtml(m.text||'')}</div></div></div>`).join('');
+}
+async function addComm(){
+  const text=document.getElementById('commText').value.trim();
+  if(!text)return;
+  if(isNew){const ok=await saveBooking(true);if(!ok)return;}
+  const now=new Date();
+  const entry={text,direction:document.getElementById('commDir').value,at:now.toISOString(),atLabel:now.toLocaleString(),createdBy:auth.currentUser.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+  try{
+    await db.collection('caterings').doc(docId).collection('comms').add(entry);
+    comms.unshift(entry);renderComms();
+    document.getElementById('commText').value='';
+  }catch(e){console.error('addComm',e);alert('Could not add note: '+e.message);}
+}
+
+// ---------- save ----------
+function collectData(){
+  return {
+    customer:{name:getV('custName'),email:getV('custEmail'),phone:getV('custPhone')},
+    event:{type:getV('evType'),date:getV('evDate'),arrivalTime:getV('evArrival'),serveTime:getV('evServe')},
+    venue:{type:getV('venType'),name:getV('venName'),address:getV('venAddr'),contactName:getV('venContact'),contactPhone:getV('venPhone')},
+    dayOfContact:{name:getV('dayName'),phone:getV('dayPhone')},
+    billingRestaurant:getV('billing'),
+    fulfillingRestaurant:getV('fulfilling'),
+    guests:{total:int('gTotal'),adults:int('gAdult'),children:int('gChild'),veg:int('gVeg'),nonVeg:int('gNon')},
+    menu:lines.filter(l=>l.name).map(l=>({name:l.name,description:l.description||'',billedQty:Number(l.billedQty)||0,kitchenQty:Number(l.kitchenQty)||0,unitPrice:Number(l.unitPrice)||0,notes:l.notes||'',isCustom:!!l.isCustom})),
+    otherFood:getV('otherFood'),
+    kitchenNotes:getV('kitchenNotes'),
+    fulfillment:{mode:document.querySelector('input[name="ful"]:checked').value,driver:getV('fulDriver'),readyTime:getV('fulReady')},
+    payment:{depositRequired:document.getElementById('depReq').checked,depositAmount:parseFloat(getV('depAmount'))||0,depositStatus:getV('depStatus'),terms:getV('payTerms')},
+    status:getV('status'),
+    quoteTotal:lines.reduce((s,l)=>s+(Number(l.billedQty)||0)*(Number(l.unitPrice)||0),0),
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    updatedBy:auth.currentUser.email
+  };
+}
+
+async function saveBooking(silent){
+  const msg=document.getElementById('saveMsg');
+  if(!getV('custName')){msg.style.color='var(--danger)';msg.textContent='Customer name is required.';return false;}
+  msg.style.color='var(--gray-500)';msg.textContent='Saving…';
+  const data=collectData();
+  try{
+    if(isNew){
+      data.createdAt=firebase.firestore.FieldValue.serverTimestamp();
+      data.createdBy=auth.currentUser.email;
+      const ref=await db.collection('caterings').add(data);
+      docId=ref.id;isNew=false;
+      document.getElementById('deleteBtn').style.display='';
+      history.replaceState({},'', 'catering-edit.html?id='+docId);
+    }else{
+      await db.collection('caterings').doc(docId).set(data,{merge:true});
+    }
+    await saveCustomItemsToMenu();
+    document.getElementById('pageTitle').textContent=getV('custName')?('Catering — '+getV('custName')):'Catering';
+    if(!silent){msg.style.color='var(--success)';msg.textContent='✓ Saved at '+new Date().toLocaleTimeString();}
+    return true;
+  }catch(e){console.error('saveBooking',e);msg.style.color='var(--danger)';msg.textContent='Save failed: '+e.message;return false;}
+}
+
+// custom lines flagged saveToMenu (default on for newly-added customs) get added to the catalog
+async function saveCustomItemsToMenu(){
+  const toAdd=lines.filter(l=>l.isCustom && l.saveToMenu && l.name && !menuItems.some(m=>m.name.toLowerCase()===l.name.toLowerCase()));
+  for(const l of toAdd){
+    try{
+      const ref=await db.collection('catering-menu-items').add({name:l.name,description:l.description||'',category:'Other',price:Number(l.unitPrice)||0,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      menuItems.push({id:ref.id,name:l.name,description:l.description||'',price:Number(l.unitPrice)||0});
+      l.saveToMenu=false;
+    }catch(e){console.error('saveCustomItem',e);}
+  }
+}
+
+async function deleteBooking(){
+  if(isNew)return;
+  if(!confirm('Delete this catering booking? This cannot be undone.'))return;
+  try{
+    // delete comms subcollection first
+    const cs=await db.collection('caterings').doc(docId).collection('comms').get();
+    for(let i=0;i<cs.docs.length;i+=400){const batch=db.batch();cs.docs.slice(i,i+400).forEach(d=>batch.delete(d.ref));await batch.commit();}
+    await db.collection('caterings').doc(docId).delete();
+    navigateTo('caterings.html');
+  }catch(e){console.error('deleteBooking',e);alert('Delete failed: '+e.message);}
+}
+
+// ---------- kitchen order (print to PDF) ----------
+function printKitchenOrder(){
+  const d=collectData();
+  const r=(k)=> (RESTAURANTS[k]?RESTAURANTS[k].shortName:(k||'—'));
+  const ful=(d.fulfillment.mode==='delivery')?('Delivery'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')):'Pickup — customer collects';
+  const rowsHtml=d.menu.filter(m=>Number(m.kitchenQty)>0).map(m=>
+    `<tr><td class="q">${m.kitchenQty}</td><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}</td><td>${escHtml(m.notes||'—')}</td></tr>`).join('')
+    || '<tr><td colspan="3" style="color:#888">No kitchen quantities set.</td></tr>';
+  const g=d.guests;
+  const guestStr=g.total?(g.total+' total · '+(g.veg||0)+' veg / '+(g.nonVeg||0)+' non-veg'):'—';
+  const win=window.open('','_blank');
+  if(!win){alert('Pop-up blocked. Allow pop-ups to print the kitchen order.');return;}
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Kitchen Order — ${escHtml(d.customer.name||'')}</title>
+  <style>
+   body{font-family:-apple-system,Arial,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;padding:28px}
+   .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:10px;margin-bottom:14px}
+   h1{font-size:22px;margin:0} .small{font-size:12px;color:#555}
+   .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px;margin-bottom:14px}
+   .meta .lbl{color:#777}
+   .fbox{background:#f3f1ea;border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:13px;margin-bottom:16px}
+   table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px}
+   th{text-align:left;border-bottom:1px solid #ccc;color:#777;font-size:11px;padding:6px 4px;text-transform:uppercase}
+   td{padding:8px 4px;border-bottom:.5px solid #e5e2d8;vertical-align:top}
+   td.q{text-align:center;font-weight:700;width:46px} .sub{color:#888;font-size:11px}
+   .kn{border:1px dashed #bbb;border-radius:6px;padding:10px 14px;font-size:13px}
+   .kn .lbl{color:#777;font-size:11px;text-transform:uppercase}
+   @media print{button{display:none}}
+  </style></head><body>
+   <div class="top"><div><h1>Kitchen order</h1><div class="small">${escHtml(r(d.fulfillingRestaurant))} — fulfilling${d.billingRestaurant!==d.fulfillingRestaurant?(' · billed to '+escHtml(r(d.billingRestaurant))):''}</div></div>
+   <div class="small" style="text-align:right">Printed ${new Date().toLocaleDateString()}<br>${escHtml(d.status||'')}</div></div>
+   <div class="meta">
+     <div><span class="lbl">Event</span><br><strong>${escHtml(d.customer.name||'')} · ${escHtml(d.event.type||'')}</strong></div>
+     <div><span class="lbl">Event date</span><br><strong>${escHtml(d.event.date||'—')}</strong></div>
+     <div><span class="lbl">Customer</span><br><strong>${escHtml(d.customer.name||'')} · ${escHtml(d.customer.phone||'')}</strong></div>
+     <div><span class="lbl">Guests</span><br><strong>${escHtml(guestStr)}</strong></div>
+     <div><span class="lbl">Venue</span><br><strong>${escHtml(d.venue.name||d.venue.type||'—')}</strong> <span class="small">${escHtml(d.venue.address||'')}</span></div>
+     <div><span class="lbl">Day-of contact</span><br><strong>${escHtml(d.dayOfContact.name||d.customer.name||'')} · ${escHtml(d.dayOfContact.phone||d.customer.phone||'')}</strong></div>
+   </div>
+   <div class="fbox">
+     <div><span class="lbl">Fulfillment</span><br><strong>${ful}</strong></div>
+     <div><span class="lbl">Ready by</span><br><strong>${escHtml(t12(d.fulfillment.readyTime))}</strong></div>
+     <div><span class="lbl">Serve time</span><br><strong>${escHtml(t12(d.event.serveTime))}</strong></div>
+   </div>
+   <table><thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th>Prep notes</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+   ${d.kitchenNotes?('<div class="kn"><span class="lbl">Special kitchen notes</span><br>'+escHtml(d.kitchenNotes)+'</div>'):''}
+   ${d.otherFood?('<div class="small" style="margin-top:10px"><strong>Other food (host/outside):</strong> '+escHtml(d.otherFood)+'</div>'):''}
+   <button onclick="window.print()" style="margin-top:20px;padding:10px 18px;font-size:14px;cursor:pointer">Print / Save as PDF</button>
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>{try{win.focus();win.print();}catch(e){}},400);
+}
+function t12(t){
+  if(!t)return '—';const p=t.split(':');if(p.length<2)return t;
+  let h=parseInt(p[0],10);const m=p[1];const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m+' '+ap;
+}
+</script>
+</body>
+</html>

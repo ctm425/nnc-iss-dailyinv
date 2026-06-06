@@ -173,6 +173,22 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
+    // ---------- caterings (caterings.html, catering-edit.html) ----------
+    // OWNER-ONLY for both read AND write — contains customer PII and pricing.
+    // Managers and staff must never see or modify caterings.
+    // {document=**} covers the booking doc AND its nested comms subcollection
+    // (caterings/<id>/comms/<commId> — timestamped call/communication log).
+    match /caterings/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    // ---------- catering-menu-items (catering-menu.html) ----------
+    // OWNER-ONLY. Editable menu (name, description, category, price) uploaded
+    // by the owner and picked from on the booking form. HYPHENS, not underscores.
+    match /catering-menu-items/{document=**} {
+      allow read, write: if isOwner();
+    }
+
     // ---------- default deny ----------
     match /{document=**} {
       allow read, write: if false;

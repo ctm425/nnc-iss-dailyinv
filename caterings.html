@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caterings — NNC Inventory</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{--primary:#1e3a5f;--primary-light:#2563eb;--danger:#dc2626;--success:#16a34a;
+--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-700:#374151;--gray-900:#111827;--radius:10px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+.access-denied{max-width:480px;margin:120px auto;background:#fff;border-radius:14px;padding:40px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+.access-denied h2{color:var(--danger);margin-bottom:8px}
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.header h1{font-size:1.3rem;font-weight:800}
+.header-sub{opacity:.7;font-size:.82rem;margin-top:2px}
+.header a{color:#fff;font-size:.85rem;text-decoration:none;opacity:.9;cursor:pointer;border:1px solid rgba(255,255,255,.3);padding:7px 14px;border-radius:8px}
+.wrap{max-width:1200px;margin:0 auto;padding:24px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.btn{padding:9px 16px;border:none;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-ghost{background:#fff;border:1px solid var(--gray-300);color:var(--gray-700)}
+.search{flex:1;min-width:180px;padding:9px 14px;border:1px solid var(--gray-300);border-radius:8px;font-size:.9rem}
+.card{background:#fff;border:1px solid var(--gray-200);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th{text-align:left;font-size:.7rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:.3px;padding:10px;border-bottom:2px solid var(--gray-200);cursor:pointer;white-space:nowrap;user-select:none}
+th:hover{color:var(--primary)}
+td{padding:11px 10px;border-bottom:1px solid var(--gray-100);white-space:nowrap}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--gray-50)}
+.cust{font-weight:700}
+.pill{font-size:.74rem;padding:3px 9px;border-radius:12px;font-weight:600;display:inline-block}
+.right{text-align:right}
+.muted{color:var(--gray-400)}
+.filterbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filterbar select{padding:7px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:.82rem}
+@media(max-width:768px){.wrap{padding:10px}.card{overflow-x:auto}th,td{padding:8px}input,select{font-size:16px}}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Caterings</h2>
+    <div class="subtitle">NNC — Owner access only</div>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<div class="access-denied" id="accessDenied" style="display:none">
+  <h2>Access Denied</h2>
+  <p class="muted">Caterings are only visible to the owner.</p>
+  <a href="index.html" style="display:inline-block;margin-top:16px;color:var(--primary-light);font-weight:600;text-decoration:none">← Back to Dashboard</a>
+</div>
+
+<div id="mainContent" style="display:none">
+  <div class="header">
+    <div>
+      <h1>🍽️ Caterings</h1>
+      <div class="header-sub">All bookings — click a column to sort, click a row to open</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a onclick="navigateTo('catering-menu.html')">Menu</a>
+      <a onclick="navigateTo('index.html')">← Dashboard</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="toolbar">
+      <input type="text" id="search" class="search" placeholder="Search customer, venue, type…" oninput="render()">
+      <button class="btn btn-primary" onclick="navigateTo('catering-edit.html',{id:'new'})">+ Add catering</button>
+    </div>
+
+    <div class="filterbar">
+      <label class="muted" style="font-size:.78rem">Status:</label>
+      <select id="statusFilter" onchange="render()">
+        <option value="">All</option>
+        <option value="inquiry">Inquiry</option>
+        <option value="quoted">Quoted</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="completed">Completed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <label class="muted" style="font-size:.78rem;margin-left:8px">When:</label>
+      <select id="timeFilter" onchange="render()">
+        <option value="upcoming">Upcoming</option>
+        <option value="all">All dates</option>
+        <option value="past">Past</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr id="headRow"></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="emptyMsg" class="muted" style="padding:40px;text-align:center;display:none">No caterings found. Click “Add catering” to create one.</div>
+    </div>
+    <div class="muted" style="font-size:.78rem;margin-top:10px" id="countMsg"></div>
+  </div>
+</div>
+
+<script src="shared.js?v=20260405"></script>
+<script>
+const COLS=[
+  {k:'customerName',l:'Customer'},
+  {k:'eventDate',l:'Event date'},
+  {k:'eventType',l:'Type'},
+  {k:'guestsTotal',l:'Guests',num:true},
+  {k:'venue',l:'Venue'},
+  {k:'billing',l:'Billing'},
+  {k:'fulfilling',l:'Fulfilling'},
+  {k:'status',l:'Status'},
+  {k:'balance',l:'Balance',num:true,right:true}
+];
+const STATUS_META={
+  inquiry:{label:'Inquiry',bg:'#f3f4f6',fg:'#6b7280'},
+  quoted:{label:'Quoted',bg:'#fef3c7',fg:'#92400e'},
+  confirmed:{label:'Confirmed',bg:'#dcfce7',fg:'#166534'},
+  completed:{label:'Completed',bg:'#dbeafe',fg:'#1e40af'},
+  cancelled:{label:'Cancelled',bg:'#fee2e2',fg:'#b91c1c'}
+};
+let caterings=[];
+let sortKey='eventDate',sortAsc=true;
+
+async function handleLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pw=document.getElementById('loginPassword').value;
+  const err=document.getElementById('loginError');const btn=document.getElementById('loginBtn');
+  if(!email||!pw){err.textContent='Please enter email and password.';err.style.display='block';return;}
+  btn.disabled=true;btn.textContent='Signing in...';err.style.display='none';
+  try{await auth.signInWithEmailAndPassword(email,pw);}
+  catch(e){err.textContent=e.message;err.style.display='block';btn.disabled=false;btn.textContent='Sign In';}
+}
+
+auth.onAuthStateChanged(async user=>{
+  const overlay=document.getElementById('loginOverlay');
+  if(user){
+    overlay.classList.add('hidden');
+    const profile=await loadUserProfile();
+    if(profile.role!=='owner' && !OWNER_EMAILS.includes(user.email)){
+      document.getElementById('accessDenied').style.display='';return;
+    }
+    document.getElementById('mainContent').style.display='';
+    await loadCaterings();
+  }else{
+    overlay.classList.remove('hidden');
+  }
+});
+
+function rname(key){return (typeof RESTAURANTS!=='undefined'&&RESTAURANTS[key])?RESTAURANTS[key].shortName:(key||'—');}
+function money(n){return '$'+(Math.round((Number(n)||0))).toLocaleString();}
+
+function quoteTotal(c){
+  return (c.menu||[]).reduce((s,li)=> s + (Number(li.billedQty)||0)*(Number(li.unitPrice)||0), 0);
+}
+function balanceDue(c){
+  const total=quoteTotal(c);
+  const dep=(c.payment&&c.payment.depositStatus==='Paid')?(Number(c.payment.depositAmount)||0):0;
+  return Math.max(total-dep,0);
+}
+
+async function loadCaterings(){
+  try{
+    const snap=await db.collection('caterings').get();
+    caterings=snap.docs.map(d=>{
+      const x=d.data();
+      return {
+        id:d.id,
+        customerName:(x.customer&&x.customer.name)||'(no name)',
+        eventDate:x.event&&x.event.date||'',
+        eventType:x.event&&x.event.type||'',
+        guestsTotal:(x.guests&&Number(x.guests.total))||0,
+        venue:(x.venue&&(x.venue.name||x.venue.type))||'',
+        billing:rname(x.billingRestaurant),
+        fulfilling:rname(x.fulfillingRestaurant),
+        status:x.status||'inquiry',
+        balance:balanceDue(x),
+        _raw:x
+      };
+    });
+  }catch(e){console.error('loadCaterings',e);alert('Could not load caterings: '+e.message);}
+  renderHead();render();
+}
+
+function renderHead(){
+  const hr=document.getElementById('headRow');hr.innerHTML='';
+  COLS.forEach(c=>{
+    const arrow=sortKey===c.k?(sortAsc?' ▲':' ▼'):'';
+    const th=document.createElement('th');
+    if(c.right)th.style.textAlign='right';
+    th.textContent=c.l+arrow;
+    th.onclick=()=>{ if(sortKey===c.k)sortAsc=!sortAsc; else {sortKey=c.k;sortAsc=true;} renderHead();render(); };
+    hr.appendChild(th);
+  });
+}
+
+function render(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const sf=document.getElementById('statusFilter').value;
+  const tf=document.getElementById('timeFilter').value;
+  const today=new Date().toISOString().slice(0,10);
+  let list=caterings.slice();
+  if(q)list=list.filter(c=>(c.customerName+' '+c.venue+' '+c.eventType).toLowerCase().indexOf(q)>=0);
+  if(sf)list=list.filter(c=>c.status===sf);
+  if(tf==='upcoming')list=list.filter(c=>!c.eventDate || c.eventDate>=today);
+  else if(tf==='past')list=list.filter(c=>c.eventDate && c.eventDate<today);
+  list.sort((a,b)=>{
+    const col=COLS.find(c=>c.k===sortKey)||{};
+    let x=a[sortKey],y=b[sortKey];
+    if(col.num){x=Number(x)||0;y=Number(y)||0;return sortAsc?x-y:y-x;}
+    return sortAsc?String(x).localeCompare(String(y)):String(y).localeCompare(String(x));
+  });
+  const tbody=document.getElementById('rows');tbody.innerHTML='';
+  list.forEach(c=>{
+    const sm=STATUS_META[c.status]||STATUS_META.inquiry;
+    const tr=document.createElement('tr');
+    tr.onclick=()=>navigateTo('catering-edit.html',{id:c.id});
+    tr.innerHTML=
+      `<td class="cust">${escp(c.customerName)}</td>
+       <td>${c.eventDate||'<span class="muted">—</span>'}</td>
+       <td>${escp(c.eventType)||'<span class="muted">—</span>'}</td>
+       <td>${c.guestsTotal||'<span class="muted">—</span>'}</td>
+       <td>${escp(c.venue)||'<span class="muted">—</span>'}</td>
+       <td>${escp(c.billing)}</td>
+       <td>${escp(c.fulfilling)}</td>
+       <td><span class="pill" style="background:${sm.bg};color:${sm.fg}">${sm.label}</span></td>
+       <td class="right">${c.balance>0?money(c.balance):'<span class="muted">—</span>'}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('emptyMsg').style.display=list.length?'none':'block';
+  document.getElementById('countMsg').textContent=`${list.length} of ${caterings.length} caterings`;
+}
+
+function escp(s){return String(s==null?'':s).replace(/</g,'&lt;');}
+</script>
+</body>
+</html>

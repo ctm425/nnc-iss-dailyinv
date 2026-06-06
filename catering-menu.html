@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catering Menu — NNC Inventory</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--primary:#1e3a5f;--primary-light:#2563eb;--danger:#dc2626;--success:#16a34a;
+--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-700:#374151;--gray-900:#111827;--radius:10px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box .subtitle{color:var(--gray-500);margin-bottom:24px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:.95rem;margin-bottom:12px}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+.access-denied{max-width:480px;margin:120px auto;background:#fff;border-radius:14px;padding:40px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+.access-denied h2{color:var(--danger);margin-bottom:8px}
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.header h1{font-size:1.3rem;font-weight:800}
+.header-sub{opacity:.7;font-size:.82rem;margin-top:2px}
+.header a{color:#fff;font-size:.85rem;text-decoration:none;opacity:.9;cursor:pointer;border:1px solid rgba(255,255,255,.3);padding:7px 14px;border-radius:8px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.btn{padding:9px 16px;border:none;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-ghost{background:#fff;border:1px solid var(--gray-300);color:var(--gray-700)}
+.btn-danger{background:#fff;border:1px solid #fecaca;color:var(--danger)}
+.search{flex:1;min-width:180px;padding:9px 14px;border:1px solid var(--gray-300);border-radius:8px;font-size:.9rem}
+.card{background:#fff;border:1px solid var(--gray-200);border-radius:12px;padding:16px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:.7rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:.3px;padding:8px 10px;border-bottom:2px solid var(--gray-200)}
+td{padding:8px 10px;border-bottom:1px solid var(--gray-100);vertical-align:top}
+td input,td select{width:100%;padding:7px 9px;border:1px solid var(--gray-300);border-radius:6px;font-size:.86rem;font-family:inherit}
+td input.desc{font-size:.8rem;color:var(--gray-500);margin-top:5px}
+.del-btn{border:none;background:transparent;color:var(--gray-400);cursor:pointer;font-size:1.1rem;padding:4px 8px}
+.del-btn:hover{color:var(--danger)}
+.savestate{font-size:.8rem;color:var(--success);margin-left:auto;display:flex;align-items:center;gap:5px}
+.muted{color:var(--gray-400)}
+.upload-help{font-size:.8rem;color:var(--gray-500);background:var(--gray-50);border:1px dashed var(--gray-300);border-radius:8px;padding:12px 14px;margin-bottom:16px;line-height:1.5}
+@media(max-width:768px){.wrap{padding:12px}td .desc{display:block}input,select{font-size:16px}}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Catering Menu</h2>
+    <div class="subtitle">NNC — Owner access only</div>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Email">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<div class="access-denied" id="accessDenied" style="display:none">
+  <h2>Access Denied</h2>
+  <p class="muted">The catering menu is only visible to the owner.</p>
+  <a href="index.html" style="display:inline-block;margin-top:16px;color:var(--primary-light);font-weight:600;text-decoration:none">← Back to Dashboard</a>
+</div>
+
+<div id="mainContent" style="display:none">
+  <div class="header">
+    <div>
+      <h1>📖 Catering Menu</h1>
+      <div class="header-sub">Items, descriptions &amp; pricing — used on every booking</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a onclick="navigateTo('caterings.html')">Bookings</a>
+      <a onclick="navigateTo('index.html')">← Dashboard</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="upload-help">
+      <strong>Upload a menu:</strong> a <code>.xlsx</code> or <code>.csv</code> file with columns for
+      <strong>name</strong>, <strong>description</strong>, <strong>category</strong>, and <strong>price</strong>
+      (header names are matched loosely). Uploading <em>adds</em> to the list; use “Clear all” first if you want a fresh start.
+    </div>
+
+    <div class="toolbar">
+      <input type="text" id="search" class="search" placeholder="Filter items…" oninput="render()">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="onFile(this)">
+      <button class="btn btn-ghost" onclick="document.getElementById('fileInput').click()">⬆ Upload menu</button>
+      <button class="btn btn-primary" onclick="addItem()">+ Add item</button>
+      <button class="btn btn-danger" onclick="clearAll()">Clear all</button>
+      <span class="savestate" id="saveState">✓ Saved</span>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th style="width:46%">Item &amp; description</th>
+          <th style="width:22%">Category</th>
+          <th style="width:24%">Price ($)</th>
+          <th style="width:8%"></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="emptyMsg" class="muted" style="padding:24px;text-align:center;display:none">No menu items yet. Upload a file or add items manually.</div>
+    </div>
+    <div class="muted" style="font-size:.78rem;margin-top:10px" id="countMsg"></div>
+  </div>
+</div>
+
+<script src="shared.js?v=20260405"></script>
+<script>
+const CATEGORIES = ['Mains','Breads','Rice','Appetizers','Sides','Desserts','Drinks','Other'];
+let items = [];            // {id, name, description, category, price}
+let saveTimers = {};       // per-id debounce timers
+
+async function handleLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pw=document.getElementById('loginPassword').value;
+  const err=document.getElementById('loginError');const btn=document.getElementById('loginBtn');
+  if(!email||!pw){err.textContent='Please enter email and password.';err.style.display='block';return;}
+  btn.disabled=true;btn.textContent='Signing in...';err.style.display='none';
+  try{await auth.signInWithEmailAndPassword(email,pw);}
+  catch(e){err.textContent=e.message;err.style.display='block';btn.disabled=false;btn.textContent='Sign In';}
+}
+
+auth.onAuthStateChanged(async user=>{
+  const overlay=document.getElementById('loginOverlay');
+  if(user){
+    overlay.classList.add('hidden');
+    const profile=await loadUserProfile();
+    if(profile.role!=='owner' && !OWNER_EMAILS.includes(user.email)){
+      document.getElementById('accessDenied').style.display='';return;
+    }
+    document.getElementById('mainContent').style.display='';
+    await loadItems();
+  }else{
+    overlay.classList.remove('hidden');
+  }
+});
+
+async function loadItems(){
+  try{
+    const snap=await db.collection('catering-menu-items').get();
+    items=snap.docs.map(d=>{
+      const x=d.data();
+      return {id:d.id,name:x.name||'',description:x.description||'',category:x.category||'Other',price:(x.price!=null?Number(x.price):0)};
+    });
+    items.sort((a,b)=> (a.category||'').localeCompare(b.category||'') || (a.name||'').localeCompare(b.name||''));
+  }catch(e){console.error('loadItems',e);alert('Could not load menu: '+e.message);}
+  render();
+}
+
+function render(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const tbody=document.getElementById('rows');tbody.innerHTML='';
+  let shown=0;
+  items.forEach((it,idx)=>{
+    if(q && it.name.toLowerCase().indexOf(q)<0 && (it.description||'').toLowerCase().indexOf(q)<0 && (it.category||'').toLowerCase().indexOf(q)<0) return;
+    shown++;
+    const tr=document.createElement('tr');
+    const opts=CATEGORIES.map(c=>`<option ${c===it.category?'selected':''}>${c}</option>`).join('');
+    tr.innerHTML=
+      `<td>
+         <input value="${esc(it.name)}" placeholder="item name" oninput="upd(${idx},'name',this.value)">
+         <input class="desc" value="${esc(it.description)}" placeholder="description (e.g. serves ~10, mild)" oninput="upd(${idx},'description',this.value)">
+       </td>
+       <td><select onchange="upd(${idx},'category',this.value)">${opts}</select></td>
+       <td><input type="number" min="0" step="0.01" value="${it.price}" oninput="upd(${idx},'price',this.value)"></td>
+       <td style="text-align:center"><button class="del-btn" title="Remove" onclick="removeItem(${idx})">🗑</button></td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('emptyMsg').style.display=items.length?'none':'block';
+  document.getElementById('countMsg').textContent=items.length?(`${shown} of ${items.length} items shown`):'';
+}
+
+function esc(s){return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+function upd(idx,field,val){
+  if(!items[idx])return;
+  items[idx][field]=(field==='price')?(parseFloat(val)||0):val;
+  scheduleSave(idx);
+}
+
+function setSaveState(txt,color){
+  const s=document.getElementById('saveState');s.textContent=txt;s.style.color=color||'var(--success)';
+}
+
+function scheduleSave(idx){
+  setSaveState('Saving…','var(--gray-500)');
+  const it=items[idx];
+  const key=it.id||('new'+idx);
+  clearTimeout(saveTimers[key]);
+  saveTimers[key]=setTimeout(()=>saveItem(idx),600);
+}
+
+async function saveItem(idx){
+  const it=items[idx];if(!it)return;
+  const payload={name:it.name||'',description:it.description||'',category:it.category||'Other',price:Number(it.price)||0,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+  try{
+    if(it.id){
+      await db.collection('catering-menu-items').doc(it.id).set(payload,{merge:true});
+    }else{
+      payload.createdAt=firebase.firestore.FieldValue.serverTimestamp();
+      const ref=await db.collection('catering-menu-items').add(payload);
+      it.id=ref.id;
+    }
+    setSaveState('✓ Saved');
+  }catch(e){console.error('saveItem',e);setSaveState('Save failed — '+e.message,'var(--danger)');}
+}
+
+function addItem(){
+  items.unshift({id:null,name:'',description:'',category:'Mains',price:0});
+  document.getElementById('search').value='';
+  render();
+}
+
+async function removeItem(idx){
+  const it=items[idx];if(!it)return;
+  if(it.name && !confirm(`Remove "${it.name}" from the menu?`))return;
+  try{ if(it.id) await db.collection('catering-menu-items').doc(it.id).delete(); }
+  catch(e){console.error('removeItem',e);alert('Delete failed: '+e.message);return;}
+  items.splice(idx,1);render();setSaveState('✓ Saved');
+}
+
+async function clearAll(){
+  if(!items.length)return;
+  if(!confirm(`Delete ALL ${items.length} menu items? This cannot be undone.`))return;
+  setSaveState('Clearing…','var(--gray-500)');
+  try{
+    const withIds=items.filter(i=>i.id);
+    // Firestore batch limit is 500; chunk just in case.
+    for(let i=0;i<withIds.length;i+=400){
+      const batch=db.batch();
+      withIds.slice(i,i+400).forEach(it=>batch.delete(db.collection('catering-menu-items').doc(it.id)));
+      await batch.commit();
+    }
+    items=[];render();setSaveState('✓ Saved');
+  }catch(e){console.error('clearAll',e);setSaveState('Clear failed — '+e.message,'var(--danger)');}
+}
+
+// ---------- Upload (xlsx / csv via SheetJS) ----------
+function onFile(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      const parsed=mapRows(rows);
+      if(!parsed.length){alert('No rows found. Check that the file has a header row and at least a name column.');input.value='';return;}
+      if(!confirm(`Found ${parsed.length} items. Add them to the menu?`)){input.value='';return;}
+      setSaveState('Importing…','var(--gray-500)');
+      for(let i=0;i<parsed.length;i+=400){
+        const batch=db.batch();
+        parsed.slice(i,i+400).forEach(p=>{
+          const ref=db.collection('catering-menu-items').doc();
+          batch.set(ref,{...p,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+        });
+        await batch.commit();
+      }
+      input.value='';
+      await loadItems();
+      setSaveState('✓ Saved');
+    }catch(err){console.error('upload',err);alert('Import failed: '+err.message);input.value='';}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function mapRows(rows){
+  const out=[];
+  rows.forEach(r=>{
+    const keys=Object.keys(r);
+    const find=(re)=>{const k=keys.find(k=>re.test(k));return k?String(r[k]).trim():'';};
+    const name=find(/^(name|item|dish|product)/i);
+    if(!name)return;
+    const description=find(/desc|detail|note/i);
+    let category=find(/cat|type|group/i)||'Other';
+    if(!CATEGORIES.some(c=>c.toLowerCase()===category.toLowerCase())) category=titleCase(category)||'Other';
+    let priceRaw=find(/price|cost|rate|amount|\$/i);
+    const price=parseFloat(String(priceRaw).replace(/[^0-9.\-]/g,''))||0;
+    out.push({name,description,category,price});
+  });
+  return out;
+}
+function titleCase(s){return String(s||'').replace(/\w\S*/g,t=>t.charAt(0).toUpperCase()+t.slice(1).toLowerCase());}
+</script>
+</body>
+</html>
