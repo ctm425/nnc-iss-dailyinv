@@ -45,7 +45,38 @@ tbody tr:hover td{background:var(--gray-50)}
 .muted{color:var(--gray-400)}
 .filterbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .filterbar select{padding:7px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:.82rem}
-@media(max-width:768px){.wrap{padding:10px}.card{overflow-x:auto}th,td{padding:8px}input,select{font-size:16px}}
+/* view toggle */
+.viewtoggle{display:inline-flex;border:1px solid var(--gray-300);border-radius:8px;overflow:hidden}
+.viewtoggle button{background:#fff;border:none;padding:8px 14px;font-size:.82rem;font-weight:600;color:var(--gray-700);cursor:pointer}
+.viewtoggle button.active{background:var(--primary-light);color:#fff}
+/* calendar */
+.calwrap{background:#fff;border:1px solid var(--gray-200);border-radius:12px;padding:16px}
+.calnav{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.calnav .month{font-size:1.05rem;font-weight:700;color:var(--gray-900)}
+.calnav button{padding:6px 12px;border:1px solid var(--gray-300);background:#fff;border-radius:7px;font-size:.82rem;cursor:pointer}
+.callegend{display:flex;gap:10px;flex-wrap:wrap;font-size:.72rem;color:var(--gray-500);margin-left:auto}
+.callegend span{display:inline-flex;align-items:center;gap:4px}
+.callegend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.caldow{font-size:.7rem;color:var(--gray-400);text-align:center;padding:2px 0}
+.calday{min-height:96px;border:1px solid var(--gray-200);border-radius:8px;padding:5px 6px;background:#fff;cursor:pointer;transition:background .1s;overflow:hidden}
+.calday:hover{background:var(--gray-50)}
+.calday.off{background:#fafafa;color:var(--gray-300);cursor:default}
+.calday.off:hover{background:#fafafa}
+.calday.today{border-color:var(--primary-light);border-width:1.5px}
+.caldnum{font-size:.78rem;color:var(--gray-500);font-weight:600;margin-bottom:3px}
+.calchip{font-size:.7rem;line-height:1.25;border-radius:4px;padding:2px 5px;margin-bottom:2px;cursor:pointer;color:#fff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.calchip:hover{opacity:.85}
+.calchip.done{opacity:.45;text-decoration:line-through}
+/* month-grouped list */
+.monthgroup{margin-bottom:18px}
+.monthhead{font-size:.78rem;text-transform:uppercase;letter-spacing:.4px;color:var(--gray-500);font-weight:700;padding:0 4px 6px;display:flex;align-items:center;justify-content:space-between}
+.monthhead .cnt{color:var(--gray-400);font-weight:600}
+.completebtn{padding:5px 10px;border:1px solid var(--gray-300);background:#fff;color:var(--gray-700);border-radius:6px;font-size:.74rem;font-weight:600;cursor:pointer}
+.completebtn:hover{background:#f0fdf4;border-color:#86efac;color:#166534}
+tbody tr.done td{opacity:.7}
+.calmore{font-size:.65rem;color:var(--gray-500);font-weight:600;cursor:pointer}
+@media(max-width:768px){.wrap{padding:10px}.card{overflow-x:auto}th,td{padding:8px}input,select{font-size:16px}.calday{min-height:64px}.caldnum{font-size:.7rem}.calchip{font-size:.62rem;padding:1px 3px}}
 </style>
 </head>
 <body>
@@ -85,32 +116,42 @@ tbody tr:hover td{background:var(--gray-50)}
       <button class="btn btn-primary" onclick="navigateTo('catering-edit.html',{id:'new'})">+ Add catering</button>
     </div>
 
-    <div class="filterbar">
-      <label class="muted" style="font-size:.78rem">Status:</label>
-      <select id="statusFilter" onchange="render()">
-        <option value="">All</option>
-        <option value="inquiry">Inquiry</option>
-        <option value="quoted">Quoted</option>
-        <option value="confirmed">Confirmed</option>
-        <option value="completed">Completed</option>
-        <option value="cancelled">Cancelled</option>
-      </select>
-      <label class="muted" style="font-size:.78rem;margin-left:8px">When:</label>
-      <select id="timeFilter" onchange="render()">
-        <option value="upcoming">Upcoming</option>
-        <option value="all">All dates</option>
-        <option value="past">Past</option>
-      </select>
+    <!-- CALENDAR (always visible, the landing element) -->
+    <div class="calwrap" style="margin-bottom:22px">
+      <div class="calnav">
+        <button onclick="navMonth(-1)">‹ Prev</button>
+        <button onclick="navMonth(0)">Today</button>
+        <button onclick="navMonth(1)">Next ›</button>
+        <div class="month" id="calMonthLabel"></div>
+        <div class="callegend">
+          <span><i style="background:#D4537E"></i> wedding</span>
+          <span><i style="background:#378ADD"></i> graduation</span>
+          <span><i style="background:#BA7517"></i> birthday</span>
+          <span><i style="background:#7F77DD"></i> anniversary</span>
+          <span><i style="background:#1D9E75"></i> eid</span>
+          <span><i style="background:#888780"></i> other</span>
+        </div>
+      </div>
+      <div class="calgrid" id="calGrid"></div>
+      <div class="muted" style="font-size:.75rem;margin-top:10px">Click an event to open it · click an empty day to add a new catering on that date · completed events are faded</div>
     </div>
 
-    <div class="card">
-      <table>
-        <thead><tr id="headRow"></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-      <div id="emptyMsg" class="muted" style="padding:40px;text-align:center;display:none">No caterings found. Click “Add catering” to create one.</div>
+    <!-- ACTIVE BOOKINGS — grouped by month -->
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+      <h2 style="font-size:1.05rem;font-weight:700;color:var(--gray-900)">Active caterings</h2>
+      <span class="muted" style="font-size:.78rem" id="activeCount"></span>
     </div>
-    <div class="muted" style="font-size:.78rem;margin-top:10px" id="countMsg"></div>
+    <div id="monthGroups"></div>
+    <div id="emptyActive" class="muted" style="padding:24px;text-align:center;display:none;background:#fff;border:1px dashed var(--gray-200);border-radius:12px">No active caterings.</div>
+
+    <!-- COMPLETED — collapsible -->
+    <div style="margin-top:28px">
+      <button id="completedToggle" onclick="toggleCompleted()" style="width:100%;background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:12px 16px;text-align:left;font-size:.95rem;font-weight:700;color:var(--gray-700);cursor:pointer;display:flex;align-items:center;justify-content:space-between">
+        <span><span id="completedCaret">▸</span>&nbsp; ✓ Completed <span class="muted" style="font-weight:400" id="completedCount"></span></span>
+        <span class="muted" style="font-size:.78rem;font-weight:400">archived bookings</span>
+      </button>
+      <div id="completedPanel" style="display:none;margin-top:10px"></div>
+    </div>
   </div>
 </div>
 
@@ -134,8 +175,21 @@ const STATUS_META={
   completed:{label:'Completed',bg:'#dbeafe',fg:'#1e40af'},
   cancelled:{label:'Cancelled',bg:'#fee2e2',fg:'#b91c1c'}
 };
+const EVENT_COLOR={
+  'Wedding':'#D4537E','Graduation':'#378ADD','Birthday party':'#BA7517','Anniversary':'#7F77DD',
+  'Retirement':'#888780','Eid al-Adha':'#1D9E75','Eid ul-Fitr':'#1D9E75','Other':'#888780'
+};
+const STATUS_ORDER=['confirmed','quoted','inquiry','cancelled']; // for active sort tiebreaker
+const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
 let caterings=[];
-let sortKey='eventDate',sortAsc=true;
+let calMonth=new Date();calMonth.setDate(1);  // first of current month
+let completedOpen=false;
+function composeName(c){
+  if(!c)return '(no name)';
+  const f=(c.firstName||'').trim();const l=(c.lastName||'').trim();
+  if(l||f) return (l?l:'')+(l&&f?', ':'')+(f?f:'');  // "Last, First" for the list
+  return (c.name||'').trim()||'(no name)';
+}
 
 async function handleLogin(){
   const email=document.getElementById('loginEmail').value.trim();
@@ -181,7 +235,7 @@ async function loadCaterings(){
       const x=d.data();
       return {
         id:d.id,
-        customerName:(x.customer&&x.customer.name)||'(no name)',
+        customerName:composeName(x.customer),
         eventDate:x.event&&x.event.date||'',
         eventType:x.event&&x.event.type||'',
         guestsTotal:(x.guests&&Number(x.guests.total))||0,
@@ -194,59 +248,185 @@ async function loadCaterings(){
       };
     });
   }catch(e){console.error('loadCaterings',e);alert('Could not load caterings: '+e.message);}
-  renderHead();render();
+  render();
 }
 
-function renderHead(){
-  const hr=document.getElementById('headRow');hr.innerHTML='';
-  COLS.forEach(c=>{
-    const arrow=sortKey===c.k?(sortAsc?' ▲':' ▼'):'';
-    const th=document.createElement('th');
-    if(c.right)th.style.textAlign='right';
-    th.textContent=c.l+arrow;
-    th.onclick=()=>{ if(sortKey===c.k)sortAsc=!sortAsc; else {sortKey=c.k;sortAsc=true;} renderHead();render(); };
-    hr.appendChild(th);
+function filterBySearch(list){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  if(!q)return list;
+  return list.filter(c=>(c.customerName+' '+c.venue+' '+c.eventType+' '+c.eventDate).toLowerCase().indexOf(q)>=0);
+}
+
+function monthKey(iso){ // iso 'YYYY-MM-DD' → 'YYYY-MM' (or 'undated')
+  if(!iso)return 'undated';
+  return iso.slice(0,7);
+}
+function monthLabel(key){
+  if(key==='undated')return 'No date set';
+  const [y,m]=key.split('-');
+  return MONTH_NAMES[parseInt(m,10)-1]+' '+y;
+}
+
+function rowHtml(c,showAction){
+  const sm=STATUS_META[c.status]||STATUS_META.inquiry;
+  const actionTd=showAction
+    ? `<td class="right"><button class="completebtn" onclick="event.stopPropagation();markComplete('${c.id}','${escAttr(c.customerName)}')">✓ Complete</button></td>`
+    : '<td></td>';
+  return `<tr onclick="navigateTo('catering-edit.html',{id:'${c.id}'})" ${c.status==='completed'?'class="done"':''}>
+    <td class="cust">${escp(c.customerName)}</td>
+    <td>${c.eventDate||'<span class="muted">—</span>'}</td>
+    <td>${escp(c.eventType)||'<span class="muted">—</span>'}</td>
+    <td>${c.guestsTotal||'<span class="muted">—</span>'}</td>
+    <td>${escp(c.venue)||'<span class="muted">—</span>'}</td>
+    <td>${escp(c.billing)}</td>
+    <td>${escp(c.fulfilling)}</td>
+    <td><span class="pill" style="background:${sm.bg};color:${sm.fg}">${sm.label}</span></td>
+    <td class="right">${c.balance>0?money(c.balance):'<span class="muted">—</span>'}</td>
+    ${actionTd}
+  </tr>`;
+}
+function headHtml(showAction){
+  return `<thead><tr>
+    <th>Customer</th><th>Event date</th><th>Type</th><th>Guests</th>
+    <th>Venue</th><th>Billing</th><th>Fulfilling</th><th>Status</th>
+    <th style="text-align:right">Balance</th><th></th>
+  </tr></thead>`;
+}
+
+function groupByMonth(list,asc){
+  const groups={};
+  list.forEach(c=>{const k=monthKey(c.eventDate); (groups[k]=groups[k]||[]).push(c);});
+  const keys=Object.keys(groups);
+  // undated → top for active (asc), bottom otherwise
+  keys.sort((a,b)=>{
+    if(a==='undated')return asc?-1:1;
+    if(b==='undated')return asc?1:-1;
+    return asc?a.localeCompare(b):b.localeCompare(a);
   });
+  // sort within group by date asc
+  keys.forEach(k=>groups[k].sort((a,b)=>{
+    const d=(a.eventDate||'').localeCompare(b.eventDate||'');
+    if(d!==0) return asc?d:-d;
+    return (STATUS_ORDER.indexOf(a.status)-STATUS_ORDER.indexOf(b.status));
+  }));
+  return keys.map(k=>({key:k,label:monthLabel(k),rows:groups[k]}));
+}
+
+function renderGroupedList(container,groups,showAction){
+  container.innerHTML=groups.map(g=>`
+    <div class="monthgroup">
+      <div class="monthhead"><span>${g.label}</span><span class="cnt">${g.rows.length} catering${g.rows.length!==1?'s':''}</span></div>
+      <div class="card" style="padding:0">
+        <table>${headHtml(showAction)}<tbody>${g.rows.map(r=>rowHtml(r,showAction)).join('')}</tbody></table>
+      </div>
+    </div>`).join('');
 }
 
 function render(){
-  const q=(document.getElementById('search').value||'').toLowerCase();
-  const sf=document.getElementById('statusFilter').value;
-  const tf=document.getElementById('timeFilter').value;
-  const today=new Date().toISOString().slice(0,10);
-  let list=caterings.slice();
-  if(q)list=list.filter(c=>(c.customerName+' '+c.venue+' '+c.eventType).toLowerCase().indexOf(q)>=0);
-  if(sf)list=list.filter(c=>c.status===sf);
-  if(tf==='upcoming')list=list.filter(c=>!c.eventDate || c.eventDate>=today);
-  else if(tf==='past')list=list.filter(c=>c.eventDate && c.eventDate<today);
-  list.sort((a,b)=>{
-    const col=COLS.find(c=>c.k===sortKey)||{};
-    let x=a[sortKey],y=b[sortKey];
-    if(col.num){x=Number(x)||0;y=Number(y)||0;return sortAsc?x-y:y-x;}
-    return sortAsc?String(x).localeCompare(String(y)):String(y).localeCompare(String(x));
-  });
-  const tbody=document.getElementById('rows');tbody.innerHTML='';
-  list.forEach(c=>{
-    const sm=STATUS_META[c.status]||STATUS_META.inquiry;
-    const tr=document.createElement('tr');
-    tr.onclick=()=>navigateTo('catering-edit.html',{id:c.id});
-    tr.innerHTML=
-      `<td class="cust">${escp(c.customerName)}</td>
-       <td>${c.eventDate||'<span class="muted">—</span>'}</td>
-       <td>${escp(c.eventType)||'<span class="muted">—</span>'}</td>
-       <td>${c.guestsTotal||'<span class="muted">—</span>'}</td>
-       <td>${escp(c.venue)||'<span class="muted">—</span>'}</td>
-       <td>${escp(c.billing)}</td>
-       <td>${escp(c.fulfilling)}</td>
-       <td><span class="pill" style="background:${sm.bg};color:${sm.fg}">${sm.label}</span></td>
-       <td class="right">${c.balance>0?money(c.balance):'<span class="muted">—</span>'}</td>`;
-    tbody.appendChild(tr);
-  });
-  document.getElementById('emptyMsg').style.display=list.length?'none':'block';
-  document.getElementById('countMsg').textContent=`${list.length} of ${caterings.length} caterings`;
+  const all=filterBySearch(caterings);
+  const active=all.filter(c=>c.status!=='completed');
+  const completed=all.filter(c=>c.status==='completed');
+
+  const activeGroups=groupByMonth(active,true);
+  renderGroupedList(document.getElementById('monthGroups'),activeGroups,true);
+  document.getElementById('emptyActive').style.display=active.length?'none':'block';
+  document.getElementById('activeCount').textContent=active.length?(active.length+' active'):'';
+
+  document.getElementById('completedCount').textContent=completed.length?('('+completed.length+')'):'';
+  if(completedOpen){
+    renderGroupedList(document.getElementById('completedPanel'),groupByMonth(completed,false),false);
+  }
+  renderCalendar();
+}
+
+function toggleCompleted(){
+  completedOpen=!completedOpen;
+  document.getElementById('completedPanel').style.display=completedOpen?'':'none';
+  document.getElementById('completedCaret').textContent=completedOpen?'▾':'▸';
+  if(completedOpen)render();
+}
+
+async function markComplete(id,name){
+  if(!confirm('Mark "'+name+'" as complete? It will move to the Completed section.'))return;
+  try{
+    await db.collection('caterings').doc(id).update({status:'completed',completedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:auth.currentUser.email});
+    const c=caterings.find(c=>c.id===id);if(c)c.status='completed';
+    render();
+  }catch(e){console.error('markComplete',e);alert('Could not mark complete: '+e.message);}
 }
 
 function escp(s){return String(s==null?'':s).replace(/</g,'&lt;');}
+
+// ---------- calendar ----------
+function navMonth(delta){
+  if(delta===0){calMonth=new Date();calMonth.setDate(1);}
+  else{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+delta,1);}
+  renderCalendar();
+}
+
+function renderCalendar(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const year=calMonth.getFullYear();const month=calMonth.getMonth();
+  document.getElementById('calMonthLabel').textContent=MONTH_NAMES[month]+' '+year;
+
+  // index caterings by date for this month (filtered by search)
+  const byDate={};
+  caterings.forEach(c=>{
+    if(!c.eventDate)return;
+    if(q && (c.customerName+' '+c.venue+' '+c.eventType).toLowerCase().indexOf(q)<0)return;
+    (byDate[c.eventDate]=byDate[c.eventDate]||[]).push(c);
+  });
+
+  const firstDow=new Date(year,month,1).getDay();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const prevDays=new Date(year,month,0).getDate();
+  const todayISO=new Date().toISOString().slice(0,10);
+
+  const grid=document.getElementById('calGrid');grid.innerHTML='';
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  dow.forEach(d=>{const h=document.createElement('div');h.className='caldow';h.textContent=d;grid.appendChild(h);});
+
+  // leading days from previous month
+  for(let i=firstDow-1;i>=0;i--){
+    const d=prevDays-i;
+    const cell=document.createElement('div');cell.className='calday off';
+    cell.innerHTML='<div class="caldnum">'+d+'</div>';
+    grid.appendChild(cell);
+  }
+  // current month days
+  for(let d=1;d<=daysInMonth;d++){
+    const iso=year+'-'+pad(month+1)+'-'+pad(d);
+    const cell=document.createElement('div');cell.className='calday'+(iso===todayISO?' today':'');
+    cell.dataset.date=iso;
+    let chips='';
+    const events=(byDate[iso]||[]);
+    const maxShown=3;
+    events.slice(0,maxShown).forEach(c=>{
+      const color=EVENT_COLOR[c.eventType]||'#888780';
+      const done=(c.status==='completed')?' done':'';
+      const prefix=(c.status==='completed')?'✓ ':'';
+      chips+='<div class="calchip'+done+'" style="background:'+color+'" onclick="event.stopPropagation();navigateTo(\'catering-edit.html\',{id:\''+c.id+'\'})" title="'+escAttr(c.customerName+' — '+c.eventType+(c.venue?' @ '+c.venue:''))+'">'+prefix+escHtml(c.customerName)+'</div>';
+    });
+    if(events.length>maxShown)chips+='<div class="calmore">+ '+(events.length-maxShown)+' more</div>';
+    cell.innerHTML='<div class="caldnum">'+d+'</div>'+chips;
+    cell.onclick=(e)=>{
+      if(e.target.classList.contains('calchip'))return;
+      navigateTo('catering-edit.html',{id:'new',date:iso});
+    };
+    grid.appendChild(cell);
+  }
+  // trailing days to fill to a multiple of 7
+  const used=firstDow+daysInMonth;
+  const trail=(7-(used%7))%7;
+  for(let i=1;i<=trail;i++){
+    const cell=document.createElement('div');cell.className='calday off';
+    cell.innerHTML='<div class="caldnum">'+i+'</div>';
+    grid.appendChild(cell);
+  }
+}
+function pad(n){return n<10?'0'+n:n;}
+function escAttr(s){return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function escHtml(s){return String(s==null?'':s).replace(/</g,'&lt;');}
 </script>
 </body>
 </html>

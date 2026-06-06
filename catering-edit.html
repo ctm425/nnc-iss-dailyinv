@@ -96,7 +96,8 @@ textarea{resize:vertical}
     <div class="card">
       <div class="sec-title">Customer</div>
       <div class="grid">
-        <div><label>Name</label><input id="custName" placeholder="e.g. Priya Sharma"></div>
+        <div><label>First name</label><input id="custFirst" placeholder="e.g. Priya"></div>
+        <div><label>Last name</label><input id="custLast" placeholder="e.g. Sharma"></div>
         <div><label>Email</label><input id="custEmail" type="email" placeholder="name@email.com"></div>
         <div><label>Phone</label><input id="custPhone" type="tel" placeholder="(425) 555-0123"></div>
       </div>
@@ -136,7 +137,19 @@ textarea{resize:vertical}
           <select id="venType"><option>Hotel</option><option>Home</option><option>Community center</option><option>General event venue</option></select></div>
         <div><label>Venue name <span class="hint">(if not a home)</span></label><input id="venName" placeholder="e.g. Hilton Bellevue"></div>
       </div>
-      <div style="margin-top:12px"><label>Address</label><input id="venAddr" placeholder="Street, city, ZIP"></div>
+      <div style="margin-top:12px">
+        <label>Street address</label>
+        <input id="venStreet" placeholder="e.g. 1100 NE Park Dr">
+      </div>
+      <div class="grid" style="margin-top:12px;grid-template-columns:2fr 1fr 1fr">
+        <div><label>City</label><input id="venCity" placeholder="e.g. Issaquah"></div>
+        <div><label>State</label><select id="venState"></select></div>
+        <div><label>ZIP</label><input id="venZip" inputmode="numeric" placeholder="98027"></div>
+      </div>
+      <div style="margin-top:8px">
+        <button type="button" class="btn btn-ghost" onclick="openMaps()">📍 Open in Google Maps</button>
+        <span id="addrPreview" class="muted" style="font-size:.78rem;margin-left:8px"></span>
+      </div>
       <div class="grid" style="margin-top:12px">
         <div><label>Venue contact name <span class="hint">(coordinator)</span></label><input id="venContact" placeholder="e.g. event manager"></div>
         <div><label>Venue contact phone</label><input id="venPhone" type="tel"></div>
@@ -269,10 +282,13 @@ auth.onAuthStateChanged(async user=>{
     }
     document.getElementById('mainContent').style.display='';
     buildRestaurantPickers();
+    buildStatePicker();
     await loadMenuCatalog();
     if(isNew){
       lines=[blankLine()];renderLines();
       document.getElementById('pageTitle').textContent='New catering';
+      const prefillDate=getParam('date');
+      if(prefillDate)document.getElementById('evDate').value=prefillDate;
     }else{
       await loadBooking();
     }
@@ -289,6 +305,38 @@ function buildRestaurantPickers(){
   document.getElementById('fulfilling').innerHTML=opts;
   document.getElementById('billing').value='nnc-iss';
   document.getElementById('fulfilling').value='nnc-iss';
+}
+
+// US states + DC. WA is pinned first, the rest sorted alphabetically by full name.
+const US_STATES=[['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['DC','District of Columbia'],['FL','Florida'],['GA','Georgia'],['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],['VA','Virginia'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming']];
+function buildStatePicker(){
+  const sel=document.getElementById('venState');
+  const others=US_STATES.slice().sort((a,b)=>a[1].localeCompare(b[1]));
+  const opts=['<option value="WA">Washington</option>','<option disabled>──────────</option>']
+    .concat(others.map(s=>`<option value="${s[0]}">${s[1]}</option>`)).join('');
+  sel.innerHTML=opts;
+  sel.value='WA';
+  ['venStreet','venCity','venState','venZip'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.addEventListener('input',updateAddrPreview);
+    if(el&&el.tagName==='SELECT')el.addEventListener('change',updateAddrPreview);
+  });
+  updateAddrPreview();
+}
+
+function composeAddress(){
+  const street=getV('venStreet'),city=getV('venCity'),state=getV('venState'),zip=getV('venZip');
+  const cityState=[city,state].filter(Boolean).join(', ');
+  const last=[cityState,zip].filter(Boolean).join(' ');
+  return [street,last].filter(Boolean).join(', ');
+}
+function updateAddrPreview(){
+  const a=composeAddress();
+  document.getElementById('addrPreview').textContent=a?('→ '+a):'';
+}
+function openMaps(){
+  const a=composeAddress();
+  if(!a){alert('Enter at least a street or city before opening Maps.');return;}
+  window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a),'_blank');
 }
 
 async function loadMenuCatalog(){
@@ -417,15 +465,30 @@ async function loadBooking(){
     const snap=await db.collection('caterings').doc(docId).get();
     if(!snap.exists){alert('Catering not found.');navigateTo('caterings.html');return;}
     const x=snap.data();loadedDoc=x;
-    document.getElementById('pageTitle').textContent=(x.customer&&x.customer.name)?('Catering — '+x.customer.name):'Catering';
+    const c=x.customer||{};
+    const displayName=composeName(c);
+    document.getElementById('pageTitle').textContent=displayName?('Catering — '+displayName):'Catering';
     document.getElementById('deleteBtn').style.display='';
-    setV('custName',x.customer&&x.customer.name);setV('custEmail',x.customer&&x.customer.email);setV('custPhone',x.customer&&x.customer.phone);
+    // Prefer split firstName/lastName; if a legacy doc only has c.name, drop it whole into firstName so the owner can re-split it.
+    setV('custFirst', c.firstName != null ? c.firstName : (c.name||''));
+    setV('custLast', c.lastName || '');
+    setV('custEmail', c.email);
+    setV('custPhone', c.phone);
     setV('evType',x.event&&x.event.type);setV('status',x.status||'inquiry');
     setV('evDate',x.event&&x.event.date);setV('evArrival',x.event&&x.event.arrivalTime);setV('evServe',x.event&&x.event.serveTime);
     if(x.billingRestaurant)setV('billing',x.billingRestaurant);
     if(x.fulfillingRestaurant)setV('fulfilling',x.fulfillingRestaurant);
-    setV('venType',x.venue&&x.venue.type);setV('venName',x.venue&&x.venue.name);setV('venAddr',x.venue&&x.venue.address);
-    setV('venContact',x.venue&&x.venue.contactName);setV('venPhone',x.venue&&x.venue.contactPhone);
+    setV('venType',x.venue&&x.venue.type);setV('venName',x.venue&&x.venue.name);
+    const v=x.venue||{};
+    // Prefer structured fields; legacy single-string address drops into Street so nothing is lost.
+    if(v.street!=null||v.city!=null||v.zip!=null||v.state!=null){
+      setV('venStreet',v.street||'');setV('venCity',v.city||'');setV('venZip',v.zip||'');
+      if(v.state)document.getElementById('venState').value=v.state;
+    }else if(v.address){
+      setV('venStreet',v.address);
+    }
+    setV('venContact',v.contactName);setV('venPhone',v.contactPhone);
+    updateAddrPreview();
     setV('dayName',x.dayOfContact&&x.dayOfContact.name);setV('dayPhone',x.dayOfContact&&x.dayOfContact.phone);
     if(x.guests){setV('gTotal',x.guests.total);setV('gAdult',x.guests.adults);setV('gChild',x.guests.children);setV('gVeg',x.guests.veg);setV('gNon',x.guests.nonVeg);}
     setV('otherFood',x.otherFood);setV('kitchenNotes',x.kitchenNotes);
@@ -475,11 +538,19 @@ async function addComm(){
 }
 
 // ---------- save ----------
+function composeName(c){
+  if(!c)return '';
+  const f=(c.firstName||'').trim();const l=(c.lastName||'').trim();
+  if(f||l) return (f+' '+l).trim();
+  return (c.name||'').trim();
+}
+
 function collectData(){
+  const first=getV('custFirst'),last=getV('custLast');
   return {
-    customer:{name:getV('custName'),email:getV('custEmail'),phone:getV('custPhone')},
+    customer:{firstName:first,lastName:last,name:(first+' '+last).trim(),email:getV('custEmail'),phone:getV('custPhone')},
     event:{type:getV('evType'),date:getV('evDate'),arrivalTime:getV('evArrival'),serveTime:getV('evServe')},
-    venue:{type:getV('venType'),name:getV('venName'),address:getV('venAddr'),contactName:getV('venContact'),contactPhone:getV('venPhone')},
+    venue:{type:getV('venType'),name:getV('venName'),street:getV('venStreet'),city:getV('venCity'),state:getV('venState'),zip:getV('venZip'),address:composeAddress(),contactName:getV('venContact'),contactPhone:getV('venPhone')},
     dayOfContact:{name:getV('dayName'),phone:getV('dayPhone')},
     billingRestaurant:getV('billing'),
     fulfillingRestaurant:getV('fulfilling'),
@@ -498,7 +569,7 @@ function collectData(){
 
 async function saveBooking(silent){
   const msg=document.getElementById('saveMsg');
-  if(!getV('custName')){msg.style.color='var(--danger)';msg.textContent='Customer name is required.';return false;}
+  if(!getV('custFirst') && !getV('custLast')){msg.style.color='var(--danger)';msg.textContent='Customer first or last name is required.';return false;}
   msg.style.color='var(--gray-500)';msg.textContent='Saving…';
   const data=collectData();
   try{
@@ -513,7 +584,8 @@ async function saveBooking(silent){
       await db.collection('caterings').doc(docId).set(data,{merge:true});
     }
     await saveCustomItemsToMenu();
-    document.getElementById('pageTitle').textContent=getV('custName')?('Catering — '+getV('custName')):'Catering';
+    const _nm=composeName({firstName:getV('custFirst'),lastName:getV('custLast')});
+    document.getElementById('pageTitle').textContent=_nm?('Catering — '+_nm):'Catering';
     if(!silent){msg.style.color='var(--success)';msg.textContent='✓ Saved at '+new Date().toLocaleTimeString();}
     return true;
   }catch(e){console.error('saveBooking',e);msg.style.color='var(--danger)';msg.textContent='Save failed: '+e.message;return false;}
