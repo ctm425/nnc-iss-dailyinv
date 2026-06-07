@@ -123,11 +123,14 @@ textarea{resize:vertical}
       <div class="sec-title">Event</div>
       <div class="grid">
         <div><label>Type</label>
-          <select id="evType">
+          <select id="evType" onchange="onEventTypeChange()">
             <option>Graduation</option><option>Wedding</option><option>Engagement</option><option>Birthday party</option>
-            <option>Anniversary</option><option>Retirement</option><option>Eid al-Adha</option>
-            <option>Eid ul-Fitr</option><option>Other</option>
-          </select></div>
+            <option>Anniversary</option><option>Retirement</option><option>Bar Mitzvah</option>
+            <option>Corporate Lunch</option><option>Corporate Dinner</option><option>Festival</option>
+            <option>Eid al-Adha</option><option>Eid ul-Fitr</option><option>Other</option>
+          </select>
+          <input id="evTypeOther" placeholder="describe the event type" style="margin-top:6px;display:none">
+        </div>
         <div><label>Status</label>
           <select id="status">
             <option value="inquiry">Inquiry</option><option value="quoted">Quoted</option>
@@ -734,6 +737,19 @@ function updateStaffSummary(){
 function addStaff(){staffMembers.push({name:'',phone:'',confirmed:false});renderStaff();}
 function removeStaff(i){staffMembers.splice(i,1);renderStaff();}
 
+function onEventTypeChange(){
+  const isOther=document.getElementById('evType').value==='Other';
+  const other=document.getElementById('evTypeOther');
+  other.style.display=isOther?'block':'none';
+  if(!isOther)other.value='';
+}
+// Resolved event-type string for printing/emailing/displaying.
+function resolvedEventType(ev){
+  const t=(ev&&ev.type)||'';
+  if(t==='Other'){const o=(ev&&ev.typeOther||'').trim();return o||'Other';}
+  return t;
+}
+
 function onOtherFoodToggle(){
   const yes=document.querySelector('input[name="otherFoodFlag"]:checked').value==='yes';
   document.getElementById('otherFoodWrap').style.display=yes?'':'none';
@@ -755,7 +771,7 @@ async function loadBooking(){
     setV('custLast', c.lastName || '');
     setV('custEmail', c.email);
     setV('custPhone', c.phone);
-    setV('evType',x.event&&x.event.type);setV('status',x.status||'inquiry');
+    setV('evType',x.event&&x.event.type);setV('evTypeOther',(x.event&&x.event.typeOther)||'');onEventTypeChange();setV('status',x.status||'inquiry');
     setV('evDate',x.event&&x.event.date);setV('evArrival',x.event&&x.event.arrivalTime);setV('evServe',x.event&&x.event.serveTime);
     if(x.billingRestaurant)setV('billing',x.billingRestaurant);
     if(x.fulfillingRestaurant)setV('fulfilling',x.fulfillingRestaurant);
@@ -847,7 +863,7 @@ function collectData(){
   const first=getV('custFirst'),last=getV('custLast');
   return {
     customer:{firstName:first,lastName:last,name:(first+' '+last).trim(),email:getV('custEmail'),phone:getV('custPhone')},
-    event:{type:getV('evType'),date:getV('evDate'),arrivalTime:getV('evArrival'),serveTime:getV('evServe')},
+    event:{type:getV('evType'),typeOther:(getV('evType')==='Other'?getV('evTypeOther'):''),date:getV('evDate'),arrivalTime:getV('evArrival'),serveTime:getV('evServe')},
     venue:{type:getV('venType'),name:getV('venName'),url:normalizeUrl(getV('venUrl')),street:getV('venStreet'),city:getV('venCity'),state:getV('venState'),zip:getV('venZip'),address:composeAddress(),contactName:getV('venContact'),contactPhone:getV('venPhone')},
     referredBy:{name:getV('refName'),phone:getV('refPhone'),email:getV('refEmail')},
     originalInquiry:{date:getV('inqDate'),channel:getV('inqChannel')},
@@ -966,7 +982,7 @@ function printKitchenOrder(){
    <div class="top"><div><h1>Kitchen order</h1><div class="small">${escHtml(r(d.fulfillingRestaurant))} — fulfilling${d.billingRestaurant!==d.fulfillingRestaurant?(' · billed to '+escHtml(r(d.billingRestaurant))):''}</div></div>
    <div class="small" style="text-align:right">Printed ${new Date().toLocaleDateString()}<br>${escHtml(d.status||'')}</div></div>
    <div class="meta">
-     <div><span class="lbl">Event</span><br><strong>${escHtml(d.customer.name||'')} · ${escHtml(d.event.type||'')}</strong></div>
+     <div><span class="lbl">Event</span><br><strong>${escHtml(d.customer.name||'')} · ${escHtml(resolvedEventType(d.event))}</strong></div>
      <div><span class="lbl">Event date</span><br><strong>${escHtml(d.event.date||'—')}</strong></div>
      <div><span class="lbl">Customer</span><br><strong>${escHtml(d.customer.name||'')} · ${escHtml(d.customer.phone||'')}</strong></div>
      <div><span class="lbl">Guests</span><br><strong>${escHtml(guestStr)}</strong></div>
@@ -1024,7 +1040,7 @@ function printBooking(){
   );
 
   const event=sect('Event',
-    row('Type',escHtml(ev.type))+
+    row('Type',escHtml(resolvedEventType(ev)))+
     row('Status',escHtml(d.status))+
     row('Date',ev.date?(dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date)):'')+
     row('Guest arrival',t12(ev.arrivalTime))+
@@ -1132,7 +1148,7 @@ function printBooking(){
      @media print{button{display:none}}
    </style></head><body>
    <div class="top">
-     <div><h1>Catering booking</h1><div class="small">${escHtml(name)} · ${escHtml(ev.type||'')}${ev.date?(' · '+dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date)):''}</div></div>
+     <div><h1>Catering booking</h1><div class="small">${escHtml(name)} · ${escHtml(resolvedEventType(ev))}${ev.date?(' · '+dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date)):''}</div></div>
      <div class="small" style="text-align:right">Printed ${new Date().toLocaleString()}<br>Status: <strong>${escHtml(d.status||'')}</strong></div>
    </div>
    ${customer}${referred}${event}${inquiry}${venue}${dayOf}${guests}${notes}${menuHtml}${fulHtml}${payment}${documents}${commHtml}
@@ -1147,7 +1163,8 @@ function emailBooking(){
   const d=collectData();
   const name=composeName({firstName:getV('custFirst'),lastName:getV('custLast')})||'(no name)';
   const ev=d.event||{},v=d.venue||{},g=d.guests||{},pay=d.payment||{},f=d.fulfillment||{},fs=f.fullService||{};
-  const subject='Catering: '+name+(ev.type?(' · '+ev.type):'')+(ev.date?(' · '+fmtDateMDY(ev.date)):'');
+  const evDisplay=resolvedEventType(ev);
+  const subject='Catering: '+name+(evDisplay?(' · '+evDisplay):'')+(ev.date?(' · '+fmtDateMDY(ev.date)):'');
   const sub=d.menu.reduce((s,m)=>s+(Number(m.billedQty)||0)*(Number(m.unitPrice)||0),0);
   const depPaid=pay.depositStatus==='Paid';
   const dep=pay.depositRequired?(Number(pay.depositAmount)||0):0;
@@ -1164,7 +1181,7 @@ function emailBooking(){
   if(d.customer.phone)lines.push(d.customer.phone);
   lines.push('');
   lines.push('— EVENT —');
-  if(ev.type)lines.push('Type: '+ev.type);
+  if(evDisplay)lines.push('Type: '+evDisplay);
   if(ev.date)lines.push('Date: '+dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date));
   if(ev.arrivalTime)lines.push('Guest arrival: '+t12(ev.arrivalTime));
   if(ev.serveTime)lines.push('Serving time: '+t12(ev.serveTime));
