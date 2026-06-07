@@ -257,15 +257,18 @@ function displayEventType(c){
   return (c.eventType==='Other' && (c.eventTypeOther||'').trim()) ? c.eventTypeOther : c.eventType;
 }
 function paymentStatus(raw){
+  // Canonical: payment.status (4 values). Fall back to inference from legacy depositStatus + depositRequired.
   const p=(raw&&raw.payment)||{};
-  if(!p.depositRequired)return 'No deposit';
-  return p.depositStatus||'Not paid';
+  if(p.status)return p.status;
+  if(!p.depositRequired)return 'Not paid';
+  if(p.depositStatus==='Paid')return 'Deposit paid';
+  return 'Deposit pending'; // covers legacy 'Not paid' or 'Partial' with deposit required
 }
 const PAY_META={
-  'Paid':{bg:'#dcfce7',fg:'#166534'},
-  'Partial':{bg:'#fef3c7',fg:'#92400e'},
-  'Not paid':{bg:'#fee2e2',fg:'#b91c1c'},
-  'No deposit':{bg:'#f3f4f6',fg:'#6b7280'}
+  'Fully paid':   {bg:'#dcfce7',fg:'#166534'}, // green
+  'Deposit paid': {bg:'#dbeafe',fg:'#1e40af'}, // blue (deposit in, balance still owed)
+  'Deposit pending':{bg:'#fef3c7',fg:'#92400e'}, // amber (deposit required, not received)
+  'Not paid':     {bg:'#fee2e2',fg:'#b91c1c'}  // red
 };
 
 async function handleLogin(){
@@ -293,7 +296,12 @@ auth.onAuthStateChanged(async user=>{
   }
 });
 
-function rname(key){return (typeof RESTAURANTS!=='undefined'&&RESTAURANTS[key])?RESTAURANTS[key].shortName:(key||'—');}
+// Simplified labels for the catering list (matches the catering-edit picker).
+const CATERING_LOC_LABEL={'nnc-iss':'Issaquah','nnc-renton':'Renton','babas-bel':'Bellevue'};
+function rname(key){
+  if(CATERING_LOC_LABEL[key])return CATERING_LOC_LABEL[key];
+  return (typeof RESTAURANTS!=='undefined'&&RESTAURANTS[key])?RESTAURANTS[key].shortName:(key||'—');
+}
 function money(n){return '$'+(Math.round((Number(n)||0))).toLocaleString();}
 
 function quoteTotal(c){
@@ -301,8 +309,12 @@ function quoteTotal(c){
 }
 function balanceDue(c){
   const total=quoteTotal(c);
-  const dep=(c.payment&&c.payment.depositStatus==='Paid')?(Number(c.payment.depositAmount)||0):0;
-  return Math.max(total-dep,0);
+  const p=c.payment||{};
+  const status=p.status||(p.depositStatus==='Paid'?'Deposit paid':(p.depositRequired?'Deposit pending':'Not paid'));
+  const dep=p.depositRequired?(Number(p.depositAmount)||0):0;
+  if(status==='Fully paid')return 0;
+  if(status==='Deposit paid')return Math.max(total-dep,0);
+  return total;
 }
 
 async function loadCaterings(){
@@ -410,10 +422,10 @@ const ACTIVE_COLS=[
   {k:'guestsTotal',l:'Guests',filter:'text',phold:'#'},
   {k:'venue',l:'Venue',filter:'text'},
   {k:'city',l:'City',filter:'text'},
-  {k:'billing',l:'Billing',filter:'select',optsFn:()=>Object.keys(RESTAURANTS).map(k=>RESTAURANTS[k].shortName)},
-  {k:'fulfilling',l:'Fulfilling',filter:'select',optsFn:()=>Object.keys(RESTAURANTS).map(k=>RESTAURANTS[k].shortName)},
+  {k:'billing',l:'Billing',filter:'select',opts:['Issaquah','Renton','Bellevue']},
+  {k:'fulfilling',l:'Fulfilling',filter:'select',opts:['Issaquah','Renton','Bellevue']},
   {k:'status',l:'Status',filter:'select',opts:['inquiry','quoted','confirmed','cancelled']},
-  {k:'payment',l:'Payment',filter:'select',opts:['Paid','Partial','Not paid','No deposit']},
+  {k:'payment',l:'Payment',filter:'select',opts:['Fully paid','Deposit paid','Deposit pending','Not paid']},
   {k:'_action',l:'',filter:'none'}
 ];
 
@@ -647,7 +659,7 @@ async function changeStatus(id,newStatus){
 }
 
 // ---------- payment status popover (reuses #statusPop) ----------
-const PAYMENT_LIST=['No deposit','Not paid','Partial','Paid'];
+const PAYMENT_LIST=['Not paid','Deposit pending','Deposit paid','Fully paid'];
 
 function openPaymentPop(id,anchor){
   const c=caterings.find(x=>x.id===id);if(!c)return;
@@ -680,18 +692,15 @@ async function changePayment(id,newPay){
   const c=caterings.find(x=>x.id===id);if(!c)return;
   if(c.payment===newPay){closeStatusPop();return;}
   const msg=document.getElementById('popSaveMsg');if(msg){msg.textContent='Saving…';msg.style.color='var(--gray-500)';}
-  // Map the display status back to the underlying payment fields.
-  // "No deposit" → depositRequired:false (leave depositStatus alone).
-  // Anything else → depositRequired:true + depositStatus:newPay.
-  const updates={updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:auth.currentUser.email};
-  if(newPay==='No deposit'){updates['payment.depositRequired']=false;}
-  else{updates['payment.depositRequired']=true;updates['payment.depositStatus']=newPay;}
+  // Canonical write to payment.status. Mirror legacy fields so older display code stays consistent until next refactor.
+  const updates={'payment.status':newPay,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:auth.currentUser.email};
+  if(newPay==='Fully paid'||newPay==='Deposit paid'){updates['payment.depositStatus']='Paid';updates['payment.depositRequired']=true;}
+  else if(newPay==='Deposit pending'){updates['payment.depositStatus']='Not paid';updates['payment.depositRequired']=true;}
+  else if(newPay==='Not paid'){updates['payment.depositStatus']='Not paid';}
   try{
     await db.collection('caterings').doc(id).update(updates);
-    // mirror in memory so the next render is correct
     c._raw=c._raw||{};c._raw.payment=c._raw.payment||{};
-    if(newPay==='No deposit'){c._raw.payment.depositRequired=false;}
-    else{c._raw.payment.depositRequired=true;c._raw.payment.depositStatus=newPay;}
+    c._raw.payment.status=newPay;
     c.payment=newPay;
     render();
     if(msg){msg.style.color='var(--success)';msg.textContent='✓ Saved';}

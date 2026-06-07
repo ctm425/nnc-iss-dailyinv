@@ -116,6 +116,9 @@ textarea{resize:vertical}
         <div><label>Phone</label><input id="refPhone" type="tel" placeholder="(425) 555-0123"></div>
         <div><label>Email</label><input id="refEmail" type="email" placeholder="name@email.com"></div>
       </div>
+      <div style="margin-top:10px;display:flex;justify-content:flex-end">
+        <button type="button" class="btn btn-ghost" onclick="sendReferralThanks()" title="Open an email to the referrer with a thank-you note">✉ Send thank-you note</button>
+      </div>
     </div>
 
     <!-- EVENT -->
@@ -167,9 +170,23 @@ textarea{resize:vertical}
         <div><label>Pickup time</label><input id="fulPickupTime" type="time"></div>
       </div>
 
-      <!-- Delivery / delivery+setup / full service: driver -->
-      <div id="fulDriverWrap" class="grid" style="margin-bottom:10px">
-        <div><label>Delivered by <span class="hint">(driver / service)</span></label><input id="fulDriver" placeholder="name or DoorDash"></div>
+      <!-- Delivery / delivery+setup / full service: assigned team -->
+      <div id="fulDriverWrap" style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="margin:0">Assigned team <span class="hint">(driver + any helpers)</span></label>
+          <span id="teamSummary" class="muted" style="font-size:.76rem"></span>
+        </div>
+        <div id="teamList"></div>
+        <button type="button" class="btn btn-ghost" style="margin-top:6px" onclick="addTeam()">+ Add team member</button>
+      </div>
+
+      <!-- Hot boxes (delivery + delivery-setup only) -->
+      <div id="fulHotBoxWrap" style="margin-bottom:10px">
+        <label>Hot boxes staying with customer?</label>
+        <div style="display:flex;gap:18px;align-items:center;margin:6px 0">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="hotBoxStay" value="no" style="width:auto" checked> No <span class="hint">(driver brings them back)</span></label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="hotBoxStay" value="yes" style="width:auto"> Yes <span class="hint">(left with customer for pickup later)</span></label>
+        </div>
       </div>
 
       <!-- Note shown for delivery modes -->
@@ -333,22 +350,51 @@ textarea{resize:vertical}
     <!-- PAYMENT -->
     <div class="card">
       <div class="sec-title">Payment</div>
-      <div class="grid">
-        <div>
-          <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="depReq" style="width:auto" onchange="recalc()"> Deposit required</label>
-          <input id="depAmount" type="number" min="0" step="0.01" placeholder="$ amount" style="margin-top:5px" oninput="recalc()">
-        </div>
-        <div><label>Deposit status</label>
-          <select id="depStatus" onchange="recalc()"><option>Not paid</option><option>Paid</option><option>Partial</option></select></div>
-        <div><label>Payment terms</label>
-          <select id="payTerms" onchange="onPayTermsChange()">
-            <option>Balance due day of event</option><option>50% deposit / 50% on event</option>
-            <option>Net 7 after event</option><option>Paid in full upfront</option>
-            <option>Full payment by date</option>
-          </select>
-          <input id="payByDate" type="date" style="margin-top:6px;display:none" title="Full payment due by this date">
+
+      <!-- Deposit -->
+      <div style="margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px"><input type="checkbox" id="depReq" style="width:auto" onchange="recalc();onDepReqToggle()"> Deposit required</label>
+        <div id="depFields" class="grid" style="grid-template-columns:1fr 1fr;display:none;padding-left:24px">
+          <div><label>Deposit amount</label><input id="depAmount" type="number" min="0" step="0.01" placeholder="$" oninput="recalc()"></div>
+          <div><label>Deposit paid on <span class="hint">(if paid)</span></label><input id="depPaidDate" type="date"></div>
         </div>
       </div>
+
+      <!-- Remainder payment -->
+      <div style="margin-bottom:14px;padding-top:12px;border-top:1px dashed var(--gray-200)">
+        <label style="margin:0 0 8px">Remainder payment</label>
+        <div class="grid" style="grid-template-columns:1fr 1fr">
+          <div>
+            <label>Amount <span class="hint">(defaults to subtotal − deposit; editable)</span></label>
+            <input id="remAmount" type="number" min="0" step="0.01" placeholder="$" oninput="onRemAmountEdit()">
+          </div>
+          <div>
+            <label>Balance due by</label>
+            <input id="balanceDueBy" type="date" oninput="onBalanceDueByEdit()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Status + Terms -->
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Payment status</label>
+          <select id="payStatus" onchange="recalc()">
+            <option>Not paid</option>
+            <option>Deposit pending</option>
+            <option>Deposit paid</option>
+            <option>Fully paid</option>
+          </select></div>
+        <div><label>Payment terms</label>
+          <select id="payTerms" onchange="onPayTermsChange()">
+            <option>Full Upfront Payment</option>
+            <option>30 Days Before Event</option>
+            <option>21 Days Before Event</option>
+            <option>14 Days Before Event</option>
+            <option>Custom Date</option>
+          </select>
+        </div>
+      </div>
+      <div class="muted" style="font-size:.75rem;margin-top:8px">Balance-due date auto-fills from the event date and selected terms (except Custom Date). Edit it any time to override.</div>
     </div>
 
     <!-- DOCUMENTS (QuickBooks quote PDF + invoice/estimate link) -->
@@ -393,6 +439,7 @@ let editingCommId=null;    // id of the comm entry currently being edited (null 
 let loadedDoc=null;
 let pdfDoc={url:'',path:'',name:''}; // current quote-PDF state
 let staffMembers=[]; // for full-service: [{name, phone, confirmed}]
+let deliveryTeam=[]; // [{name, phone, role: 'Driver'|'Helper'}]
 
 async function handleLogin(){
   const email=document.getElementById('loginEmail').value.trim();
@@ -416,6 +463,8 @@ auth.onAuthStateChanged(async user=>{
     buildRestaurantPickers();
     buildStatePicker();
     wireDaySameSync();
+    wireAllPhones();
+    document.getElementById('evDate').addEventListener('change',onEventDateChange);
     document.getElementById('commDate').value=new Date().toISOString().slice(0,10);
     await loadMenuCatalog();
     if(isNew){
@@ -433,13 +482,43 @@ auth.onAuthStateChanged(async user=>{
   }
 });
 
+// Catering's billing/fulfilling pickers — three simple labels, mapped to existing restaurant keys.
+const CATERING_LOCATIONS=[
+  {key:'nnc-iss',label:'Issaquah'},
+  {key:'nnc-renton',label:'Renton'},
+  {key:'babas-bel',label:'Bellevue'}
+];
+function locationLabel(key){const m=CATERING_LOCATIONS.find(l=>l.key===key);return m?m.label:(RESTAURANTS[key]?RESTAURANTS[key].shortName:(key||'—'));}
+
 function buildRestaurantPickers(){
-  const keys=Object.keys(RESTAURANTS);
-  const opts=keys.map(k=>`<option value="${k}">${RESTAURANTS[k].shortName}</option>`).join('');
+  const opts=CATERING_LOCATIONS.map(l=>`<option value="${l.key}">${l.label}</option>`).join('');
   document.getElementById('billing').innerHTML=opts;
   document.getElementById('fulfilling').innerHTML=opts;
   document.getElementById('billing').value='nnc-iss';
   document.getElementById('fulfilling').value='nnc-iss';
+}
+
+// ---------- phone formatting ----------
+// Format as user types: (xxx) xxx-xxxx. Strips non-digits, caps at 10. Idempotent on load.
+function fmtPhoneStr(s){
+  let v=String(s||'').replace(/\D/g,'').slice(0,10);
+  if(!v)return '';
+  if(v.length<=3)return '('+v;
+  if(v.length<=6)return '('+v.slice(0,3)+') '+v.slice(3);
+  return '('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);
+}
+function fmtPhoneInput(el){if(!el)return;el.value=fmtPhoneStr(el.value);}
+function wirePhoneFormatting(el){
+  if(!el||el._phoneWired)return;el._phoneWired=true;
+  el.addEventListener('input',()=>{
+    const caretAtEnd=(el.selectionStart===el.value.length);
+    el.value=fmtPhoneStr(el.value);
+    if(caretAtEnd){try{el.setSelectionRange(el.value.length,el.value.length);}catch(e){}}
+  });
+  el.addEventListener('blur',()=>{el.value=fmtPhoneStr(el.value);});
+}
+function wireAllPhones(){
+  ['custPhone','venPhone','dayPhone','refPhone'].forEach(id=>wirePhoneFormatting(document.getElementById(id)));
 }
 
 // US states + DC. WA is pinned first, the rest sorted alphabetically by full name.
@@ -688,11 +767,26 @@ function recalc(){
     refreshRowState(i);
   });
   const depReq=document.getElementById('depReq').checked;
-  const depPaid=document.getElementById('depStatus').value==='Paid';
   const dep=depReq?(parseFloat(document.getElementById('depAmount').value||0)||0):0;
+  const payStatus=document.getElementById('payStatus').value;
+  // Balance owed per status:
+  //   Fully paid → 0; Deposit paid → subtotal − deposit; Deposit pending / Not paid → full subtotal.
+  let balance;
+  if(payStatus==='Fully paid')balance=0;
+  else if(payStatus==='Deposit paid')balance=Math.max(sub-dep,0);
+  else balance=sub;
+  const credited=(payStatus==='Fully paid')?sub:((payStatus==='Deposit paid')?dep:0);
   document.getElementById('quoteTotal').textContent=money(sub);
-  document.getElementById('depShown').textContent=money(depPaid?dep:0);
-  document.getElementById('balanceDue').textContent=money(Math.max(sub-(depPaid?dep:0),0));
+  document.getElementById('depShown').textContent=money(credited);
+  document.getElementById('balanceDue').textContent=money(balance);
+  // Remainder amount: input is editable. Auto-fill subtotal − deposit unless the user has overridden it.
+  const autoRem=Math.max(sub-dep,0);
+  const remEl=document.getElementById('remAmount');
+  if(remEl){
+    const curr=parseFloat(remEl.value||'');
+    const matchedAuto=(!remEl.value)||(_lastAutoRemAmount!=='__user__' && curr===_lastAutoRemAmount);
+    if(matchedAuto){remEl.value=autoRem;_lastAutoRemAmount=autoRem;}
+  }
   const mf=document.getElementById('menuFlag');
   if(adj){mf.style.color='var(--warn)';mf.textContent='⚠ '+adj+' line'+(adj>1?'s':'')+' making fewer than billed';}
   else{mf.style.color='var(--gray-400)';mf.textContent='Kitchen matches billed on all lines.';}
@@ -722,10 +816,39 @@ function onFulMode(){
   document.getElementById('fulPickupWrap').style.display=isPickup?'':'none';
   document.getElementById('fulDriverWrap').style.display=isDelivery?'':'none';
   document.getElementById('fulVenueHint').style.display=isDelivery?'':'none';
+  // Hot boxes only for delivery and delivery+setup (not pickup, not full-service)
+  document.getElementById('fulHotBoxWrap').style.display=(mode==='delivery'||mode==='delivery-setup')?'':'none';
   document.getElementById('fulSetupWrap').style.display=(mode==='delivery-setup')?'':'none';
   document.getElementById('fulFullWrap').style.display=(mode==='full-service')?'':'none';
+  if(isDelivery)renderTeam();
   if(mode==='full-service')renderStaff();
 }
+
+// ---------- Delivery team list ----------
+function renderTeam(){
+  const list=document.getElementById('teamList');
+  if(!deliveryTeam.length){list.innerHTML='<div class="muted" style="font-size:.78rem;padding:6px 2px">No team members added yet.</div>';updateTeamSummary();return;}
+  list.innerHTML=deliveryTeam.map((t,i)=>
+    `<div style="display:grid;grid-template-columns:1fr 1fr 110px auto;gap:8px;align-items:center;margin-bottom:6px">
+       <input placeholder="name" value="${escAttr(t.name||'')}" oninput="deliveryTeam[${i}].name=this.value">
+       <input placeholder="phone" type="tel" value="${escAttr(t.phone||'')}" oninput="deliveryTeam[${i}].phone=fmtPhoneStr(this.value);this.value=deliveryTeam[${i}].phone">
+       <select onchange="deliveryTeam[${i}].role=this.value;updateTeamSummary()">
+         <option ${t.role==='Driver'?'selected':''}>Driver</option>
+         <option ${t.role==='Helper'?'selected':''}>Helper</option>
+       </select>
+       <button type="button" class="btn btn-ghost" style="padding:4px 8px" onclick="removeTeam(${i})" title="Remove">✕</button>
+     </div>`).join('');
+  updateTeamSummary();
+}
+function updateTeamSummary(){
+  const el=document.getElementById('teamSummary');if(!el)return;
+  const drivers=deliveryTeam.filter(t=>t.role==='Driver').length;
+  const helpers=deliveryTeam.filter(t=>t.role==='Helper').length;
+  const parts=[];if(drivers)parts.push(drivers+' driver'+(drivers>1?'s':''));if(helpers)parts.push(helpers+' helper'+(helpers>1?'s':''));
+  el.textContent=parts.join(' · ');
+}
+function addTeam(){deliveryTeam.push({name:'',phone:'',role:deliveryTeam.length===0?'Driver':'Helper'});renderTeam();}
+function removeTeam(i){deliveryTeam.splice(i,1);renderTeam();}
 
 // ---------- Full-service staff list ----------
 function renderStaff(){
@@ -751,9 +874,58 @@ function updateStaffSummary(){
 function addStaff(){staffMembers.push({name:'',phone:'',confirmed:false});renderStaff();}
 function removeStaff(i){staffMembers.splice(i,1);renderStaff();}
 
+// ---------- Payment terms ↔ Balance due by ----------
+// Auto-calc rule: Balance due by = (event date − days-before), based on selected terms.
+// User overrides win — once they edit Balance due by manually, subsequent event-date changes leave it alone.
+const TERMS_DAYS_BEFORE={'Full Upfront Payment':30,'30 Days Before Event':30,'21 Days Before Event':21,'14 Days Before Event':14};
+let _lastAutoDueBy=null;     // last auto-calculated balanceDueBy value; used to detect whether user has overridden it.
+let _lastAutoRemAmount=null; // same idea for the remainder amount field.
+
+function calcBalanceDueBy(terms,eventDateStr){
+  if(terms==='Custom Date'||!eventDateStr)return '';
+  const days=TERMS_DAYS_BEFORE[terms];if(days==null)return '';
+  const ev=new Date(eventDateStr+'T00:00:00');if(isNaN(ev))return '';
+  const due=new Date(ev);due.setDate(due.getDate()-days);
+  return due.toISOString().slice(0,10);
+}
+
 function onPayTermsChange(){
-  const v=document.getElementById('payTerms').value;
-  document.getElementById('payByDate').style.display=(v==='Full payment by date')?'block':'none';
+  // Explicit user action — always recompute (unless Custom Date, where we leave whatever's there).
+  const v=getV('payTerms');
+  if(v!=='Custom Date'){
+    const auto=calcBalanceDueBy(v,getV('evDate'));
+    document.getElementById('balanceDueBy').value=auto;
+    _lastAutoDueBy=auto;
+  }
+}
+
+function onEventDateChange(){
+  // Only re-fill balanceDueBy if the user hasn't customized it (still equals previous auto value).
+  const v=getV('payTerms');
+  if(v==='Custom Date')return;
+  const due=document.getElementById('balanceDueBy');
+  if(!due.value||due.value===_lastAutoDueBy){
+    const auto=calcBalanceDueBy(v,getV('evDate'));
+    due.value=auto;_lastAutoDueBy=auto;
+  }
+}
+
+function onBalanceDueByEdit(){
+  // User typed in the field directly — mark as overridden so future auto-recomputes don't clobber.
+  _lastAutoDueBy='__user__';
+}
+
+function onRemAmountEdit(){
+  _lastAutoRemAmount='__user__';
+}
+
+function onDepReqToggle(){
+  document.getElementById('depFields').style.display=document.getElementById('depReq').checked?'grid':'none';
+  if(!document.getElementById('depReq').checked){
+    document.getElementById('depAmount').value='';
+    document.getElementById('depPaidDate').value='';
+  }
+  recalc();
 }
 
 function onEventTypeChange(){
@@ -789,14 +961,14 @@ async function loadBooking(){
     setV('custFirst', c.firstName != null ? c.firstName : (c.name||''));
     setV('custLast', c.lastName || '');
     setV('custEmail', c.email);
-    setV('custPhone', c.phone);
+    setV('custPhone', fmtPhoneStr(c.phone));
     setV('evType',x.event&&x.event.type);setV('evTypeOther',(x.event&&x.event.typeOther)||'');onEventTypeChange();setV('status',x.status||'inquiry');
     setV('evDate',x.event&&x.event.date);setV('evArrival',x.event&&x.event.arrivalTime);setV('evServe',x.event&&x.event.serveTime);
     if(x.billingRestaurant)setV('billing',x.billingRestaurant);
     if(x.fulfillingRestaurant)setV('fulfilling',x.fulfillingRestaurant);
     setV('venType',x.venue&&x.venue.type);setV('venName',x.venue&&x.venue.name);
     setV('venUrl',x.venue&&x.venue.url);updateVenueUrlBtn();
-    const r=x.referredBy||{};setV('refName',r.name);setV('refPhone',r.phone);setV('refEmail',r.email);
+    const r=x.referredBy||{};setV('refName',r.name);setV('refPhone',fmtPhoneStr(r.phone));setV('refEmail',r.email);
     const v=x.venue||{};
     // Prefer structured fields; legacy single-string address drops into Street so nothing is lost.
     if(v.street!=null||v.city!=null||v.zip!=null||v.state!=null){
@@ -805,9 +977,9 @@ async function loadBooking(){
     }else if(v.address){
       setV('venStreet',v.address);
     }
-    setV('venContact',v.contactName);setV('venPhone',v.contactPhone);
+    setV('venContact',v.contactName);setV('venPhone',fmtPhoneStr(v.contactPhone));
     updateAddrPreview();
-    setV('dayName',x.dayOfContact&&x.dayOfContact.name);setV('dayPhone',x.dayOfContact&&x.dayOfContact.phone);
+    setV('dayName',x.dayOfContact&&x.dayOfContact.name);setV('dayPhone',fmtPhoneStr(x.dayOfContact&&x.dayOfContact.phone));
     if(x.dayOfContact&&x.dayOfContact.sameAsCustomer){document.getElementById('daySame').checked=true;onDaySameToggle();}
     if(x.guests){setV('gTotal',x.guests.total);setV('gAdult',x.guests.adults);setV('gChild',x.guests.children);setV('gVeg',x.guests.veg);setV('gNon',x.guests.nonVeg);}
     setV('otherFood',x.otherFood);setV('kitchenNotes',x.kitchenNotes);
@@ -818,13 +990,53 @@ async function loadBooking(){
     if(x.fulfillment){
       const f=x.fulfillment;
       const r=document.querySelector('input[name="ful"][value="'+(f.mode||'delivery')+'"]');if(r)r.checked=true;
-      setV('fulDriver',f.driver);setV('fulReady',f.readyTime);setV('fulPickupTime',f.pickupTime);
+      setV('fulReady',f.readyTime);setV('fulPickupTime',f.pickupTime);
       const fp=document.querySelector('input[name="floorPlan"][value="'+(f.floorPlanProvided?'yes':'no')+'"]');if(fp)fp.checked=true;
+      const hb=document.querySelector('input[name="hotBoxStay"][value="'+(f.hotBoxesStayWithCustomer?'yes':'no')+'"]');if(hb)hb.checked=true;
       const fs=f.fullService||{};
       setV('fsStaffCount',fs.staffNeeded||'');setV('fsCharge',fs.chargeAmount||'');
-      staffMembers=(fs.staff||[]).map(s=>({name:s.name||'',phone:s.phone||'',confirmed:!!s.confirmed}));
+      staffMembers=(fs.staff||[]).map(s=>({name:s.name||'',phone:fmtPhoneStr(s.phone),confirmed:!!s.confirmed}));
+      // Delivery team — prefer new schema, fall back to legacy single driver string.
+      if(Array.isArray(f.team)&&f.team.length){
+        deliveryTeam=f.team.map(t=>({name:t.name||'',phone:fmtPhoneStr(t.phone),role:t.role==='Helper'?'Helper':'Driver'}));
+      }else if(f.driver){
+        deliveryTeam=[{name:f.driver,phone:'',role:'Driver'}];
+      }else{
+        deliveryTeam=[];
+      }
     }
-    if(x.payment){document.getElementById('depReq').checked=!!x.payment.depositRequired;setV('depAmount',x.payment.depositAmount);setV('depStatus',x.payment.depositStatus||'Not paid');setV('payTerms',x.payment.terms);setV('payByDate',x.payment.payByDate||'');onPayTermsChange();}
+    if(x.payment){
+      document.getElementById('depReq').checked=!!x.payment.depositRequired;
+      setV('depAmount',x.payment.depositAmount);
+      setV('depPaidDate',x.payment.depositPaidDate||'');
+      // Remainder amount: load saved value or leave blank for recalc to fill from subtotal − deposit.
+      if(x.payment.remainderAmount!=null && x.payment.remainderAmount!==''){
+        setV('remAmount',x.payment.remainderAmount);
+        _lastAutoRemAmount='__user__'; // treat saved value as a user override so subtotal changes don't clobber it
+      }
+      // Prefer canonical payment.status; fall back to inference from legacy depositStatus + depositRequired.
+      let pst=x.payment.status;
+      if(!pst){
+        if(!x.payment.depositRequired)pst='Not paid';
+        else if(x.payment.depositStatus==='Paid')pst='Deposit paid';
+        else pst='Deposit pending';
+      }
+      setV('payStatus',pst);
+      // Migrate legacy payment terms to the new option set.
+      const TERMS_MIGRATE={'Paid in full upfront':'Full Upfront Payment','Full payment by date':'Custom Date'};
+      const terms=TERMS_MIGRATE[x.payment.terms]||(['Full Upfront Payment','30 Days Before Event','21 Days Before Event','14 Days Before Event','Custom Date'].indexOf(x.payment.terms)>=0?x.payment.terms:'Full Upfront Payment');
+      setV('payTerms',terms);
+      // Balance due by: new field wins; else migrate legacy payByDate; else auto-calc.
+      const savedDueBy=x.payment.balanceDueBy||x.payment.payByDate||'';
+      if(savedDueBy){
+        setV('balanceDueBy',savedDueBy);
+        _lastAutoDueBy='__user__'; // treat saved value as a user override
+      }else if(terms!=='Custom Date'){
+        const auto=calcBalanceDueBy(terms,x.event&&x.event.date||'');
+        setV('balanceDueBy',auto);_lastAutoDueBy=auto;
+      }
+      onDepReqToggle();
+    }
     const docs=x.documents||{};
     pdfDoc={url:docs.quotePdfUrl||'',path:docs.quotePdfPath||'',name:docs.quotePdfName||''};
     renderPdfState();
@@ -917,6 +1129,27 @@ async function deleteComm(id){
     comms=comms.filter(c=>c.id!==id);
     editingCommId=null;renderComms();
   }catch(e){console.error('deleteComm',e);alert('Delete failed: '+e.message);}
+}
+
+// ---------- Referral: send a thank-you email ----------
+function sendReferralThanks(){
+  const email=getV('refEmail').trim();
+  const name=getV('refName').trim();
+  if(!email){alert('Add the referrer’s email above first.');return;}
+  const custName=composeName({firstName:getV('custFirst'),lastName:getV('custLast')})||'your friend';
+  const firstName=name?name.split(/\s+/)[0]:'';
+  const subject='Thank you for the referral';
+  const body=[
+    'Hi'+(firstName?(' '+firstName):'')+',',
+    '',
+    'Thank you so much for referring '+custName+' to Naan N Curry for their upcoming catering. We really appreciate the trust you put in us by recommending our food.',
+    '',
+    'If there’s ever anything we can do for you, please let us know.',
+    '',
+    'Warmly,',
+    'Naan N Curry Issaquah'
+  ].join('\n');
+  window.location.href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
 }
 
 // ---------- AI recap: build a prompt, copy to clipboard, open Claude.ai ----------
@@ -1038,17 +1271,35 @@ function collectData(){
     kitchenNotes:getV('kitchenNotes'),
     fulfillment:{
       mode:getFulMode(),
-      driver:getV('fulDriver'),
+      // Keep legacy 'driver' as a joined string of driver names so kitchen-order/print/email continue to work without rewrites.
+      driver:deliveryTeam.filter(t=>t.role==='Driver').map(t=>t.name).filter(Boolean).join(', '),
+      team:deliveryTeam.map(t=>({name:t.name||'',phone:t.phone||'',role:t.role||'Helper'})),
       readyTime:getV('fulReady'),
       pickupTime:getV('fulPickupTime'),
       floorPlanProvided:(document.querySelector('input[name="floorPlan"]:checked')||{}).value==='yes',
+      hotBoxesStayWithCustomer:(document.querySelector('input[name="hotBoxStay"]:checked')||{}).value==='yes',
       fullService:{
         staffNeeded:parseInt(getV('fsStaffCount'))||0,
         chargeAmount:parseFloat(getV('fsCharge'))||0,
         staff:staffMembers.map(s=>({name:s.name||'',phone:s.phone||'',confirmed:!!s.confirmed}))
       }
     },
-    payment:{depositRequired:document.getElementById('depReq').checked,depositAmount:parseFloat(getV('depAmount'))||0,depositStatus:getV('depStatus'),terms:getV('payTerms'),payByDate:(getV('payTerms')==='Full payment by date'?getV('payByDate'):'')},
+    payment:(function(){
+      const pst=getV('payStatus');
+      // Derive legacy depositStatus mirror so old display code reads consistently.
+      let legacyDep='Not paid';
+      if(pst==='Fully paid'||pst==='Deposit paid')legacyDep='Paid';
+      return {
+        depositRequired:document.getElementById('depReq').checked,
+        depositAmount:parseFloat(getV('depAmount'))||0,
+        depositPaidDate:getV('depPaidDate'),
+        remainderAmount:parseFloat(getV('remAmount'))||0,
+        balanceDueBy:getV('balanceDueBy'),
+        status:pst,
+        depositStatus:legacyDep,
+        terms:getV('payTerms')
+      };
+    })(),
     documents:{quotePdfUrl:pdfDoc.url||'',quotePdfPath:pdfDoc.path||'',quotePdfName:pdfDoc.name||'',invoiceUrl:normalizeUrl(getV('invUrl'))},
     status:getV('status'),
     quoteTotal:lines.reduce((s,l)=>s+(Number(l.billedQty)||0)*(Number(l.unitPrice)||0),0),
@@ -1110,13 +1361,15 @@ async function deleteBooking(){
 // ---------- kitchen order (print to PDF) ----------
 function printKitchenOrder(){
   const d=collectData();
-  const r=(k)=> (RESTAURANTS[k]?RESTAURANTS[k].shortName:(k||'—'));
+  const r=(k)=>locationLabel(k);
   const fm=d.fulfillment.mode;
+  const hb=d.fulfillment.hotBoxesStayWithCustomer;
+  const hbTag=(fm==='delivery'||fm==='delivery-setup')?(hb?' · hot boxes STAY':' · hot boxes return'):'';
   let ful;
   if(fm==='pickup') ful='Pickup at '+(t12(d.fulfillment.pickupTime)||t12(d.fulfillment.readyTime)||'—');
-  else if(fm==='delivery-setup') ful='Delivery + setup'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')+(d.fulfillment.floorPlanProvided?' · floor plan provided':' · NO floor plan');
+  else if(fm==='delivery-setup') ful='Delivery + setup'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')+(d.fulfillment.floorPlanProvided?' · floor plan provided':' · NO floor plan')+hbTag;
   else if(fm==='full-service'){const fs=d.fulfillment.fullService||{};ful='Full service'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')+(fs.staffNeeded?' · '+fs.staffNeeded+' staff':'');}
-  else ful='Delivery'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'');
+  else ful='Delivery'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')+hbTag;
   const rowsHtml=d.menu.filter(m=>Number(m.kitchenQty)>0).map(m=>
     `<tr><td class="q">${m.kitchenQty}</td><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}</td><td>${escHtml(m.notes||'—')}</td></tr>`).join('')
     || '<tr><td colspan="3" style="color:#888">No kitchen quantities set.</td></tr>';
@@ -1173,7 +1426,7 @@ function t12(t){
 }
 function fmtDateMDY(iso){if(!iso)return '—';const p=iso.split('-');if(p.length<3)return iso;return p[1]+'/'+p[2]+'/'+p[0].slice(2);}
 function dayOfWeek(iso){if(!iso)return '';const dt=new Date(iso+'T00:00:00');if(isNaN(dt))return '';return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];}
-function _restName(k){return RESTAURANTS[k]?RESTAURANTS[k].shortName:(k||'—');}
+function _restName(k){return locationLabel(k);}
 
 // ---------- Print full booking (one-pager: print or save as PDF) ----------
 function printBooking(){
@@ -1242,11 +1495,12 @@ function printBooking(){
         return `<tr><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}</td><td class="r">${m.billedQty}</td><td class="r"${adj}>${m.kitchenQty}</td><td class="r">${money(m.unitPrice)}</td><td class="r">${money(tot)}</td><td>${escHtml(m.notes||'')}</td></tr>`;
       }).join('')+'</tbody></table>';
     const sub=d.menu.reduce((s,m)=>s+(Number(m.billedQty)||0)*(Number(m.unitPrice)||0),0);
-    const depPaid=pay.depositStatus==='Paid';
+    const status=pay.status||(pay.depositStatus==='Paid'?'Deposit paid':(pay.depositRequired?'Deposit pending':'Not paid'));
     const dep=pay.depositRequired?(Number(pay.depositAmount)||0):0;
-    const balance=Math.max(sub-(depPaid?dep:0),0);
+    const credited=(status==='Fully paid')?sub:((status==='Deposit paid')?dep:0);
+    const balance=(status==='Fully paid')?0:((status==='Deposit paid')?Math.max(sub-dep,0):sub);
     menuHtml+=`<table class="totals"><tr><td>Subtotal</td><td class="r"><strong>${money(sub)}</strong></td></tr>`+
-      (pay.depositRequired?`<tr><td>Deposit${depPaid?' (paid)':' ('+(pay.depositStatus||'not paid')+')'}</td><td class="r">${money(dep)}</td></tr>`:'')+
+      (credited?`<tr><td>Credited (${status.toLowerCase()})</td><td class="r">−${money(credited)}</td></tr>`:'')+
       `<tr><td>Balance due</td><td class="r"><strong>${money(balance)}</strong></td></tr></table>`;
   }
 
@@ -1254,7 +1508,13 @@ function printBooking(){
   const fmLabel={pickup:'Customer pickup',delivery:'Delivery','delivery-setup':'Delivery + setup','full-service':'Full service'}[f.mode]||escHtml(f.mode);
   let fulRows=row('Mode',fmLabel)+row('Ready by',t12(f.readyTime));
   if(f.mode==='pickup')fulRows+=row('Pickup time',t12(f.pickupTime));
-  if(f.mode==='delivery'||f.mode==='delivery-setup'||f.mode==='full-service')fulRows+=row('Delivered by',escHtml(f.driver));
+  if(f.mode==='delivery'||f.mode==='delivery-setup'||f.mode==='full-service'){
+    const team=(f.team||[]);
+    fulRows+=row('Assigned team', team.length
+      ? team.map(t=>escHtml((t.name||'(unnamed)')+(t.role?(' — '+t.role):''))+(t.phone?(' · '+escHtml(t.phone)):'')).join('<br>')
+      : escHtml(f.driver||''));
+  }
+  if(f.mode==='delivery'||f.mode==='delivery-setup')fulRows+=row('Hot boxes', f.hotBoxesStayWithCustomer?'Staying with customer':'Returning with driver');
   if(f.mode==='delivery-setup')fulRows+=row('Floor plan',f.floorPlanProvided?'Provided':'NOT provided');
   if(f.mode==='full-service'){
     fulRows+=row('Staff needed',fs.staffNeeded||'')+row('Staff charge',fs.chargeAmount?money(fs.chargeAmount):'');
@@ -1266,11 +1526,15 @@ function printBooking(){
       '</td></tr></table>';
   }
 
+  const _payStatus=pay.status||(pay.depositStatus==='Paid'?'Deposit paid':(pay.depositRequired?'Deposit pending':'Not paid'));
   const payment=sect('Payment',
+    row('Payment status',escHtml(_payStatus))+
     row('Deposit required',pay.depositRequired?'Yes':'No')+
     row('Deposit amount',pay.depositRequired?money(pay.depositAmount||0):'')+
-    row('Deposit status',pay.depositRequired?escHtml(pay.depositStatus):'')+
-    row('Payment terms',escHtml(pay.terms)+(pay.payByDate?(' — due '+fmtDateMDY(pay.payByDate)):''))
+    row('Deposit paid on',pay.depositRequired&&pay.depositPaidDate?fmtDateMDY(pay.depositPaidDate):'')+
+    row('Remainder amount',pay.remainderAmount?money(pay.remainderAmount):'')+
+    row('Balance due by',pay.balanceDueBy?fmtDateMDY(pay.balanceDueBy):'')+
+    row('Payment terms',escHtml(pay.terms||''))
   );
 
   const documents=sect('Documents',
@@ -1327,9 +1591,9 @@ function emailBooking(){
   const evDisplay=resolvedEventType(ev);
   const subject='Catering: '+name+(evDisplay?(' · '+evDisplay):'')+(ev.date?(' · '+fmtDateMDY(ev.date)):'');
   const sub=d.menu.reduce((s,m)=>s+(Number(m.billedQty)||0)*(Number(m.unitPrice)||0),0);
-  const depPaid=pay.depositStatus==='Paid';
+  const payStatusE=pay.status||(pay.depositStatus==='Paid'?'Deposit paid':(pay.depositRequired?'Deposit pending':'Not paid'));
   const dep=pay.depositRequired?(Number(pay.depositAmount)||0):0;
-  const balance=Math.max(sub-(depPaid?dep:0),0);
+  const balance=(payStatusE==='Fully paid')?0:((payStatusE==='Deposit paid')?Math.max(sub-dep,0):sub);
   const fmLabel={pickup:'Customer pickup',delivery:'Delivery','delivery-setup':'Delivery + setup','full-service':'Full service'}[f.mode]||f.mode;
 
   const lines=[];
@@ -1360,17 +1624,23 @@ function emailBooking(){
   }
   lines.push('— FULFILLMENT —');
   lines.push(fmLabel+(f.driver?(' — '+f.driver):'')+(f.mode==='pickup'&&f.pickupTime?(' at '+t12(f.pickupTime)):''));
+  if(f.mode==='delivery'||f.mode==='delivery-setup')lines.push('Hot boxes: '+(f.hotBoxesStayWithCustomer?'staying with customer':'returning with driver'));
   if(f.mode==='delivery-setup')lines.push('Floor plan: '+(f.floorPlanProvided?'provided':'NOT provided'));
+  if((f.team||[]).length){
+    (f.team||[]).forEach(t=>lines.push('  • '+(t.role||'Helper')+': '+(t.name||'(unnamed)')+(t.phone?(' · '+t.phone):'')));
+  }
   if(f.mode==='full-service'){
     lines.push('Staff needed: '+(fs.staffNeeded||0)+(fs.chargeAmount?(' · charge '+money(fs.chargeAmount)):''));
     (fs.staff||[]).forEach(s=>lines.push('  • '+(s.name||'(unnamed)')+(s.phone?(' · '+s.phone):'')+(s.confirmed?' ✓':' (unconfirmed)')));
   }
   lines.push('');
   lines.push('— PAYMENT —');
+  lines.push('Status: '+payStatusE);
   lines.push('Subtotal: '+money(sub));
-  if(pay.depositRequired)lines.push('Deposit '+(pay.depositStatus||'')+': '+money(dep));
+  if(pay.depositRequired)lines.push('Deposit: '+money(dep));
   lines.push('Balance due: '+money(balance));
-  if(pay.terms)lines.push('Terms: '+pay.terms+(pay.payByDate?(' — due '+fmtDateMDY(pay.payByDate)):''));
+  if(pay.terms)lines.push('Terms: '+pay.terms);
+  if(pay.balanceDueBy)lines.push('Balance due by: '+fmtDateMDY(pay.balanceDueBy));
   lines.push('');
   if(d.menu&&d.menu.length){
     lines.push('— MENU —');
