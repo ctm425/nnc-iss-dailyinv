@@ -76,12 +76,13 @@ tbody tr:hover td{background:var(--gray-50)}
 .completebtn:hover{background:#f0fdf4;border-color:#86efac;color:#166534}
 tbody tr.done td{opacity:.7}
 /* big single-table for the active list (filters + month-header rows + zebra) */
-.bigtable{width:100%;border-collapse:collapse;font-size:.85rem;table-layout:auto}
-.bigtable th{text-align:left;font-size:.7rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:.3px;padding:9px 10px;border-bottom:2px solid var(--gray-200);background:#fff;white-space:nowrap}
-.bigtable tr.filterrow th{padding:6px 8px;border-bottom:1px solid var(--gray-200);background:var(--gray-50);font-weight:400;text-transform:none}
-.bigtable tr.filterrow input,.bigtable tr.filterrow select{width:100%;padding:5px 7px;border:1px solid var(--gray-300);border-radius:5px;font-size:.78rem;background:#fff;font-family:inherit}
+.bigtable{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:auto}
+.bigtable th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:.3px;padding:9px 8px;border-bottom:2px solid var(--gray-200);background:#fff;vertical-align:bottom;word-break:break-word}
+.bigtable tr.filterrow th{padding:6px 6px;border-bottom:1px solid var(--gray-200);background:var(--gray-50);font-weight:400;text-transform:none}
+.bigtable tr.filterrow input,.bigtable tr.filterrow select{width:100%;padding:5px 6px;border:1px solid var(--gray-300);border-radius:5px;font-size:.76rem;background:#fff;font-family:inherit;min-width:0}
 .bigtable tr.monthrow td{background:var(--primary);color:#fff;font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px}
-.bigtable tr.datarow td{padding:10px;border-bottom:1px solid var(--gray-100);white-space:nowrap}
+.bigtable tr.datarow td{padding:10px 8px;border-bottom:1px solid var(--gray-100);vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+.bigtable tr.datarow td .pill,.bigtable tr.datarow td .completebtn{white-space:nowrap;display:inline-block}
 .bigtable tr.datarow.odd td{background:#fafafa}
 .bigtable tr.datarow.even td{background:#fff}
 .bigtable tr.datarow:hover td{background:#eff6ff !important;cursor:pointer}
@@ -169,7 +170,7 @@ tbody tr.done td{opacity:.7}
         <span class="muted" style="font-size:.78rem" id="activeCount"></span>
       </div>
     </div>
-    <div class="card" style="padding:0;overflow-x:auto">
+    <div class="card" style="padding:0">
       <table class="bigtable" id="activeTable">
         <thead>
           <tr id="activeHeadRow"></tr>
@@ -382,7 +383,7 @@ function renderGroupedList(container,groups,showAction){
 const ACTIVE_COLS=[
   {k:'customerName',l:'Customer',filter:'text'},
   {k:'eventDate',l:'Event date',filter:'text',phold:'mm/dd/yy'},
-  {k:'eventType',l:'Type',filter:'select',opts:['Graduation','Wedding','Birthday party','Anniversary','Retirement','Eid al-Adha','Eid ul-Fitr','Other']},
+  {k:'eventType',l:'Type',filter:'select',opts:['Graduation','Wedding','Engagement','Birthday party','Anniversary','Retirement','Eid al-Adha','Eid ul-Fitr','Other']},
   {k:'guestsTotal',l:'Guests',filter:'text',phold:'#'},
   {k:'venue',l:'Venue',filter:'text'},
   {k:'city',l:'City',filter:'text'},
@@ -451,7 +452,7 @@ function bigRowHtml(c,parity){
     <td>${escp(c.billing)}</td>
     <td>${escp(c.fulfilling)}</td>
     <td><span class="pill" style="background:${sm.bg};color:${sm.fg};cursor:pointer" onclick="event.stopPropagation();openStatusPop('${c.id}',this)" title="Click to change status">${sm.label} <span style="opacity:.55;font-size:.7em">▾</span></span></td>
-    <td><span class="pill" style="background:${pm.bg};color:${pm.fg}">${c.payment}</span></td>
+    <td><span class="pill" style="background:${pm.bg};color:${pm.fg};cursor:pointer" onclick="event.stopPropagation();openPaymentPop('${c.id}',this)" title="Click to change payment status">${c.payment} <span style="opacity:.55;font-size:.7em">▾</span></span></td>
     <td><button class="completebtn" onclick="event.stopPropagation();markComplete('${c.id}','${escAttr(c.customerName)}')">✓ Complete</button></td>
   </tr>`;
 }
@@ -620,6 +621,59 @@ async function changeStatus(id,newStatus){
     if(msg){msg.style.color='var(--success)';msg.textContent='✓ Saved';}
     setTimeout(closeStatusPop,500);
   }catch(e){console.error('changeStatus',e);if(msg){msg.style.color='var(--danger)';msg.textContent='Save failed: '+e.message;}}
+}
+
+// ---------- payment status popover (reuses #statusPop) ----------
+const PAYMENT_LIST=['No deposit','Not paid','Partial','Paid'];
+
+function openPaymentPop(id,anchor){
+  const c=caterings.find(x=>x.id===id);if(!c)return;
+  _popOpenFor=id;
+  const pop=document.getElementById('statusPop');
+  const opts=PAYMENT_LIST.map(s=>{
+    const pm=PAY_META[s]||PAY_META['No deposit'];
+    return `<button class="${s===c.payment?'active':''}" onclick="changePayment('${id}','${s}')"><i style="background:${pm.fg}"></i>${s}</button>`;
+  }).join('');
+  pop.innerHTML=
+    `<button class="closex" onclick="closeStatusPop()" aria-label="close">×</button>
+     <div class="name">${escHtml(c.customerName)}</div>
+     <div class="sub">Payment status${c.eventDate?(' · '+fmtDate(c.eventDate)):''}</div>
+     <div class="opts">${opts}</div>
+     <a class="open" onclick="navigateTo('catering-edit.html',{id:'${id}'})">Open booking →</a>
+     <div class="savemsg" id="popSaveMsg"></div>`;
+  pop.style.display='block';
+  const r=anchor.getBoundingClientRect();
+  const sx=window.scrollX,sy=window.scrollY;
+  const w=pop.offsetWidth,h=pop.offsetHeight;
+  let left=r.left+sx;let top=r.bottom+sy+6;
+  const vw=document.documentElement.clientWidth;
+  if(left+w>vw+sx-8) left=vw+sx-w-8;
+  if(left<sx+8) left=sx+8;
+  if(r.bottom+6+h>document.documentElement.clientHeight && r.top>h+6) top=r.top+sy-h-6;
+  pop.style.left=left+'px';pop.style.top=top+'px';
+}
+
+async function changePayment(id,newPay){
+  const c=caterings.find(x=>x.id===id);if(!c)return;
+  if(c.payment===newPay){closeStatusPop();return;}
+  const msg=document.getElementById('popSaveMsg');if(msg){msg.textContent='Saving…';msg.style.color='var(--gray-500)';}
+  // Map the display status back to the underlying payment fields.
+  // "No deposit" → depositRequired:false (leave depositStatus alone).
+  // Anything else → depositRequired:true + depositStatus:newPay.
+  const updates={updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:auth.currentUser.email};
+  if(newPay==='No deposit'){updates['payment.depositRequired']=false;}
+  else{updates['payment.depositRequired']=true;updates['payment.depositStatus']=newPay;}
+  try{
+    await db.collection('caterings').doc(id).update(updates);
+    // mirror in memory so the next render is correct
+    c._raw=c._raw||{};c._raw.payment=c._raw.payment||{};
+    if(newPay==='No deposit'){c._raw.payment.depositRequired=false;}
+    else{c._raw.payment.depositRequired=true;c._raw.payment.depositStatus=newPay;}
+    c.payment=newPay;
+    render();
+    if(msg){msg.style.color='var(--success)';msg.textContent='✓ Saved';}
+    setTimeout(closeStatusPop,500);
+  }catch(e){console.error('changePayment',e);if(msg){msg.style.color='var(--danger)';msg.textContent='Save failed: '+e.message;}}
 }
 
 // Close popover on outside click or ESC
