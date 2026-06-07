@@ -444,8 +444,18 @@ function openInvUrl(){
 }
 
 // ---------- Documents: PDF upload via Firebase Storage ----------
+// Feature flag: PDF upload is parked until Firebase Storage is enabled on the project.
+// Flip PDF_UPLOAD_ENABLED to true (and publish storage.rules) when ready.
+const PDF_UPLOAD_ENABLED=false;
+
 function renderPdfState(){
   const wrap=document.getElementById('pdfState');
+  if(!PDF_UPLOAD_ENABLED){
+    wrap.innerHTML=
+      `<button type="button" class="btn btn-ghost" disabled style="opacity:.55;cursor:not-allowed">⬆ Upload PDF</button>
+       <span class="muted" style="font-size:.78rem">disabled — requires Firebase Storage (enable later from the Documents card code)</span>`;
+    return;
+  }
   if(pdfDoc.url){
     wrap.innerHTML=
       `<span style="font-size:.86rem"><i style="display:inline-block;width:18px">📄</i>${escAttr(pdfDoc.name||'quote.pdf')}</span>
@@ -459,6 +469,7 @@ function renderPdfState(){
 }
 
 async function onPdfPicked(input){
+  if(!PDF_UPLOAD_ENABLED){alert('PDF upload is currently disabled. Enable Firebase Storage and flip PDF_UPLOAD_ENABLED to true to use this.');input.value='';return;}
   const file=input.files&&input.files[0];if(!file)return;
   // Need a docId to namespace storage under. Save the booking first if it's new.
   if(isNew){
