@@ -147,6 +147,60 @@ textarea{resize:vertical}
       </div>
     </div>
 
+    <!-- FULFILLMENT -->
+    <div class="card">
+      <div class="sec-title">Fulfillment</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="pickup" style="width:auto" onchange="onFulMode()"> Customer pickup</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="delivery" style="width:auto" onchange="onFulMode()" checked> Delivery</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="delivery-setup" style="width:auto" onchange="onFulMode()"> Delivery + setup</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="full-service" style="width:auto" onchange="onFulMode()"> Full service</label>
+      </div>
+
+      <!-- Always shown: ready-by time -->
+      <div class="grid" style="margin-bottom:10px">
+        <div><label>Ready by <span class="hint">(in kitchen)</span></label><input id="fulReady" type="time"></div>
+      </div>
+
+      <!-- Pickup -->
+      <div id="fulPickupWrap" class="grid" style="display:none;margin-bottom:10px">
+        <div><label>Pickup time</label><input id="fulPickupTime" type="time"></div>
+      </div>
+
+      <!-- Delivery / delivery+setup / full service: driver -->
+      <div id="fulDriverWrap" class="grid" style="margin-bottom:10px">
+        <div><label>Delivered by <span class="hint">(driver / service)</span></label><input id="fulDriver" placeholder="name or DoorDash"></div>
+      </div>
+
+      <!-- Note shown for delivery modes -->
+      <div id="fulVenueHint" class="muted" style="font-size:.78rem;margin-bottom:10px">Make sure the venue address is filled in below so the driver has it.</div>
+
+      <!-- Delivery + setup: floor plan -->
+      <div id="fulSetupWrap" style="display:none;margin-bottom:10px">
+        <label>Floor plan provided?</label>
+        <div style="display:flex;gap:18px;align-items:center;margin:6px 0">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="floorPlan" value="no" style="width:auto" checked> No</label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="floorPlan" value="yes" style="width:auto"> Yes</label>
+        </div>
+      </div>
+
+      <!-- Full service: staff -->
+      <div id="fulFullWrap" style="display:none;margin-top:6px;padding-top:12px;border-top:1px dashed var(--gray-200)">
+        <div class="grid">
+          <div><label>Number of staff needed</label><input id="fsStaffCount" type="number" min="0" oninput="updateStaffSummary()"></div>
+          <div><label>Amount charged for staffing</label><input id="fsCharge" type="number" min="0" step="0.01" placeholder="$"></div>
+        </div>
+        <div style="margin-top:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="margin:0">Staff assigned</label>
+            <span id="staffSummary" class="muted" style="font-size:.76rem"></span>
+          </div>
+          <div id="staffList"></div>
+          <button type="button" class="btn btn-ghost" style="margin-top:6px" onclick="addStaff()">+ Add staff member</button>
+        </div>
+      </div>
+    </div>
+
     <!-- VENUE -->
     <div class="card">
       <div class="sec-title">Venue</div>
@@ -204,20 +258,6 @@ textarea{resize:vertical}
       <div class="flag" id="guestFlag"></div>
     </div>
 
-    <!-- OTHER FOOD + KITCHEN NOTES -->
-    <div class="card">
-      <div class="sec-title">Notes</div>
-      <div style="margin-bottom:12px">
-        <label>Other food being served <span class="hint">(by host / outside caterer)?</span></label>
-        <div style="display:flex;gap:18px;align-items:center;margin:6px 0">
-          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="no" style="width:auto" onchange="onOtherFoodToggle()" checked> No</label>
-          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="yes" style="width:auto" onchange="onOtherFoodToggle()"> Yes</label>
-        </div>
-        <div id="otherFoodWrap" style="display:none"><label>Particulars <span class="hint">(what, who's providing, etc.)</span></label><textarea id="otherFood" rows="2" placeholder="e.g. dessert table from family · drinks by venue"></textarea></div>
-      </div>
-      <div><label>Special kitchen notes <span class="hint">(allergies, packing, prints on the kitchen order)</span></label><textarea id="kitchenNotes" rows="2"></textarea></div>
-    </div>
-
     <!-- COMMUNICATION LOG (with original inquiry) -->
     <div class="card">
       <div class="sec-title">Communication log</div>
@@ -233,18 +273,25 @@ textarea{resize:vertical}
           </select>
         </div>
       </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+        <button type="button" class="btn btn-ghost" onclick="copyAIPromptForRecap()" title="Copy a recap-writing prompt to your clipboard and open Claude.ai to paste it">🤖 Generate recap with AI</button>
+      </div>
       <div id="commList"><div class="muted" style="font-size:.82rem">No notes yet.</div></div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
-        <input id="commDate" type="date" style="max-width:150px" title="Date of this interaction (defaults to today; pick a past date to backdate)">
-        <select id="commDir" style="max-width:170px">
-          <option value="note">Note</option>
-          <option value="incoming">Call — in</option>
-          <option value="outgoing">Call — out</option>
-          <option value="email-in">Email — in</option>
-          <option value="email-out">Email — out</option>
-        </select>
-        <input id="commText" placeholder="Add a note from a call…" style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter')addComm()">
-        <button class="btn btn-ghost" onclick="addComm()">Add note</button>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--gray-200)">
+        <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
+          <input id="commDate" type="date" style="max-width:150px" title="Date of this interaction (defaults to today; pick a past date to backdate)">
+          <select id="commDir" style="max-width:170px">
+            <option value="note">Note</option>
+            <option value="incoming">Call — in</option>
+            <option value="outgoing">Call — out</option>
+            <option value="email-in">Email — in</option>
+            <option value="email-out">Email — out</option>
+          </select>
+        </div>
+        <textarea id="commText" placeholder="Type the call/email notes here…" rows="4" style="width:100%;resize:vertical;font-family:inherit"></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:6px">
+          <button class="btn btn-primary" onclick="addComm()">+ Add note</button>
+        </div>
       </div>
     </div>
 
@@ -268,58 +315,18 @@ textarea{resize:vertical}
       <div class="flag" id="menuFlag" style="margin-top:8px"></div>
     </div>
 
-    <!-- FULFILLMENT -->
+    <!-- OTHER FOOD + KITCHEN NOTES -->
     <div class="card">
-      <div class="sec-title">Fulfillment</div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
-        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="pickup" style="width:auto" onchange="onFulMode()"> Customer pickup</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="delivery" style="width:auto" onchange="onFulMode()" checked> Delivery</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="delivery-setup" style="width:auto" onchange="onFulMode()"> Delivery + setup</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="full-service" style="width:auto" onchange="onFulMode()"> Full service</label>
-      </div>
-
-      <!-- Always shown: ready-by time -->
-      <div class="grid" style="margin-bottom:10px">
-        <div><label>Ready by <span class="hint">(in kitchen)</span></label><input id="fulReady" type="time"></div>
-      </div>
-
-      <!-- Pickup -->
-      <div id="fulPickupWrap" class="grid" style="display:none;margin-bottom:10px">
-        <div><label>Pickup time</label><input id="fulPickupTime" type="time"></div>
-      </div>
-
-      <!-- Delivery / delivery+setup / full service: driver -->
-      <div id="fulDriverWrap" class="grid" style="margin-bottom:10px">
-        <div><label>Delivered by <span class="hint">(driver / service)</span></label><input id="fulDriver" placeholder="name or DoorDash"></div>
-      </div>
-
-      <!-- Note shown for delivery modes -->
-      <div id="fulVenueHint" class="muted" style="font-size:.78rem;margin-bottom:10px">Make sure the venue address is filled in above so the driver has it.</div>
-
-      <!-- Delivery + setup: floor plan -->
-      <div id="fulSetupWrap" style="display:none;margin-bottom:10px">
-        <label>Floor plan provided?</label>
+      <div class="sec-title">Notes</div>
+      <div style="margin-bottom:12px">
+        <label>Other food being served <span class="hint">(by host / outside caterer)?</span></label>
         <div style="display:flex;gap:18px;align-items:center;margin:6px 0">
-          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="floorPlan" value="no" style="width:auto" checked> No</label>
-          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="floorPlan" value="yes" style="width:auto"> Yes</label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="no" style="width:auto" onchange="onOtherFoodToggle()" checked> No</label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="yes" style="width:auto" onchange="onOtherFoodToggle()"> Yes</label>
         </div>
+        <div id="otherFoodWrap" style="display:none"><label>Particulars <span class="hint">(what, who's providing, etc.)</span></label><textarea id="otherFood" rows="2" placeholder="e.g. dessert table from family · drinks by venue"></textarea></div>
       </div>
-
-      <!-- Full service: staff -->
-      <div id="fulFullWrap" style="display:none;margin-top:6px;padding-top:12px;border-top:1px dashed var(--gray-200)">
-        <div class="grid">
-          <div><label>Number of staff needed</label><input id="fsStaffCount" type="number" min="0" oninput="updateStaffSummary()"></div>
-          <div><label>Amount charged for staffing</label><input id="fsCharge" type="number" min="0" step="0.01" placeholder="$"></div>
-        </div>
-        <div style="margin-top:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <label style="margin:0">Staff assigned</label>
-            <span id="staffSummary" class="muted" style="font-size:.76rem"></span>
-          </div>
-          <div id="staffList"></div>
-          <button type="button" class="btn btn-ghost" style="margin-top:6px" onclick="addStaff()">+ Add staff member</button>
-        </div>
-      </div>
+      <div><label>Special kitchen notes <span class="hint">(allergies, packing, prints on the kitchen order)</span></label><textarea id="kitchenNotes" rows="2"></textarea></div>
     </div>
 
     <!-- PAYMENT -->
@@ -333,10 +340,13 @@ textarea{resize:vertical}
         <div><label>Deposit status</label>
           <select id="depStatus" onchange="recalc()"><option>Not paid</option><option>Paid</option><option>Partial</option></select></div>
         <div><label>Payment terms</label>
-          <select id="payTerms">
+          <select id="payTerms" onchange="onPayTermsChange()">
             <option>Balance due day of event</option><option>50% deposit / 50% on event</option>
             <option>Net 7 after event</option><option>Paid in full upfront</option>
-          </select></div>
+            <option>Full payment by date</option>
+          </select>
+          <input id="payByDate" type="date" style="margin-top:6px;display:none" title="Full payment due by this date">
+        </div>
       </div>
     </div>
 
@@ -378,6 +388,7 @@ let isNew=(docId==='new');
 let menuItems=[];          // catalog from catering-menu-items
 let lines=[];              // current booking menu lines
 let comms=[];              // communication log entries
+let editingCommId=null;    // id of the comm entry currently being edited (null = none)
 let loadedDoc=null;
 let pdfDoc={url:'',path:'',name:''}; // current quote-PDF state
 let staffMembers=[]; // for full-service: [{name, phone, confirmed}]
@@ -739,6 +750,11 @@ function updateStaffSummary(){
 function addStaff(){staffMembers.push({name:'',phone:'',confirmed:false});renderStaff();}
 function removeStaff(i){staffMembers.splice(i,1);renderStaff();}
 
+function onPayTermsChange(){
+  const v=document.getElementById('payTerms').value;
+  document.getElementById('payByDate').style.display=(v==='Full payment by date')?'block':'none';
+}
+
 function onEventTypeChange(){
   const isOther=document.getElementById('evType').value==='Other';
   const other=document.getElementById('evTypeOther');
@@ -807,7 +823,7 @@ async function loadBooking(){
       setV('fsStaffCount',fs.staffNeeded||'');setV('fsCharge',fs.chargeAmount||'');
       staffMembers=(fs.staff||[]).map(s=>({name:s.name||'',phone:s.phone||'',confirmed:!!s.confirmed}));
     }
-    if(x.payment){document.getElementById('depReq').checked=!!x.payment.depositRequired;setV('depAmount',x.payment.depositAmount);setV('depStatus',x.payment.depositStatus||'Not paid');setV('payTerms',x.payment.terms);}
+    if(x.payment){document.getElementById('depReq').checked=!!x.payment.depositRequired;setV('depAmount',x.payment.depositAmount);setV('depStatus',x.payment.depositStatus||'Not paid');setV('payTerms',x.payment.terms);setV('payByDate',x.payment.payByDate||'');onPayTermsChange();}
     const docs=x.documents||{};
     pdfDoc={url:docs.quotePdfUrl||'',path:docs.quotePdfPath||'',name:docs.quotePdfName||''};
     renderPdfState();
@@ -834,11 +850,140 @@ async function loadComms(){
   }catch(e){console.error('loadComms',e);}
   renderComms();
 }
+const COMM_ICON={incoming:'📞 in',outgoing:'📞 out','email-in':'✉ email in','email-out':'✉ email out',note:'📝 note'};
+
 function renderComms(){
   const c=document.getElementById('commList');
   if(!comms.length){c.innerHTML='<div class="muted" style="font-size:.82rem">No notes yet.</div>';return;}
-  const icon={incoming:'📞 in',outgoing:'📞 out','email-in':'✉ email in','email-out':'✉ email out',note:'📝 note'};
-  c.innerHTML=comms.map(m=>`<div class="comm"><div><div class="meta">${escHtml(m.atLabel||m.at||'')} · ${icon[m.direction]||'note'}</div><div class="txt">${escHtml(m.text||'')}</div></div></div>`).join('');
+  c.innerHTML=comms.map(m=>{
+    if(editingCommId===m.id){
+      const dateVal=(m.at||'').slice(0,10);
+      const sel=(v)=>m.direction===v?' selected':'';
+      return `<div class="comm" style="background:#fff;border:1px solid var(--gray-300);flex-direction:column;align-items:stretch">
+        <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+          <input type="date" id="ec_date_${m.id}" value="${dateVal}" style="max-width:150px;padding:5px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem">
+          <select id="ec_dir_${m.id}" style="max-width:170px;padding:5px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem">
+            <option value="note"${sel('note')}>Note</option>
+            <option value="incoming"${sel('incoming')}>Call — in</option>
+            <option value="outgoing"${sel('outgoing')}>Call — out</option>
+            <option value="email-in"${sel('email-in')}>Email — in</option>
+            <option value="email-out"${sel('email-out')}>Email — out</option>
+          </select>
+        </div>
+        <textarea id="ec_text_${m.id}" rows="4" style="width:100%;padding:7px;border:1px solid var(--gray-300);border-radius:6px;font-family:inherit;resize:vertical">${escHtml(m.text||'')}</textarea>
+        <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap">
+          <button type="button" class="btn btn-danger" onclick="deleteComm('${m.id}')">Delete</button>
+          <button type="button" class="btn btn-ghost" onclick="cancelEditComm()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveEditComm('${m.id}')">Save</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="comm">
+      <div style="flex:1;min-width:0">
+        <div class="meta">${escHtml(m.atLabel||m.at||'')} · ${COMM_ICON[m.direction]||'note'}</div>
+        <div class="txt">${escHtml(m.text||'').replace(/\n/g,'<br>')}</div>
+      </div>
+      <button type="button" class="btn btn-ghost" style="padding:3px 8px;font-size:.78rem;align-self:flex-start;flex-shrink:0" onclick="startEditComm('${m.id}')" title="Edit this note">✎</button>
+    </div>`;
+  }).join('');
+}
+
+function startEditComm(id){editingCommId=id;renderComms();}
+function cancelEditComm(){editingCommId=null;renderComms();}
+
+async function saveEditComm(id){
+  const text=document.getElementById('ec_text_'+id).value.trim();
+  if(!text){if(confirm('The note is empty. Delete it instead?')){return deleteComm(id);}return;}
+  const dateStr=document.getElementById('ec_date_'+id).value;
+  const direction=document.getElementById('ec_dir_'+id).value;
+  const today=new Date();const todayISO=today.toISOString().slice(0,10);
+  const at=(!dateStr||dateStr===todayISO)?today:new Date(dateStr+'T12:00:00');
+  const sameDay=(dateStr===todayISO||!dateStr);
+  const atLabel=sameDay?at.toLocaleString():at.toLocaleDateString();
+  try{
+    await db.collection('caterings').doc(docId).collection('comms').doc(id).update({text,direction,at:at.toISOString(),atLabel,editedBy:auth.currentUser.email,editedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const m=comms.find(c=>c.id===id);
+    if(m){m.text=text;m.direction=direction;m.at=at.toISOString();m.atLabel=atLabel;}
+    comms.sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+    editingCommId=null;renderComms();
+  }catch(e){console.error('saveEditComm',e);alert('Save failed: '+e.message);}
+}
+
+async function deleteComm(id){
+  if(!confirm('Delete this note? This cannot be undone.'))return;
+  try{
+    await db.collection('caterings').doc(docId).collection('comms').doc(id).delete();
+    comms=comms.filter(c=>c.id!==id);
+    editingCommId=null;renderComms();
+  }catch(e){console.error('deleteComm',e);alert('Delete failed: '+e.message);}
+}
+
+// ---------- AI recap: build a prompt, copy to clipboard, open Claude.ai ----------
+// Path A (no backend, no API key). The user pastes the prompt into Claude.ai,
+// reviews the generated recap, then pastes it into their email client.
+async function copyAIPromptForRecap(){
+  if(!comms.length){alert('No notes in the communication log yet. Add some call/email notes first.');return;}
+  const firstName=getV('custFirst');
+  const fullName=composeName({firstName:firstName,lastName:getV('custLast')});
+  const ev=collectData().event;
+  const evDisplay=resolvedEventType(ev);
+  const venue=getV('venName')||getV('venCity')||'';
+  const guests=parseInt(getV('gTotal')||0,10)||0;
+
+  // Chronological (oldest → newest) makes the conversation easier for the model to follow.
+  const sorted=comms.slice().sort((a,b)=>(a.at||'').localeCompare(b.at||''));
+  const typeLabel={incoming:'Phone call from customer',outgoing:'Phone call to customer',
+                   'email-in':'Email from customer','email-out':'Email to customer',note:'Note'};
+
+  const lines=[];
+  lines.push('You are helping me draft a recap email to a catering customer that summarizes our recent conversations.');
+  lines.push('');
+  lines.push('Tone: warm, professional, concise. Plain language — no jargon, no flowery language.');
+  lines.push('Start with: "Hi '+(firstName||'<customer first name>')+',"');
+  lines.push('End just before a signature — I will sign off myself as "Naan N Curry Issaquah".');
+  lines.push('');
+  lines.push('Structure: a one-sentence opening, then 3–6 bullet points covering the key decisions, agreements, and any open follow-ups. Group by topic where it makes sense (event details, menu, logistics, payment). End with one sentence inviting the customer to correct anything I missed or to confirm.');
+  lines.push('');
+  lines.push('IMPORTANT: Do NOT invent specifics. If the notes are ambiguous about a number, date, or detail, summarize loosely (e.g. "around 80 guests" or "later in the afternoon") rather than fabricating a precise value.');
+  lines.push('');
+  lines.push('=== BOOKING CONTEXT ===');
+  lines.push('Customer: '+(fullName||'(name not yet filled in)'));
+  if(evDisplay)lines.push('Event type: '+evDisplay);
+  if(ev.date)lines.push('Event date: '+fmtDateMDY(ev.date));
+  if(venue)lines.push('Venue: '+venue);
+  if(guests)lines.push('Total guests (current estimate): '+guests);
+  lines.push('');
+  lines.push('=== COMMUNICATION LOG (oldest first) ===');
+  sorted.forEach(c=>{
+    lines.push('');
+    lines.push('--- '+(c.atLabel||c.at||'')+' — '+(typeLabel[c.direction]||'Note')+' ---');
+    lines.push(c.text||'');
+  });
+  lines.push('');
+  lines.push('=== END ===');
+  lines.push('');
+  lines.push('Return ONLY the email body (greeting through closing line). No preamble, no commentary, no explanation of what you did.');
+
+  const prompt=lines.join('\n');
+
+  // Modern path: navigator.clipboard (requires HTTPS — GitHub Pages serves HTTPS, so this works in production).
+  try{
+    await navigator.clipboard.writeText(prompt);
+    if(confirm('✓ Prompt copied to clipboard.\n\nOpen Claude.ai now to paste it? You can then review the recap before sending it to the customer.'))
+      window.open('https://claude.ai/new','_blank','noopener');
+  }catch(e){
+    // Fallback: drop a temp textarea so older browsers / non-HTTPS contexts can still grab it.
+    console.error('clipboard.writeText failed',e);
+    const ta=document.createElement('textarea');
+    ta.value=prompt;ta.style.position='fixed';ta.style.left='-9999px';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');alert('✓ Prompt copied. Open https://claude.ai/new and paste with Cmd/Ctrl+V.');}
+    catch(e2){
+      alert('Could not auto-copy. The prompt is shown in a popup tab — copy it manually.');
+      const w=window.open('','_blank');if(w){w.document.write('<pre style="font:14px monospace;white-space:pre-wrap;padding:20px">'+prompt.replace(/</g,'&lt;')+'</pre>');w.document.close();}
+    }
+    document.body.removeChild(ta);
+  }
 }
 async function addComm(){
   const text=document.getElementById('commText').value.trim();
@@ -852,7 +997,8 @@ async function addComm(){
   const atLabel=sameDay ? at.toLocaleString() : at.toLocaleDateString();
   const entry={text,direction:document.getElementById('commDir').value,at:at.toISOString(),atLabel,createdBy:auth.currentUser.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   try{
-    await db.collection('caterings').doc(docId).collection('comms').add(entry);
+    const ref=await db.collection('caterings').doc(docId).collection('comms').add(entry);
+    entry.id=ref.id;
     comms.unshift(entry);
     comms.sort((a,b)=>(b.at||'').localeCompare(a.at||'')); // keep newest first even with backdated entries
     renderComms();
@@ -897,7 +1043,7 @@ function collectData(){
         staff:staffMembers.map(s=>({name:s.name||'',phone:s.phone||'',confirmed:!!s.confirmed}))
       }
     },
-    payment:{depositRequired:document.getElementById('depReq').checked,depositAmount:parseFloat(getV('depAmount'))||0,depositStatus:getV('depStatus'),terms:getV('payTerms')},
+    payment:{depositRequired:document.getElementById('depReq').checked,depositAmount:parseFloat(getV('depAmount'))||0,depositStatus:getV('depStatus'),terms:getV('payTerms'),payByDate:(getV('payTerms')==='Full payment by date'?getV('payByDate'):'')},
     documents:{quotePdfUrl:pdfDoc.url||'',quotePdfPath:pdfDoc.path||'',quotePdfName:pdfDoc.name||'',invoiceUrl:normalizeUrl(getV('invUrl'))},
     status:getV('status'),
     quoteTotal:lines.reduce((s,l)=>s+(Number(l.billedQty)||0)*(Number(l.unitPrice)||0),0),
@@ -1119,7 +1265,7 @@ function printBooking(){
     row('Deposit required',pay.depositRequired?'Yes':'No')+
     row('Deposit amount',pay.depositRequired?money(pay.depositAmount||0):'')+
     row('Deposit status',pay.depositRequired?escHtml(pay.depositStatus):'')+
-    row('Payment terms',escHtml(pay.terms))
+    row('Payment terms',escHtml(pay.terms)+(pay.payByDate?(' — due '+fmtDateMDY(pay.payByDate)):''))
   );
 
   const documents=sect('Documents',
@@ -1219,7 +1365,7 @@ function emailBooking(){
   lines.push('Subtotal: '+money(sub));
   if(pay.depositRequired)lines.push('Deposit '+(pay.depositStatus||'')+': '+money(dep));
   lines.push('Balance due: '+money(balance));
-  if(pay.terms)lines.push('Terms: '+pay.terms);
+  if(pay.terms)lines.push('Terms: '+pay.terms+(pay.payByDate?(' — due '+fmtDateMDY(pay.payByDate)):''));
   lines.push('');
   if(d.menu&&d.menu.length){
     lines.push('— MENU —');
