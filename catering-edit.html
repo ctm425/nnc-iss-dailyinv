@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 :root{--primary:#1e3a5f;--primary-light:#2563eb;--danger:#dc2626;--success:#16a34a;--warn:#92400e;--warn-bg:#fef3c7;
 --gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-700:#374151;--gray-900:#111827;--radius:10px}
@@ -27,8 +28,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header-sub{opacity:.7;font-size:.82rem;margin-top:2px}
 .header a{color:#fff;font-size:.85rem;text-decoration:none;opacity:.9;cursor:pointer;border:1px solid rgba(255,255,255,.3);padding:7px 14px;border-radius:8px}
 .wrap{max-width:1000px;margin:0 auto;padding:24px}
-.card{background:#fff;border:1px solid var(--gray-200);border-radius:12px;padding:20px 22px;margin-bottom:18px}
-.sec-title{font-size:.74rem;text-transform:uppercase;letter-spacing:.4px;color:var(--gray-500);font-weight:700;margin-bottom:12px}
+.card{background:#fff;border:1px solid var(--gray-200);border-radius:12px;padding:20px 22px;margin-bottom:18px;overflow:hidden}
+/* Section heading: dark blue bar pinned to the top of each card. Matches the active-caterings month-row treatment. */
+.sec-title{background:var(--primary);color:#fff;font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700;padding:10px 22px;margin:-20px -22px 16px;border-radius:12px 12px 0 0}
+/* Sub-text/links/hints inside a title were styled gray for the old look — force white-tinted on dark bg. */
+.sec-title span, .sec-title a, .sec-title .muted, .sec-title .hint{color:rgba(255,255,255,.78) !important}
+.sec-title a:hover{color:#fff !important}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
 .grid.cols5{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
 label{font-size:.76rem;color:var(--gray-500);display:block;margin-bottom:3px}
@@ -103,6 +108,16 @@ textarea{resize:vertical}
       </div>
     </div>
 
+    <!-- REFERRED BY -->
+    <div class="card">
+      <div class="sec-title">Referred by <span style="color:var(--gray-400);font-weight:400;text-transform:none;letter-spacing:0">— optional</span></div>
+      <div class="grid">
+        <div><label>Name</label><input id="refName" placeholder="who recommended us"></div>
+        <div><label>Phone</label><input id="refPhone" type="tel" placeholder="(425) 555-0123"></div>
+        <div><label>Email</label><input id="refEmail" type="email" placeholder="name@email.com"></div>
+      </div>
+    </div>
+
     <!-- EVENT -->
     <div class="card">
       <div class="sec-title">Event</div>
@@ -136,6 +151,13 @@ textarea{resize:vertical}
         <div><label>Venue type</label>
           <select id="venType"><option>Hotel</option><option>Home</option><option>Community center</option><option>General event venue</option></select></div>
         <div><label>Venue name <span class="hint">(if not a home)</span></label><input id="venName" placeholder="e.g. Hilton Bellevue"></div>
+      </div>
+      <div style="margin-top:12px">
+        <label>Venue website <span class="hint">(optional)</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="venUrl" type="url" placeholder="https://…" style="flex:1" oninput="updateVenueUrlBtn()">
+          <button type="button" class="btn btn-ghost" id="venUrlBtn" onclick="openVenueUrl()" disabled style="opacity:.5">Open ↗</button>
+        </div>
       </div>
       <div style="margin-top:12px">
         <label>Street address</label>
@@ -177,6 +199,49 @@ textarea{resize:vertical}
         <div><label>Non-vegetarian</label><input id="gNon" type="number" min="0" oninput="checkGuests()"></div>
       </div>
       <div class="flag" id="guestFlag"></div>
+    </div>
+
+    <!-- OTHER FOOD + KITCHEN NOTES -->
+    <div class="card">
+      <div class="sec-title">Notes</div>
+      <div style="margin-bottom:12px">
+        <label>Other food being served <span class="hint">(by host / outside caterer)?</span></label>
+        <div style="display:flex;gap:18px;align-items:center;margin:6px 0">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="no" style="width:auto" onchange="onOtherFoodToggle()" checked> No</label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="yes" style="width:auto" onchange="onOtherFoodToggle()"> Yes</label>
+        </div>
+        <div id="otherFoodWrap" style="display:none"><label>Particulars <span class="hint">(what, who's providing, etc.)</span></label><textarea id="otherFood" rows="2" placeholder="e.g. dessert table from family · drinks by venue"></textarea></div>
+      </div>
+      <div><label>Special kitchen notes <span class="hint">(allergies, packing, prints on the kitchen order)</span></label><textarea id="kitchenNotes" rows="2"></textarea></div>
+    </div>
+
+    <!-- COMMUNICATION LOG (with original inquiry) -->
+    <div class="card">
+      <div class="sec-title">Communication log</div>
+      <div class="grid" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px dashed var(--gray-200)">
+        <div><label>Original inquiry date <span class="hint">(when they first reached out)</span></label><input id="inqDate" type="date"></div>
+        <div><label>Inquiry channel</label>
+          <select id="inqChannel">
+            <option value="">— select —</option>
+            <option value="email">Email</option>
+            <option value="phone">Phone</option>
+            <option value="in-person">In person</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div id="commList"><div class="muted" style="font-size:.82rem">No notes yet.</div></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <select id="commDir" style="max-width:170px">
+          <option value="note">Note</option>
+          <option value="incoming">Call — in</option>
+          <option value="outgoing">Call — out</option>
+          <option value="email-in">Email — in</option>
+          <option value="email-out">Email — out</option>
+        </select>
+        <input id="commText" placeholder="Add a note from a call…" style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter')addComm()">
+        <button class="btn btn-ghost" onclick="addComm()">Add note</button>
+      </div>
     </div>
 
     <!-- MENU -->
@@ -230,34 +295,21 @@ textarea{resize:vertical}
       </div>
     </div>
 
-    <!-- OTHER FOOD + KITCHEN NOTES -->
+    <!-- DOCUMENTS (QuickBooks quote PDF + invoice/estimate link) -->
     <div class="card">
-      <div class="sec-title">Notes</div>
-      <div style="margin-bottom:12px">
-        <label>Other food being served <span class="hint">(by host / outside caterer)?</span></label>
-        <div style="display:flex;gap:18px;align-items:center;margin:6px 0">
-          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="no" style="width:auto" onchange="onOtherFoodToggle()" checked> No</label>
-          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="yes" style="width:auto" onchange="onOtherFoodToggle()"> Yes</label>
-        </div>
-        <div id="otherFoodWrap" style="display:none"><label>Particulars <span class="hint">(what, who's providing, etc.)</span></label><textarea id="otherFood" rows="2" placeholder="e.g. dessert table from family · drinks by venue"></textarea></div>
+      <div class="sec-title">Documents <span style="color:var(--gray-400);font-weight:400;text-transform:none;letter-spacing:0">— QuickBooks quote &amp; invoice</span></div>
+      <div style="margin-bottom:14px">
+        <label>Quote PDF <span class="hint">(upload the PDF exported from QuickBooks)</span></label>
+        <div id="pdfState" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:5px"></div>
+        <input type="file" id="pdfFile" accept=".pdf,application/pdf" style="display:none" onchange="onPdfPicked(this)">
+        <div id="pdfProgress" style="font-size:.78rem;color:var(--gray-500);margin-top:5px"></div>
       </div>
-      <div><label>Special kitchen notes <span class="hint">(allergies, packing, prints on the kitchen order)</span></label><textarea id="kitchenNotes" rows="2"></textarea></div>
-    </div>
-
-    <!-- COMMUNICATION LOG -->
-    <div class="card">
-      <div class="sec-title">Communication log</div>
-      <div id="commList"><div class="muted" style="font-size:.82rem">No notes yet.</div></div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-        <select id="commDir" style="max-width:170px">
-          <option value="note">Note</option>
-          <option value="incoming">Call — in</option>
-          <option value="outgoing">Call — out</option>
-          <option value="email-in">Email — in</option>
-          <option value="email-out">Email — out</option>
-        </select>
-        <input id="commText" placeholder="Add a note from a call…" style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter')addComm()">
-        <button class="btn btn-ghost" onclick="addComm()">Add note</button>
+      <div>
+        <label>QuickBooks estimate / invoice link <span class="hint">(optional — paste the URL)</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="invUrl" type="url" placeholder="https://app.qbo.intuit.com/…" style="flex:1" oninput="updateInvUrlBtn()">
+          <button type="button" class="btn btn-ghost" id="invUrlBtn" onclick="openInvUrl()" disabled style="opacity:.5">Open ↗</button>
+        </div>
       </div>
     </div>
 
@@ -280,6 +332,7 @@ let menuItems=[];          // catalog from catering-menu-items
 let lines=[];              // current booking menu lines
 let comms=[];              // communication log entries
 let loadedDoc=null;
+let pdfDoc={url:'',path:'',name:''}; // current quote-PDF state
 
 async function handleLogin(){
   const email=document.getElementById('loginEmail').value.trim();
@@ -309,6 +362,7 @@ auth.onAuthStateChanged(async user=>{
       document.getElementById('pageTitle').textContent='New catering';
       const prefillDate=getParam('date');
       if(prefillDate)document.getElementById('evDate').value=prefillDate;
+      renderPdfState();
     }else{
       await loadBooking();
     }
@@ -357,6 +411,101 @@ function openMaps(){
   const a=composeAddress();
   if(!a){alert('Enter at least a street or city before opening Maps.');return;}
   window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a),'_blank');
+}
+
+function normalizeUrl(u){
+  u=(u||'').trim();if(!u)return '';
+  if(!/^https?:\/\//i.test(u))u='https://'+u;
+  return u;
+}
+function updateVenueUrlBtn(){
+  const u=document.getElementById('venUrl').value.trim();
+  const btn=document.getElementById('venUrlBtn');
+  if(u){btn.disabled=false;btn.style.opacity='1';}
+  else{btn.disabled=true;btn.style.opacity='.5';}
+}
+function openVenueUrl(){
+  const u=normalizeUrl(document.getElementById('venUrl').value);
+  if(!u)return;
+  window.open(u,'_blank','noopener');
+}
+
+// ---------- Documents: invoice URL ----------
+function updateInvUrlBtn(){
+  const u=document.getElementById('invUrl').value.trim();
+  const btn=document.getElementById('invUrlBtn');
+  if(u){btn.disabled=false;btn.style.opacity='1';}
+  else{btn.disabled=true;btn.style.opacity='.5';}
+}
+function openInvUrl(){
+  const u=normalizeUrl(document.getElementById('invUrl').value);
+  if(!u)return;
+  window.open(u,'_blank','noopener');
+}
+
+// ---------- Documents: PDF upload via Firebase Storage ----------
+function renderPdfState(){
+  const wrap=document.getElementById('pdfState');
+  if(pdfDoc.url){
+    wrap.innerHTML=
+      `<span style="font-size:.86rem"><i style="display:inline-block;width:18px">📄</i>${escAttr(pdfDoc.name||'quote.pdf')}</span>
+       <a href="${pdfDoc.url}" target="_blank" rel="noopener" class="btn btn-ghost" style="text-decoration:none">View ↗</a>
+       <button type="button" class="btn btn-ghost" onclick="document.getElementById('pdfFile').click()">Replace</button>
+       <button type="button" class="btn btn-danger" onclick="removePdf()">Remove</button>`;
+  }else{
+    wrap.innerHTML=`<button type="button" class="btn btn-ghost" onclick="document.getElementById('pdfFile').click()">⬆ Upload PDF</button>
+      <span class="muted" style="font-size:.78rem">no quote uploaded yet</span>`;
+  }
+}
+
+async function onPdfPicked(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  // Need a docId to namespace storage under. Save the booking first if it's new.
+  if(isNew){
+    const ok=await saveBooking(true);
+    if(!ok){input.value='';return;}
+  }
+  if(file.size>15*1024*1024){
+    if(!confirm('This file is '+(Math.round(file.size/1024/1024))+' MB. Upload anyway?')){input.value='';return;}
+  }
+  const path='caterings/'+docId+'/quote.pdf';
+  const ref=firebase.storage().ref().child(path);
+  const prog=document.getElementById('pdfProgress');
+  prog.style.color='var(--gray-500)';prog.textContent='Uploading…';
+  const task=ref.put(file,{contentType:file.type||'application/pdf'});
+  task.on('state_changed',
+    snap=>{const pct=Math.round((snap.bytesTransferred/snap.totalBytes)*100); prog.textContent='Uploading… '+pct+'%';},
+    err=>{console.error('pdf upload',err);prog.style.color='var(--danger)';prog.textContent='Upload failed: '+err.message;input.value='';},
+    async ()=>{
+      try{
+        const url=await ref.getDownloadURL();
+        pdfDoc={url:url,path:path,name:file.name};
+        // persist to the catering doc immediately so the link survives navigation
+        await db.collection('caterings').doc(docId).set({documents:{quotePdfUrl:url,quotePdfPath:path,quotePdfName:file.name}},{merge:true});
+        prog.style.color='var(--success)';prog.textContent='✓ Uploaded';
+        renderPdfState();
+        input.value='';
+        setTimeout(()=>{prog.textContent='';},2000);
+      }catch(e){console.error('pdf finalize',e);prog.style.color='var(--danger)';prog.textContent='Save failed: '+e.message;}
+    }
+  );
+}
+
+async function removePdf(){
+  if(!pdfDoc.url)return;
+  if(!confirm('Remove the uploaded quote PDF?'))return;
+  const prog=document.getElementById('pdfProgress');
+  prog.style.color='var(--gray-500)';prog.textContent='Removing…';
+  try{
+    if(pdfDoc.path){try{await firebase.storage().ref().child(pdfDoc.path).delete();}catch(e){console.warn('storage delete (likely already gone):',e.message);}}
+    if(!isNew){
+      await db.collection('caterings').doc(docId).set({documents:{quotePdfUrl:firebase.firestore.FieldValue.delete(),quotePdfPath:firebase.firestore.FieldValue.delete(),quotePdfName:firebase.firestore.FieldValue.delete()}},{merge:true});
+    }
+    pdfDoc={url:'',path:'',name:''};
+    renderPdfState();
+    prog.style.color='var(--success)';prog.textContent='✓ Removed';
+    setTimeout(()=>{prog.textContent='';},1500);
+  }catch(e){console.error('removePdf',e);prog.style.color='var(--danger)';prog.textContent='Remove failed: '+e.message;}
 }
 
 // ---------- day-of contact = same as customer ----------
@@ -524,6 +673,8 @@ async function loadBooking(){
     if(x.billingRestaurant)setV('billing',x.billingRestaurant);
     if(x.fulfillingRestaurant)setV('fulfilling',x.fulfillingRestaurant);
     setV('venType',x.venue&&x.venue.type);setV('venName',x.venue&&x.venue.name);
+    setV('venUrl',x.venue&&x.venue.url);updateVenueUrlBtn();
+    const r=x.referredBy||{};setV('refName',r.name);setV('refPhone',r.phone);setV('refEmail',r.email);
     const v=x.venue||{};
     // Prefer structured fields; legacy single-string address drops into Street so nothing is lost.
     if(v.street!=null||v.city!=null||v.zip!=null||v.state!=null){
@@ -547,6 +698,11 @@ async function loadBooking(){
       setV('fulDriver',x.fulfillment.driver);setV('fulReady',x.fulfillment.readyTime);
     }
     if(x.payment){document.getElementById('depReq').checked=!!x.payment.depositRequired;setV('depAmount',x.payment.depositAmount);setV('depStatus',x.payment.depositStatus||'Not paid');setV('payTerms',x.payment.terms);}
+    const docs=x.documents||{};
+    pdfDoc={url:docs.quotePdfUrl||'',path:docs.quotePdfPath||'',name:docs.quotePdfName||''};
+    renderPdfState();
+    setV('invUrl',docs.invoiceUrl||'');updateInvUrlBtn();
+    const inq=x.originalInquiry||{};setV('inqDate',inq.date||'');setV('inqChannel',inq.channel||'');
     lines=(x.menu&&x.menu.length)?x.menu.map(normalizeLine):[blankLine()];
     renderLines();
     await loadComms();
@@ -600,7 +756,9 @@ function collectData(){
   return {
     customer:{firstName:first,lastName:last,name:(first+' '+last).trim(),email:getV('custEmail'),phone:getV('custPhone')},
     event:{type:getV('evType'),date:getV('evDate'),arrivalTime:getV('evArrival'),serveTime:getV('evServe')},
-    venue:{type:getV('venType'),name:getV('venName'),street:getV('venStreet'),city:getV('venCity'),state:getV('venState'),zip:getV('venZip'),address:composeAddress(),contactName:getV('venContact'),contactPhone:getV('venPhone')},
+    venue:{type:getV('venType'),name:getV('venName'),url:normalizeUrl(getV('venUrl')),street:getV('venStreet'),city:getV('venCity'),state:getV('venState'),zip:getV('venZip'),address:composeAddress(),contactName:getV('venContact'),contactPhone:getV('venPhone')},
+    referredBy:{name:getV('refName'),phone:getV('refPhone'),email:getV('refEmail')},
+    originalInquiry:{date:getV('inqDate'),channel:getV('inqChannel')},
     dayOfContact:{name:getV('dayName'),phone:getV('dayPhone'),sameAsCustomer:document.getElementById('daySame').checked},
     billingRestaurant:getV('billing'),
     fulfillingRestaurant:getV('fulfilling'),
@@ -611,6 +769,7 @@ function collectData(){
     kitchenNotes:getV('kitchenNotes'),
     fulfillment:{mode:document.querySelector('input[name="ful"]:checked').value,driver:getV('fulDriver'),readyTime:getV('fulReady')},
     payment:{depositRequired:document.getElementById('depReq').checked,depositAmount:parseFloat(getV('depAmount'))||0,depositStatus:getV('depStatus'),terms:getV('payTerms')},
+    documents:{quotePdfUrl:pdfDoc.url||'',quotePdfPath:pdfDoc.path||'',quotePdfName:pdfDoc.name||'',invoiceUrl:normalizeUrl(getV('invUrl'))},
     status:getV('status'),
     quoteTotal:lines.reduce((s,l)=>s+(Number(l.billedQty)||0)*(Number(l.unitPrice)||0),0),
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
@@ -658,6 +817,8 @@ async function deleteBooking(){
   if(isNew)return;
   if(!confirm('Delete this catering booking? This cannot be undone.'))return;
   try{
+    // delete uploaded quote PDF from storage (best-effort)
+    if(pdfDoc.path){try{await firebase.storage().ref().child(pdfDoc.path).delete();}catch(e){console.warn('storage delete skipped:',e.message);}}
     // delete comms subcollection first
     const cs=await db.collection('caterings').doc(docId).collection('comms').get();
     for(let i=0;i<cs.docs.length;i+=400){const batch=db.batch();cs.docs.slice(i,i+400).forEach(d=>batch.delete(d.ref));await batch.commit();}

@@ -75,6 +75,18 @@ tbody tr:hover td{background:var(--gray-50)}
 .completebtn{padding:5px 10px;border:1px solid var(--gray-300);background:#fff;color:var(--gray-700);border-radius:6px;font-size:.74rem;font-weight:600;cursor:pointer}
 .completebtn:hover{background:#f0fdf4;border-color:#86efac;color:#166534}
 tbody tr.done td{opacity:.7}
+/* big single-table for the active list (filters + month-header rows + zebra) */
+.bigtable{width:100%;border-collapse:collapse;font-size:.85rem;table-layout:auto}
+.bigtable th{text-align:left;font-size:.7rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:.3px;padding:9px 10px;border-bottom:2px solid var(--gray-200);background:#fff;white-space:nowrap}
+.bigtable tr.filterrow th{padding:6px 8px;border-bottom:1px solid var(--gray-200);background:var(--gray-50);font-weight:400;text-transform:none}
+.bigtable tr.filterrow input,.bigtable tr.filterrow select{width:100%;padding:5px 7px;border:1px solid var(--gray-300);border-radius:5px;font-size:.78rem;background:#fff;font-family:inherit}
+.bigtable tr.monthrow td{background:var(--primary);color:#fff;font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px}
+.bigtable tr.datarow td{padding:10px;border-bottom:1px solid var(--gray-100);white-space:nowrap}
+.bigtable tr.datarow.odd td{background:#fafafa}
+.bigtable tr.datarow.even td{background:#fff}
+.bigtable tr.datarow:hover td{background:#eff6ff !important;cursor:pointer}
+.bigtable tr.datarow.done td{opacity:.7}
+.clearfilters{font-size:.72rem;color:var(--primary-light);font-weight:600;cursor:pointer;background:none;border:none;padding:0;text-decoration:underline}
 /* inline status popover (from calendar chip) */
 .statuspop{position:absolute;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:14px;z-index:200;min-width:260px;max-width:300px}
 .statuspop .name{font-weight:700;font-size:.92rem;margin-bottom:2px;padding-right:18px}
@@ -149,13 +161,24 @@ tbody tr.done td{opacity:.7}
     <!-- inline status popover for calendar chips -->
     <div id="statusPop" class="statuspop" style="display:none"></div>
 
-    <!-- ACTIVE BOOKINGS — grouped by month -->
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+    <!-- ACTIVE BOOKINGS — single table, filter row in head, month-header rows in body -->
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
       <h2 style="font-size:1.05rem;font-weight:700;color:var(--gray-900)">Active caterings</h2>
-      <span class="muted" style="font-size:.78rem" id="activeCount"></span>
+      <div style="display:flex;gap:10px;align-items:baseline">
+        <button class="clearfilters" onclick="clearColumnFilters()">Clear filters</button>
+        <span class="muted" style="font-size:.78rem" id="activeCount"></span>
+      </div>
     </div>
-    <div id="monthGroups"></div>
-    <div id="emptyActive" class="muted" style="padding:24px;text-align:center;display:none;background:#fff;border:1px dashed var(--gray-200);border-radius:12px">No active caterings.</div>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table class="bigtable" id="activeTable">
+        <thead>
+          <tr id="activeHeadRow"></tr>
+          <tr class="filterrow" id="activeFilterRow"></tr>
+        </thead>
+        <tbody id="activeBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyActive" class="muted" style="padding:24px;text-align:center;display:none;background:#fff;border:1px dashed var(--gray-200);border-radius:12px;margin-top:10px">No active caterings match the current filters.</div>
 
     <!-- COMPLETED — collapsible -->
     <div style="margin-top:28px">
@@ -199,11 +222,28 @@ let caterings=[];
 let calMonth=new Date();calMonth.setDate(1);  // first of current month
 let completedOpen=false;
 function composeName(c){
+  // "First Last" for display everywhere (list + calendar chips + status popover).
   if(!c)return '(no name)';
   const f=(c.firstName||'').trim();const l=(c.lastName||'').trim();
-  if(l||f) return (l?l:'')+(l&&f?', ':'')+(f?f:'');  // "Last, First" for the list
+  if(f||l) return (f+' '+l).trim();
   return (c.name||'').trim()||'(no name)';
 }
+function fmtDate(iso){
+  if(!iso)return '';
+  const p=iso.split('-');if(p.length<3)return iso;
+  return p[1]+'/'+p[2]+'/'+p[0].slice(2);
+}
+function paymentStatus(raw){
+  const p=(raw&&raw.payment)||{};
+  if(!p.depositRequired)return 'No deposit';
+  return p.depositStatus||'Not paid';
+}
+const PAY_META={
+  'Paid':{bg:'#dcfce7',fg:'#166534'},
+  'Partial':{bg:'#fef3c7',fg:'#92400e'},
+  'Not paid':{bg:'#fee2e2',fg:'#b91c1c'},
+  'No deposit':{bg:'#f3f4f6',fg:'#6b7280'}
+};
 
 async function handleLogin(){
   const email=document.getElementById('loginEmail').value.trim();
@@ -254,9 +294,11 @@ async function loadCaterings(){
         eventType:x.event&&x.event.type||'',
         guestsTotal:(x.guests&&Number(x.guests.total))||0,
         venue:(x.venue&&(x.venue.name||x.venue.type))||'',
+        city:(x.venue&&x.venue.city)||'',
         billing:rname(x.billingRestaurant),
         fulfilling:rname(x.fulfillingRestaurant),
         status:x.status||'inquiry',
+        payment:paymentStatus(x),
         balance:balanceDue(x),
         _raw:x
       };
@@ -336,15 +378,106 @@ function renderGroupedList(container,groups,showAction){
     </div>`).join('');
 }
 
-function render(){
-  const all=filterBySearch(caterings);
-  const active=all.filter(c=>c.status!=='completed');
-  const completed=all.filter(c=>c.status==='completed');
+// ---------- big-table filter / render for the active section ----------
+const ACTIVE_COLS=[
+  {k:'customerName',l:'Customer',filter:'text'},
+  {k:'eventDate',l:'Event date',filter:'text',phold:'mm/dd/yy'},
+  {k:'eventType',l:'Type',filter:'select',opts:['Graduation','Wedding','Birthday party','Anniversary','Retirement','Eid al-Adha','Eid ul-Fitr','Other']},
+  {k:'guestsTotal',l:'Guests',filter:'text',phold:'#'},
+  {k:'venue',l:'Venue',filter:'text'},
+  {k:'city',l:'City',filter:'text'},
+  {k:'billing',l:'Billing',filter:'select',optsFn:()=>Object.keys(RESTAURANTS).map(k=>RESTAURANTS[k].shortName)},
+  {k:'fulfilling',l:'Fulfilling',filter:'select',optsFn:()=>Object.keys(RESTAURANTS).map(k=>RESTAURANTS[k].shortName)},
+  {k:'status',l:'Status',filter:'select',opts:['inquiry','quoted','confirmed','cancelled']},
+  {k:'payment',l:'Payment',filter:'select',opts:['Paid','Partial','Not paid','No deposit']},
+  {k:'_action',l:'',filter:'none'}
+];
 
-  const activeGroups=groupByMonth(active,true);
-  renderGroupedList(document.getElementById('monthGroups'),activeGroups,true);
-  document.getElementById('emptyActive').style.display=active.length?'none':'block';
-  document.getElementById('activeCount').textContent=active.length?(active.length+' active'):'';
+function ensureFilterHead(){
+  const headRow=document.getElementById('activeHeadRow');
+  if(headRow.dataset.built)return;
+  headRow.innerHTML=ACTIVE_COLS.map(c=>`<th>${c.l}</th>`).join('');
+  const filterRow=document.getElementById('activeFilterRow');
+  filterRow.innerHTML=ACTIVE_COLS.map(c=>{
+    if(c.filter==='none')return '<th></th>';
+    if(c.filter==='select'){
+      const opts=(c.opts||(c.optsFn?c.optsFn():[])).map(o=>`<option value="${o}">${o}</option>`).join('');
+      return `<th><select id="f_${c.k}"><option value="">All</option>${opts}</select></th>`;
+    }
+    return `<th><input id="f_${c.k}" type="text" placeholder="${c.phold||''}"></th>`;
+  }).join('');
+  // wire up
+  ACTIVE_COLS.forEach(c=>{
+    if(c.filter==='none')return;
+    const el=document.getElementById('f_'+c.k);
+    if(!el)return;
+    el.addEventListener(c.filter==='select'?'change':'input',render);
+  });
+  headRow.dataset.built='1';
+}
+
+function applyColumnFilters(rows){
+  return rows.filter(r=>{
+    for(const c of ACTIVE_COLS){
+      if(c.filter==='none')continue;
+      const el=document.getElementById('f_'+c.k);if(!el||!el.value)continue;
+      const want=String(el.value).toLowerCase();
+      let val;
+      if(c.k==='eventDate')val=fmtDate(r.eventDate);
+      else val=r[c.k];
+      val=String(val==null?'':val).toLowerCase();
+      if(c.filter==='select'){if(val!==want)return false;}
+      else{if(val.indexOf(want)<0)return false;}
+    }
+    return true;
+  });
+}
+
+function clearColumnFilters(){
+  ACTIVE_COLS.forEach(c=>{const el=document.getElementById('f_'+c.k);if(el){el.value='';}});
+  render();
+}
+
+function bigRowHtml(c,parity){
+  const sm=STATUS_META[c.status]||STATUS_META.inquiry;
+  const pm=PAY_META[c.payment]||PAY_META['No deposit'];
+  return `<tr class="datarow ${parity} ${c.status==='completed'?'done':''}" onclick="navigateTo('catering-edit.html',{id:'${c.id}'})">
+    <td><strong>${escp(c.customerName)}</strong></td>
+    <td>${fmtDate(c.eventDate)||'<span class="muted">—</span>'}</td>
+    <td>${escp(c.eventType)||'<span class="muted">—</span>'}</td>
+    <td>${c.guestsTotal||'<span class="muted">—</span>'}</td>
+    <td>${escp(c.venue)||'<span class="muted">—</span>'}</td>
+    <td>${escp(c.city)||'<span class="muted">—</span>'}</td>
+    <td>${escp(c.billing)}</td>
+    <td>${escp(c.fulfilling)}</td>
+    <td><span class="pill" style="background:${sm.bg};color:${sm.fg};cursor:pointer" onclick="event.stopPropagation();openStatusPop('${c.id}',this)" title="Click to change status">${sm.label} <span style="opacity:.55;font-size:.7em">▾</span></span></td>
+    <td><span class="pill" style="background:${pm.bg};color:${pm.fg}">${c.payment}</span></td>
+    <td><button class="completebtn" onclick="event.stopPropagation();markComplete('${c.id}','${escAttr(c.customerName)}')">✓ Complete</button></td>
+  </tr>`;
+}
+
+function renderActiveTable(filtered){
+  const tbody=document.getElementById('activeBody');
+  const groups=groupByMonth(filtered,true);
+  let html='',parityCount=0;
+  groups.forEach(g=>{
+    html+=`<tr class="monthrow"><td colspan="${ACTIVE_COLS.length}">${g.label} — ${g.rows.length} catering${g.rows.length!==1?'s':''}</td></tr>`;
+    g.rows.forEach(r=>{html+=bigRowHtml(r, (parityCount++)%2===0?'odd':'even');});
+  });
+  tbody.innerHTML=html;
+}
+
+function render(){
+  ensureFilterHead();
+  const baseList=filterBySearch(caterings);
+  const active=baseList.filter(c=>c.status!=='completed');
+  const completed=baseList.filter(c=>c.status==='completed');
+
+  const shown=applyColumnFilters(active);
+  renderActiveTable(shown);
+  document.getElementById('emptyActive').style.display=shown.length?'none':'block';
+  document.getElementById('activeCount').textContent=
+    (shown.length===active.length)?(active.length+' active'):(shown.length+' shown · '+active.length+' active');
 
   document.getElementById('completedCount').textContent=completed.length?('('+completed.length+')'):'';
   if(completedOpen){
