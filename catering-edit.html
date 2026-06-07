@@ -273,8 +273,9 @@ textarea{resize:vertical}
           </select>
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-        <button type="button" class="btn btn-ghost" onclick="copyAIPromptForRecap()" title="Copy a recap-writing prompt to your clipboard and open Claude.ai to paste it">🤖 Generate recap with AI</button>
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:6px">
+        <span id="aiRecapMsg" style="font-size:.78rem;color:var(--success);min-height:16px"></span>
+        <button type="button" class="btn btn-ghost" onclick="copyAIPromptForRecap()" title="Auto-creates a prompt with all your call notes, copies it, and opens Claude.ai — paste with Cmd/Ctrl+V">🤖 Generate recap with AI</button>
       </div>
       <div id="commList"><div class="muted" style="font-size:.82rem">No notes yet.</div></div>
       <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--gray-200)">
@@ -966,23 +967,27 @@ async function copyAIPromptForRecap(){
 
   const prompt=lines.join('\n');
 
-  // Modern path: navigator.clipboard (requires HTTPS — GitHub Pages serves HTTPS, so this works in production).
+  // One-motion flow: copy to clipboard + open Claude.ai in a new tab + inline confirmation.
+  // (Auto-pasting into another origin's page is blocked by the browser for security; user must paste.)
+  const flash=(text,color)=>{const el=document.getElementById('aiRecapMsg');if(!el)return;el.style.color=color||'var(--success)';el.textContent=text;clearTimeout(window._aiMsgT);window._aiMsgT=setTimeout(()=>{el.textContent='';},6000);};
   try{
     await navigator.clipboard.writeText(prompt);
-    if(confirm('✓ Prompt copied to clipboard.\n\nOpen Claude.ai now to paste it? You can then review the recap before sending it to the customer.'))
-      window.open('https://claude.ai/new','_blank','noopener');
+    flash('✓ Copied — paste with Cmd/Ctrl+V in the Claude tab');
+    window.open('https://claude.ai/new','_blank','noopener');
   }catch(e){
-    // Fallback: drop a temp textarea so older browsers / non-HTTPS contexts can still grab it.
+    // Fallback for older browsers / non-HTTPS contexts: temp textarea trick.
     console.error('clipboard.writeText failed',e);
     const ta=document.createElement('textarea');
     ta.value=prompt;ta.style.position='fixed';ta.style.left='-9999px';
     document.body.appendChild(ta);ta.select();
-    try{document.execCommand('copy');alert('✓ Prompt copied. Open https://claude.ai/new and paste with Cmd/Ctrl+V.');}
-    catch(e2){
-      alert('Could not auto-copy. The prompt is shown in a popup tab — copy it manually.');
-      const w=window.open('','_blank');if(w){w.document.write('<pre style="font:14px monospace;white-space:pre-wrap;padding:20px">'+prompt.replace(/</g,'&lt;')+'</pre>');w.document.close();}
-    }
+    let ok=false;
+    try{ok=document.execCommand('copy');}catch(e2){}
     document.body.removeChild(ta);
+    if(ok){flash('✓ Copied — paste with Cmd/Ctrl+V in the Claude tab');window.open('https://claude.ai/new','_blank','noopener');}
+    else{
+      flash('Could not auto-copy — opening prompt in a new tab to copy manually','var(--danger)');
+      const w=window.open('','_blank');if(w){w.document.write('<pre style="font:14px monospace;white-space:pre-wrap;padding:20px;max-width:780px;margin:0 auto">'+prompt.replace(/</g,'&lt;')+'</pre>');w.document.close();}
+    }
   }
 }
 async function addComm(){

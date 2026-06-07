@@ -76,17 +76,21 @@ tbody tr:hover td{background:var(--gray-50)}
 .completebtn:hover{background:#f0fdf4;border-color:#86efac;color:#166534}
 tbody tr.done td{opacity:.7}
 /* big single-table for the active list (filters + month-header rows + zebra) */
-.bigtable{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:auto}
-.bigtable th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:.3px;padding:9px 8px;border-bottom:2px solid var(--gray-200);background:#fff;vertical-align:bottom;word-break:break-word}
+.bigtable{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed}
+/* box-sizing:border-box makes the colgroup percentages include padding rather than add to it — otherwise the table overflows. */
+.bigtable th,.bigtable td{box-sizing:border-box}
+.bigtable th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:.3px;padding:9px 8px;border-bottom:2px solid var(--gray-200);background:#fff;vertical-align:bottom}
 .bigtable tr.filterrow th{padding:6px 6px;border-bottom:1px solid var(--gray-200);background:var(--gray-50);font-weight:400;text-transform:none}
-.bigtable tr.filterrow input,.bigtable tr.filterrow select{width:100%;padding:5px 6px;border:1px solid var(--gray-300);border-radius:5px;font-size:.76rem;background:#fff;font-family:inherit;min-width:0}
+.bigtable tr.filterrow input,.bigtable tr.filterrow select{width:100%;padding:5px 6px;border:1px solid var(--gray-300);border-radius:5px;font-size:.76rem;background:#fff;font-family:inherit;min-width:0;box-sizing:border-box}
 .bigtable tr.monthrow td{background:var(--primary);color:#fff;font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px}
-.bigtable tr.datarow td{padding:10px 8px;border-bottom:1px solid var(--gray-100);vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+.bigtable tr.datarow td{padding:10px 8px;border-bottom:1px solid var(--gray-100);vertical-align:top}
 .bigtable tr.datarow td .pill,.bigtable tr.datarow td .completebtn{white-space:nowrap;display:inline-block}
 .bigtable tr.datarow.odd td{background:#fafafa}
 .bigtable tr.datarow.even td{background:#fff}
 .bigtable tr.datarow:hover td{background:#eff6ff !important;cursor:pointer}
 .bigtable tr.datarow.done td{opacity:.7}
+/* All text cells render their content inside this wrapper — divs handle wrap predictably while <td> has cross-browser quirks. */
+.wrap-cell{word-break:break-word;overflow-wrap:anywhere;hyphens:auto;line-height:1.35;max-width:100%}
 .clearfilters{font-size:.72rem;color:var(--primary-light);font-weight:600;cursor:pointer;background:none;border:none;padding:0;text-decoration:underline}
 /* inline status popover (from calendar chip) */
 .statuspop{position:absolute;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:14px;z-index:200;min-width:260px;max-width:300px}
@@ -172,6 +176,20 @@ tbody tr.done td{opacity:.7}
     </div>
     <div class="card" style="padding:0">
       <table class="bigtable" id="activeTable">
+        <colgroup>
+          <!-- Widths total 100%. With box-sizing:border-box on cells, percentages include cell padding. -->
+          <col style="width:13%">  <!-- Customer (First Last names) -->
+          <col style="width:7%">   <!-- Event date (mm/dd/yy) -->
+          <col style="width:9%">   <!-- Type -->
+          <col style="width:5%">   <!-- Guests # -->
+          <col style="width:15%">  <!-- Venue (longest free-text field) -->
+          <col style="width:8%">   <!-- City -->
+          <col style="width:9%">   <!-- Billing -->
+          <col style="width:9%">   <!-- Fulfilling -->
+          <col style="width:8%">   <!-- Status pill -->
+          <col style="width:8%">   <!-- Payment pill -->
+          <col style="width:9%">   <!-- ✓ Complete -->
+        </colgroup>
         <thead>
           <tr id="activeHeadRow"></tr>
           <tr class="filterrow" id="activeFilterRow"></tr>
@@ -448,14 +466,14 @@ function bigRowHtml(c,parity){
   const sm=STATUS_META[c.status]||STATUS_META.inquiry;
   const pm=PAY_META[c.payment]||PAY_META['No deposit'];
   return `<tr class="datarow ${parity} ${c.status==='completed'?'done':''}" onclick="navigateTo('catering-edit.html',{id:'${c.id}'})">
-    <td><strong>${escp(c.customerName)}</strong></td>
-    <td>${fmtDate(c.eventDate)||'<span class="muted">—</span>'}</td>
-    <td>${escp(displayEventType(c))||'<span class="muted">—</span>'}</td>
-    <td>${c.guestsTotal||'<span class="muted">—</span>'}</td>
-    <td>${escp(c.venue)||'<span class="muted">—</span>'}</td>
-    <td>${escp(c.city)||'<span class="muted">—</span>'}</td>
-    <td>${escp(c.billing)}</td>
-    <td>${escp(c.fulfilling)}</td>
+    <td><div class="wrap-cell"><strong>${escp(c.customerName)}</strong></div></td>
+    <td><div class="wrap-cell">${fmtDate(c.eventDate)||'<span class="muted">—</span>'}</div></td>
+    <td><div class="wrap-cell">${escp(displayEventType(c))||'<span class="muted">—</span>'}</div></td>
+    <td><div class="wrap-cell">${c.guestsTotal||'<span class="muted">—</span>'}</div></td>
+    <td><div class="wrap-cell">${escp(c.venue)||'<span class="muted">—</span>'}</div></td>
+    <td><div class="wrap-cell">${escp(c.city)||'<span class="muted">—</span>'}</div></td>
+    <td><div class="wrap-cell">${escp(c.billing)}</div></td>
+    <td><div class="wrap-cell">${escp(c.fulfilling)}</div></td>
     <td><span class="pill" style="background:${sm.bg};color:${sm.fg};cursor:pointer" onclick="event.stopPropagation();openStatusPop('${c.id}',this)" title="Click to change status">${sm.label} <span style="opacity:.55;font-size:.7em">▾</span></span></td>
     <td><span class="pill" style="background:${pm.bg};color:${pm.fg};cursor:pointer" onclick="event.stopPropagation();openPaymentPop('${c.id}',this)" title="Click to change payment status">${c.payment} <span style="opacity:.55;font-size:.7em">▾</span></span></td>
     <td><button class="completebtn" onclick="event.stopPropagation();markComplete('${c.id}','${escAttr(c.customerName)}')">✓ Complete</button></td>
