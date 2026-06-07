@@ -170,6 +170,12 @@ textarea{resize:vertical}
         <div><label>Pickup time</label><input id="fulPickupTime" type="time"></div>
       </div>
 
+      <!-- Arrival + departure at venue (delivery modes only) -->
+      <div id="fulTimingWrap" class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:10px;display:none">
+        <div><label>Arrival at venue</label><input id="fulArrival" type="time"></div>
+        <div><label>Departure from venue</label><input id="fulDeparture" type="time"></div>
+      </div>
+
       <!-- Delivery / delivery+setup / full service: assigned team -->
       <div id="fulDriverWrap" style="margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -815,6 +821,7 @@ function onFulMode(){
   const isDelivery=(mode==='delivery'||mode==='delivery-setup'||mode==='full-service');
   document.getElementById('fulPickupWrap').style.display=isPickup?'':'none';
   document.getElementById('fulDriverWrap').style.display=isDelivery?'':'none';
+  document.getElementById('fulTimingWrap').style.display=isDelivery?'grid':'none';
   document.getElementById('fulVenueHint').style.display=isDelivery?'':'none';
   // Hot boxes only for delivery and delivery+setup (not pickup, not full-service)
   document.getElementById('fulHotBoxWrap').style.display=(mode==='delivery'||mode==='delivery-setup')?'':'none';
@@ -991,6 +998,7 @@ async function loadBooking(){
       const f=x.fulfillment;
       const r=document.querySelector('input[name="ful"][value="'+(f.mode||'delivery')+'"]');if(r)r.checked=true;
       setV('fulReady',f.readyTime);setV('fulPickupTime',f.pickupTime);
+      setV('fulArrival',f.arrivalTime||'');setV('fulDeparture',f.departureTime||'');
       const fp=document.querySelector('input[name="floorPlan"][value="'+(f.floorPlanProvided?'yes':'no')+'"]');if(fp)fp.checked=true;
       const hb=document.querySelector('input[name="hotBoxStay"][value="'+(f.hotBoxesStayWithCustomer?'yes':'no')+'"]');if(hb)hb.checked=true;
       const fs=f.fullService||{};
@@ -1276,6 +1284,8 @@ function collectData(){
       team:deliveryTeam.map(t=>({name:t.name||'',phone:t.phone||'',role:t.role||'Helper'})),
       readyTime:getV('fulReady'),
       pickupTime:getV('fulPickupTime'),
+      arrivalTime:getV('fulArrival'),
+      departureTime:getV('fulDeparture'),
       floorPlanProvided:(document.querySelector('input[name="floorPlan"]:checked')||{}).value==='yes',
       hotBoxesStayWithCustomer:(document.querySelector('input[name="hotBoxStay"]:checked')||{}).value==='yes',
       fullService:{
@@ -1407,6 +1417,7 @@ function printKitchenOrder(){
      <div><span class="lbl">Fulfillment</span><br><strong>${ful}</strong></div>
      <div><span class="lbl">Ready by</span><br><strong>${escHtml(t12(d.fulfillment.readyTime))}</strong></div>
      <div><span class="lbl">Serve time</span><br><strong>${escHtml(t12(d.event.serveTime))}</strong></div>
+     ${(fm!=='pickup'&&(d.fulfillment.arrivalTime||d.fulfillment.departureTime))?`<div><span class="lbl">At venue</span><br><strong>${escHtml(t12(d.fulfillment.arrivalTime))} → ${escHtml(t12(d.fulfillment.departureTime))}</strong></div>`:''}
    </div>
    <table><thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th>Prep notes</th></tr></thead><tbody>${rowsHtml}</tbody></table>
    ${d.kitchenNotes?('<div class="kn"><span class="lbl">Special kitchen notes</span><br>'+escHtml(d.kitchenNotes)+'</div>'):''}
@@ -1508,6 +1519,10 @@ function printBooking(){
   const fmLabel={pickup:'Customer pickup',delivery:'Delivery','delivery-setup':'Delivery + setup','full-service':'Full service'}[f.mode]||escHtml(f.mode);
   let fulRows=row('Mode',fmLabel)+row('Ready by',t12(f.readyTime));
   if(f.mode==='pickup')fulRows+=row('Pickup time',t12(f.pickupTime));
+  if(f.mode!=='pickup'){
+    if(f.arrivalTime)fulRows+=row('Arrival at venue',t12(f.arrivalTime));
+    if(f.departureTime)fulRows+=row('Departure from venue',t12(f.departureTime));
+  }
   if(f.mode==='delivery'||f.mode==='delivery-setup'||f.mode==='full-service'){
     const team=(f.team||[]);
     fulRows+=row('Assigned team', team.length
@@ -1624,6 +1639,7 @@ function emailBooking(){
   }
   lines.push('— FULFILLMENT —');
   lines.push(fmLabel+(f.driver?(' — '+f.driver):'')+(f.mode==='pickup'&&f.pickupTime?(' at '+t12(f.pickupTime)):''));
+  if(f.mode!=='pickup' && (f.arrivalTime||f.departureTime))lines.push('At venue: '+(t12(f.arrivalTime)||'—')+' → '+(t12(f.departureTime)||'—'));
   if(f.mode==='delivery'||f.mode==='delivery-setup')lines.push('Hot boxes: '+(f.hotBoxesStayWithCustomer?'staying with customer':'returning with driver'));
   if(f.mode==='delivery-setup')lines.push('Floor plan: '+(f.floorPlanProvided?'provided':'NOT provided'));
   if((f.team||[]).length){
