@@ -267,13 +267,54 @@ textarea{resize:vertical}
     <!-- FULFILLMENT -->
     <div class="card">
       <div class="sec-title">Fulfillment</div>
-      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-        <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="radio" name="ful" value="delivery" style="width:auto" onchange="onFulMode()" checked> Delivery</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="radio" name="ful" value="pickup" style="width:auto" onchange="onFulMode()"> Pickup</label>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="pickup" style="width:auto" onchange="onFulMode()"> Customer pickup</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="delivery" style="width:auto" onchange="onFulMode()" checked> Delivery</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="delivery-setup" style="width:auto" onchange="onFulMode()"> Delivery + setup</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.88rem;color:var(--gray-700)"><input type="radio" name="ful" value="full-service" style="width:auto" onchange="onFulMode()"> Full service</label>
       </div>
-      <div class="grid">
-        <div id="driverWrap"><label>Delivered by</label><input id="fulDriver" placeholder="driver name / service"></div>
-        <div><label>Ready by</label><input id="fulReady" type="time"></div>
+
+      <!-- Always shown: ready-by time -->
+      <div class="grid" style="margin-bottom:10px">
+        <div><label>Ready by <span class="hint">(in kitchen)</span></label><input id="fulReady" type="time"></div>
+      </div>
+
+      <!-- Pickup -->
+      <div id="fulPickupWrap" class="grid" style="display:none;margin-bottom:10px">
+        <div><label>Pickup time</label><input id="fulPickupTime" type="time"></div>
+      </div>
+
+      <!-- Delivery / delivery+setup / full service: driver -->
+      <div id="fulDriverWrap" class="grid" style="margin-bottom:10px">
+        <div><label>Delivered by <span class="hint">(driver / service)</span></label><input id="fulDriver" placeholder="name or DoorDash"></div>
+      </div>
+
+      <!-- Note shown for delivery modes -->
+      <div id="fulVenueHint" class="muted" style="font-size:.78rem;margin-bottom:10px">Make sure the venue address is filled in above so the driver has it.</div>
+
+      <!-- Delivery + setup: floor plan -->
+      <div id="fulSetupWrap" style="display:none;margin-bottom:10px">
+        <label>Floor plan provided?</label>
+        <div style="display:flex;gap:18px;align-items:center;margin:6px 0">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="floorPlan" value="no" style="width:auto" checked> No</label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="floorPlan" value="yes" style="width:auto"> Yes</label>
+        </div>
+      </div>
+
+      <!-- Full service: staff -->
+      <div id="fulFullWrap" style="display:none;margin-top:6px;padding-top:12px;border-top:1px dashed var(--gray-200)">
+        <div class="grid">
+          <div><label>Number of staff needed</label><input id="fsStaffCount" type="number" min="0" oninput="updateStaffSummary()"></div>
+          <div><label>Amount charged for staffing</label><input id="fsCharge" type="number" min="0" step="0.01" placeholder="$"></div>
+        </div>
+        <div style="margin-top:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="margin:0">Staff assigned</label>
+            <span id="staffSummary" class="muted" style="font-size:.76rem"></span>
+          </div>
+          <div id="staffList"></div>
+          <button type="button" class="btn btn-ghost" style="margin-top:6px" onclick="addStaff()">+ Add staff member</button>
+        </div>
       </div>
     </div>
 
@@ -319,7 +360,9 @@ textarea{resize:vertical}
   <div class="savebar">
     <span class="msg muted" id="saveMsg"></span>
     <button class="btn btn-danger" id="deleteBtn" onclick="deleteBooking()" style="display:none">Delete</button>
-    <button class="btn btn-dark" onclick="printKitchenOrder()">🖨 Kitchen order PDF</button>
+    <button class="btn btn-ghost" onclick="emailBooking()" title="Open your email client with a summary">✉ Email summary</button>
+    <button class="btn btn-ghost" onclick="printBooking()" title="Open a printable full-booking PDF">🖨 Print booking</button>
+    <button class="btn btn-dark" onclick="printKitchenOrder()">🖨 Kitchen order</button>
     <button class="btn btn-primary" onclick="saveBooking()">Save booking</button>
   </div>
 </div>
@@ -333,6 +376,7 @@ let lines=[];              // current booking menu lines
 let comms=[];              // communication log entries
 let loadedDoc=null;
 let pdfDoc={url:'',path:'',name:''}; // current quote-PDF state
+let staffMembers=[]; // for full-service: [{name, phone, confirmed}]
 
 async function handleLogin(){
   const email=document.getElementById('loginEmail').value.trim();
@@ -653,10 +697,42 @@ function money(n){return '$'+(Math.round(Number(n)||0)).toLocaleString();}
 function escAttr(s){return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 function escHtml(s){return String(s==null?'':s).replace(/</g,'&lt;');}
 
+function getFulMode(){const r=document.querySelector('input[name="ful"]:checked');return r?r.value:'delivery';}
 function onFulMode(){
-  const mode=document.querySelector('input[name="ful"]:checked').value;
-  document.getElementById('driverWrap').style.display=(mode==='delivery')?'':'none';
+  const mode=getFulMode();
+  const isPickup=(mode==='pickup');
+  const isDelivery=(mode==='delivery'||mode==='delivery-setup'||mode==='full-service');
+  document.getElementById('fulPickupWrap').style.display=isPickup?'':'none';
+  document.getElementById('fulDriverWrap').style.display=isDelivery?'':'none';
+  document.getElementById('fulVenueHint').style.display=isDelivery?'':'none';
+  document.getElementById('fulSetupWrap').style.display=(mode==='delivery-setup')?'':'none';
+  document.getElementById('fulFullWrap').style.display=(mode==='full-service')?'':'none';
+  if(mode==='full-service')renderStaff();
 }
+
+// ---------- Full-service staff list ----------
+function renderStaff(){
+  const list=document.getElementById('staffList');
+  if(!staffMembers.length){list.innerHTML='<div class="muted" style="font-size:.78rem;padding:6px 2px">No staff added yet.</div>';updateStaffSummary();return;}
+  list.innerHTML=staffMembers.map((s,i)=>
+    `<div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:center;margin-bottom:6px">
+       <input placeholder="staff name" value="${escAttr(s.name||'')}" oninput="staffMembers[${i}].name=this.value">
+       <input placeholder="phone" type="tel" value="${escAttr(s.phone||'')}" oninput="staffMembers[${i}].phone=this.value">
+       <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--gray-700);white-space:nowrap;margin:0"><input type="checkbox" ${s.confirmed?'checked':''} style="width:auto" onchange="staffMembers[${i}].confirmed=this.checked;updateStaffSummary()"> Confirmed</label>
+       <button type="button" class="btn btn-ghost" style="padding:4px 8px" onclick="removeStaff(${i})" title="Remove">✕</button>
+     </div>`).join('');
+  updateStaffSummary();
+}
+function updateStaffSummary(){
+  const el=document.getElementById('staffSummary');if(!el)return;
+  const need=parseInt(document.getElementById('fsStaffCount').value||0,10)||0;
+  const assigned=staffMembers.length;
+  const confirmed=staffMembers.filter(s=>s.confirmed).length;
+  const need_part=need?(' of '+need+' needed'):'';
+  el.textContent=assigned+' assigned'+need_part+' · '+confirmed+' confirmed';
+}
+function addStaff(){staffMembers.push({name:'',phone:'',confirmed:false});renderStaff();}
+function removeStaff(i){staffMembers.splice(i,1);renderStaff();}
 
 function onOtherFoodToggle(){
   const yes=document.querySelector('input[name="otherFoodFlag"]:checked').value==='yes';
@@ -705,8 +781,13 @@ async function loadBooking(){
     document.querySelector('input[name="otherFoodFlag"][value="'+(otherYes?'yes':'no')+'"]').checked=true;
     onOtherFoodToggle();
     if(x.fulfillment){
-      const r=document.querySelector('input[name="ful"][value="'+(x.fulfillment.mode||'delivery')+'"]');if(r)r.checked=true;
-      setV('fulDriver',x.fulfillment.driver);setV('fulReady',x.fulfillment.readyTime);
+      const f=x.fulfillment;
+      const r=document.querySelector('input[name="ful"][value="'+(f.mode||'delivery')+'"]');if(r)r.checked=true;
+      setV('fulDriver',f.driver);setV('fulReady',f.readyTime);setV('fulPickupTime',f.pickupTime);
+      const fp=document.querySelector('input[name="floorPlan"][value="'+(f.floorPlanProvided?'yes':'no')+'"]');if(fp)fp.checked=true;
+      const fs=f.fullService||{};
+      setV('fsStaffCount',fs.staffNeeded||'');setV('fsCharge',fs.chargeAmount||'');
+      staffMembers=(fs.staff||[]).map(s=>({name:s.name||'',phone:s.phone||'',confirmed:!!s.confirmed}));
     }
     if(x.payment){document.getElementById('depReq').checked=!!x.payment.depositRequired;setV('depAmount',x.payment.depositAmount);setV('depStatus',x.payment.depositStatus||'Not paid');setV('payTerms',x.payment.terms);}
     const docs=x.documents||{};
@@ -778,7 +859,18 @@ function collectData(){
     hasOtherFood:document.querySelector('input[name="otherFoodFlag"]:checked').value==='yes',
     otherFood:getV('otherFood'),
     kitchenNotes:getV('kitchenNotes'),
-    fulfillment:{mode:document.querySelector('input[name="ful"]:checked').value,driver:getV('fulDriver'),readyTime:getV('fulReady')},
+    fulfillment:{
+      mode:getFulMode(),
+      driver:getV('fulDriver'),
+      readyTime:getV('fulReady'),
+      pickupTime:getV('fulPickupTime'),
+      floorPlanProvided:(document.querySelector('input[name="floorPlan"]:checked')||{}).value==='yes',
+      fullService:{
+        staffNeeded:parseInt(getV('fsStaffCount'))||0,
+        chargeAmount:parseFloat(getV('fsCharge'))||0,
+        staff:staffMembers.map(s=>({name:s.name||'',phone:s.phone||'',confirmed:!!s.confirmed}))
+      }
+    },
     payment:{depositRequired:document.getElementById('depReq').checked,depositAmount:parseFloat(getV('depAmount'))||0,depositStatus:getV('depStatus'),terms:getV('payTerms')},
     documents:{quotePdfUrl:pdfDoc.url||'',quotePdfPath:pdfDoc.path||'',quotePdfName:pdfDoc.name||'',invoiceUrl:normalizeUrl(getV('invUrl'))},
     status:getV('status'),
@@ -842,7 +934,12 @@ async function deleteBooking(){
 function printKitchenOrder(){
   const d=collectData();
   const r=(k)=> (RESTAURANTS[k]?RESTAURANTS[k].shortName:(k||'—'));
-  const ful=(d.fulfillment.mode==='delivery')?('Delivery'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')):'Pickup — customer collects';
+  const fm=d.fulfillment.mode;
+  let ful;
+  if(fm==='pickup') ful='Pickup at '+(t12(d.fulfillment.pickupTime)||t12(d.fulfillment.readyTime)||'—');
+  else if(fm==='delivery-setup') ful='Delivery + setup'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')+(d.fulfillment.floorPlanProvided?' · floor plan provided':' · NO floor plan');
+  else if(fm==='full-service'){const fs=d.fulfillment.fullService||{};ful='Full service'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')+(fs.staffNeeded?' · '+fs.staffNeeded+' staff':'');}
+  else ful='Delivery'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'');
   const rowsHtml=d.menu.filter(m=>Number(m.kitchenQty)>0).map(m=>
     `<tr><td class="q">${m.kitchenQty}</td><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}</td><td>${escHtml(m.notes||'—')}</td></tr>`).join('')
     || '<tr><td colspan="3" style="color:#888">No kitchen quantities set.</td></tr>';
@@ -884,6 +981,10 @@ function printKitchenOrder(){
    <table><thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th>Prep notes</th></tr></thead><tbody>${rowsHtml}</tbody></table>
    ${d.kitchenNotes?('<div class="kn"><span class="lbl">Special kitchen notes</span><br>'+escHtml(d.kitchenNotes)+'</div>'):''}
    ${(d.hasOtherFood&&d.otherFood)?('<div class="small" style="margin-top:10px"><strong>Other food (host/outside):</strong> '+escHtml(d.otherFood)+'</div>'):''}
+   ${(fm==='full-service' && (d.fulfillment.fullService&&d.fulfillment.fullService.staff||[]).length)?
+     ('<div style="margin-top:14px;border-top:1px solid #ccc;padding-top:10px;font-size:13px"><strong>Staff:</strong><br>'+
+       d.fulfillment.fullService.staff.map(s=>(escHtml(s.name||'(unnamed)')+(s.phone?' · '+escHtml(s.phone):'')+(s.confirmed?' <span style="color:#16a34a">✓</span>':' <span style="color:#888">(unconfirmed)</span>'))).join('<br>')+
+     '</div>'):''}
    <button onclick="window.print()" style="margin-top:20px;padding:10px 18px;font-size:14px;cursor:pointer">Print / Save as PDF</button>
   </body></html>`);
   win.document.close();
@@ -892,6 +993,228 @@ function printKitchenOrder(){
 function t12(t){
   if(!t)return '—';const p=t.split(':');if(p.length<2)return t;
   let h=parseInt(p[0],10);const m=p[1];const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m+' '+ap;
+}
+function fmtDateMDY(iso){if(!iso)return '—';const p=iso.split('-');if(p.length<3)return iso;return p[1]+'/'+p[2]+'/'+p[0].slice(2);}
+function dayOfWeek(iso){if(!iso)return '';const dt=new Date(iso+'T00:00:00');if(isNaN(dt))return '';return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];}
+function _restName(k){return RESTAURANTS[k]?RESTAURANTS[k].shortName:(k||'—');}
+
+// ---------- Print full booking (one-pager: print or save as PDF) ----------
+function printBooking(){
+  const d=collectData();
+  const name=composeName({firstName:getV('custFirst'),lastName:getV('custLast')})||'(no name)';
+  const ev=d.event||{},v=d.venue||{},g=d.guests||{},pay=d.payment||{},f=d.fulfillment||{},fs=f.fullService||{};
+  const sameDay=d.dayOfContact&&d.dayOfContact.sameAsCustomer;
+  const inq=d.originalInquiry||{};
+  const docs=d.documents||{};
+  const ref=d.referredBy||{};
+
+  // Section helpers
+  const row=(lbl,val)=>val?`<tr><td class="lbl">${lbl}</td><td>${val}</td></tr>`:'';
+  const sect=(t,inner)=>inner?`<h3>${t}</h3><table class="kv">${inner}</table>`:'';
+  const blockNote=(t,txt)=>txt?`<h3>${t}</h3><div class="note">${escHtml(txt).replace(/\n/g,'<br>')}</div>`:'';
+
+  const customer=sect('Customer',
+    row('Name',escHtml(name))+
+    row('Email',escHtml(d.customer.email))+
+    row('Phone',escHtml(d.customer.phone))
+  );
+
+  const referred=sect('Referred by',
+    row('Name',escHtml(ref.name))+row('Phone',escHtml(ref.phone))+row('Email',escHtml(ref.email))
+  );
+
+  const event=sect('Event',
+    row('Type',escHtml(ev.type))+
+    row('Status',escHtml(d.status))+
+    row('Date',ev.date?(dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date)):'')+
+    row('Guest arrival',t12(ev.arrivalTime))+
+    row('Serving time',t12(ev.serveTime))+
+    row('Billing restaurant',escHtml(_restName(d.billingRestaurant)))+
+    row('Fulfilling restaurant',escHtml(_restName(d.fulfillingRestaurant)))
+  );
+
+  const inquiry=sect('Original inquiry',
+    row('First contact',fmtDateMDY(inq.date))+row('Channel',escHtml(inq.channel))
+  );
+
+  const venue=sect('Venue',
+    row('Type',escHtml(v.type))+
+    row('Name',escHtml(v.name))+
+    row('Address',escHtml(v.address))+
+    row('Website',v.url?`<a href="${v.url}">${escHtml(v.url)}</a>`:'')+
+    row('Venue contact',v.contactName?(escHtml(v.contactName)+(v.contactPhone?(' · '+escHtml(v.contactPhone)):'')):'')
+  );
+
+  const dayOf=sect('Day-of contact',
+    sameDay?row('','Same as customer'):(row('Name',escHtml(d.dayOfContact.name))+row('Phone',escHtml(d.dayOfContact.phone)))
+  );
+
+  const guests=sect('Guests',
+    row('Total',g.total)+
+    row('Adults / children',(g.adults||0)+' / '+(g.children||0))+
+    row('Vegetarian / non-vegetarian',(g.veg||0)+' / '+(g.nonVeg||0))
+  );
+
+  // Menu table with both billed and kitchen quantities
+  let menuHtml='';
+  if(d.menu&&d.menu.length){
+    menuHtml='<h3>Menu &amp; pricing</h3><table class="menu"><thead><tr><th>Item</th><th class="r">Billed</th><th class="r">Kitchen</th><th class="r">Unit $</th><th class="r">Total</th><th>Notes</th></tr></thead><tbody>'+
+      d.menu.map(m=>{
+        const tot=(Number(m.billedQty)||0)*(Number(m.unitPrice)||0);
+        const adj=Number(m.kitchenQty)<Number(m.billedQty)?' style="color:#92400e"':'';
+        return `<tr><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}</td><td class="r">${m.billedQty}</td><td class="r"${adj}>${m.kitchenQty}</td><td class="r">${money(m.unitPrice)}</td><td class="r">${money(tot)}</td><td>${escHtml(m.notes||'')}</td></tr>`;
+      }).join('')+'</tbody></table>';
+    const sub=d.menu.reduce((s,m)=>s+(Number(m.billedQty)||0)*(Number(m.unitPrice)||0),0);
+    const depPaid=pay.depositStatus==='Paid';
+    const dep=pay.depositRequired?(Number(pay.depositAmount)||0):0;
+    const balance=Math.max(sub-(depPaid?dep:0),0);
+    menuHtml+=`<table class="totals"><tr><td>Subtotal</td><td class="r"><strong>${money(sub)}</strong></td></tr>`+
+      (pay.depositRequired?`<tr><td>Deposit${depPaid?' (paid)':' ('+(pay.depositStatus||'not paid')+')'}</td><td class="r">${money(dep)}</td></tr>`:'')+
+      `<tr><td>Balance due</td><td class="r"><strong>${money(balance)}</strong></td></tr></table>`;
+  }
+
+  // Fulfillment details depending on mode
+  const fmLabel={pickup:'Customer pickup',delivery:'Delivery','delivery-setup':'Delivery + setup','full-service':'Full service'}[f.mode]||escHtml(f.mode);
+  let fulRows=row('Mode',fmLabel)+row('Ready by',t12(f.readyTime));
+  if(f.mode==='pickup')fulRows+=row('Pickup time',t12(f.pickupTime));
+  if(f.mode==='delivery'||f.mode==='delivery-setup'||f.mode==='full-service')fulRows+=row('Delivered by',escHtml(f.driver));
+  if(f.mode==='delivery-setup')fulRows+=row('Floor plan',f.floorPlanProvided?'Provided':'NOT provided');
+  if(f.mode==='full-service'){
+    fulRows+=row('Staff needed',fs.staffNeeded||'')+row('Staff charge',fs.chargeAmount?money(fs.chargeAmount):'');
+  }
+  let fulHtml=sect('Fulfillment',fulRows);
+  if(f.mode==='full-service' && (fs.staff||[]).length){
+    fulHtml+='<table class="kv"><tr><td class="lbl">Staff list</td><td>'+
+      fs.staff.map(s=>escHtml(s.name||'(unnamed)')+(s.phone?(' · '+escHtml(s.phone)):'')+(s.confirmed?' ✓':' (unconfirmed)')).join('<br>')+
+      '</td></tr></table>';
+  }
+
+  const payment=sect('Payment',
+    row('Deposit required',pay.depositRequired?'Yes':'No')+
+    row('Deposit amount',pay.depositRequired?money(pay.depositAmount||0):'')+
+    row('Deposit status',pay.depositRequired?escHtml(pay.depositStatus):'')+
+    row('Payment terms',escHtml(pay.terms))
+  );
+
+  const documents=sect('Documents',
+    row('Quote PDF',docs.quotePdfUrl?`<a href="${docs.quotePdfUrl}">${escHtml(docs.quotePdfName||'view PDF')}</a>`:'')+
+    row('Invoice link',docs.invoiceUrl?`<a href="${docs.invoiceUrl}">${escHtml(docs.invoiceUrl)}</a>`:'')
+  );
+
+  const notes=blockNote('Other food (host / outside caterer)',d.hasOtherFood?d.otherFood:'')+
+              blockNote('Special kitchen notes',d.kitchenNotes);
+
+  let commHtml='';
+  if(comms&&comms.length){
+    const iconMap={incoming:'📞 in',outgoing:'📞 out','email-in':'✉ in','email-out':'✉ out',note:'📝 note'};
+    commHtml='<h3>Communication log</h3><table class="comm"><tbody>'+
+      comms.map(c=>`<tr><td class="when">${escHtml(c.atLabel||c.at||'')}</td><td class="kind">${iconMap[c.direction]||'note'}</td><td>${escHtml(c.text||'').replace(/\n/g,'<br>')}</td></tr>`).join('')+
+      '</tbody></table>';
+  }
+
+  const win=window.open('','_blank');
+  if(!win){alert('Pop-up blocked. Allow pop-ups to print the booking.');return;}
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Catering — ${escHtml(name)}</title>
+   <style>
+     body{font-family:-apple-system,Arial,sans-serif;color:#1a1a1a;max-width:780px;margin:0 auto;padding:28px;font-size:13px;line-height:1.45}
+     .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:10px;margin-bottom:14px}
+     h1{font-size:20px;margin:0} h3{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#555;margin:14px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
+     .small{font-size:11px;color:#555}
+     table{width:100%;border-collapse:collapse}
+     table.kv td{padding:3px 6px;vertical-align:top} table.kv td.lbl{color:#777;width:170px;font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+     table.menu th{text-align:left;border-bottom:1px solid #ccc;color:#777;font-size:10px;text-transform:uppercase;padding:5px 4px} table.menu td{padding:6px 4px;border-bottom:.5px solid #e5e2d8;vertical-align:top}
+     table.menu td.r,table.menu th.r{text-align:right} .sub{color:#888;font-size:11px}
+     table.totals{margin-top:6px;width:60%;margin-left:auto} table.totals td{padding:3px 6px} table.totals td.r{text-align:right}
+     table.comm td{padding:5px 6px;border-bottom:.5px solid #eee;vertical-align:top}
+     table.comm td.when{color:#888;font-size:11px;width:160px;white-space:nowrap} table.comm td.kind{font-size:11px;width:80px;color:#666}
+     .note{background:#fafafa;border:1px solid #eee;padding:8px 10px;border-radius:4px}
+     a{color:#1e3a5f;text-decoration:none} a:hover{text-decoration:underline}
+     @media print{button{display:none}}
+   </style></head><body>
+   <div class="top">
+     <div><h1>Catering booking</h1><div class="small">${escHtml(name)} · ${escHtml(ev.type||'')}${ev.date?(' · '+dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date)):''}</div></div>
+     <div class="small" style="text-align:right">Printed ${new Date().toLocaleString()}<br>Status: <strong>${escHtml(d.status||'')}</strong></div>
+   </div>
+   ${customer}${referred}${event}${inquiry}${venue}${dayOf}${guests}${notes}${menuHtml}${fulHtml}${payment}${documents}${commHtml}
+   <button onclick="window.print()" style="margin-top:24px;padding:10px 18px;font-size:14px;cursor:pointer">Print / Save as PDF</button>
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>{try{win.focus();win.print();}catch(e){}},400);
+}
+
+// ---------- Email summary (mailto: with focused plain-text body) ----------
+function emailBooking(){
+  const d=collectData();
+  const name=composeName({firstName:getV('custFirst'),lastName:getV('custLast')})||'(no name)';
+  const ev=d.event||{},v=d.venue||{},g=d.guests||{},pay=d.payment||{},f=d.fulfillment||{},fs=f.fullService||{};
+  const subject='Catering: '+name+(ev.type?(' · '+ev.type):'')+(ev.date?(' · '+fmtDateMDY(ev.date)):'');
+  const sub=d.menu.reduce((s,m)=>s+(Number(m.billedQty)||0)*(Number(m.unitPrice)||0),0);
+  const depPaid=pay.depositStatus==='Paid';
+  const dep=pay.depositRequired?(Number(pay.depositAmount)||0):0;
+  const balance=Math.max(sub-(depPaid?dep:0),0);
+  const fmLabel={pickup:'Customer pickup',delivery:'Delivery','delivery-setup':'Delivery + setup','full-service':'Full service'}[f.mode]||f.mode;
+
+  const lines=[];
+  lines.push('CATERING BOOKING — '+name);
+  lines.push('Status: '+(d.status||''));
+  lines.push('');
+  lines.push('— CUSTOMER —');
+  lines.push(name);
+  if(d.customer.email)lines.push(d.customer.email);
+  if(d.customer.phone)lines.push(d.customer.phone);
+  lines.push('');
+  lines.push('— EVENT —');
+  if(ev.type)lines.push('Type: '+ev.type);
+  if(ev.date)lines.push('Date: '+dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date));
+  if(ev.arrivalTime)lines.push('Guest arrival: '+t12(ev.arrivalTime));
+  if(ev.serveTime)lines.push('Serving time: '+t12(ev.serveTime));
+  lines.push('Billing: '+_restName(d.billingRestaurant)+' · Fulfilling: '+_restName(d.fulfillingRestaurant));
+  lines.push('');
+  lines.push('— VENUE —');
+  if(v.type)lines.push(v.type+(v.name?(' — '+v.name):''));
+  if(v.address)lines.push(v.address);
+  if(v.contactName)lines.push('Contact: '+v.contactName+(v.contactPhone?(' · '+v.contactPhone):''));
+  lines.push('');
+  if(g.total){
+    lines.push('— GUESTS —');
+    lines.push(g.total+' total · '+(g.adults||0)+' adults / '+(g.children||0)+' children · '+(g.veg||0)+' veg / '+(g.nonVeg||0)+' non-veg');
+    lines.push('');
+  }
+  lines.push('— FULFILLMENT —');
+  lines.push(fmLabel+(f.driver?(' — '+f.driver):'')+(f.mode==='pickup'&&f.pickupTime?(' at '+t12(f.pickupTime)):''));
+  if(f.mode==='delivery-setup')lines.push('Floor plan: '+(f.floorPlanProvided?'provided':'NOT provided'));
+  if(f.mode==='full-service'){
+    lines.push('Staff needed: '+(fs.staffNeeded||0)+(fs.chargeAmount?(' · charge '+money(fs.chargeAmount)):''));
+    (fs.staff||[]).forEach(s=>lines.push('  • '+(s.name||'(unnamed)')+(s.phone?(' · '+s.phone):'')+(s.confirmed?' ✓':' (unconfirmed)')));
+  }
+  lines.push('');
+  lines.push('— PAYMENT —');
+  lines.push('Subtotal: '+money(sub));
+  if(pay.depositRequired)lines.push('Deposit '+(pay.depositStatus||'')+': '+money(dep));
+  lines.push('Balance due: '+money(balance));
+  if(pay.terms)lines.push('Terms: '+pay.terms);
+  lines.push('');
+  if(d.menu&&d.menu.length){
+    lines.push('— MENU —');
+    d.menu.forEach(m=>{
+      const t=(Number(m.billedQty)||0)*(Number(m.unitPrice)||0);
+      const k=Number(m.kitchenQty)<Number(m.billedQty)?(' (kitchen '+m.kitchenQty+')'):'';
+      lines.push('  '+m.billedQty+' × '+m.name+k+' — '+money(t)+(m.notes?(' — '+m.notes):''));
+    });
+    lines.push('');
+  }
+  if(d.hasOtherFood&&d.otherFood){lines.push('— OTHER FOOD —');lines.push(d.otherFood);lines.push('');}
+  if(d.kitchenNotes){lines.push('— KITCHEN NOTES —');lines.push(d.kitchenNotes);lines.push('');}
+  lines.push('—');
+  lines.push('Full booking detail available via the Print Booking PDF on the catering edit page.');
+
+  const body=lines.join('\n');
+  const link='mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  // Some clients clip very long mailto bodies; warn if we're over ~1800 chars.
+  if(body.length>1800){
+    if(!confirm('This summary is long ('+body.length+' chars) and may get truncated by your mail client. Continue anyway?\n\nTip: use Print booking and attach the PDF for full detail.'))return;
+  }
+  window.location.href=link;
 }
 </script>
 </body>
