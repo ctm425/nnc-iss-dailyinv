@@ -154,7 +154,13 @@ textarea{resize:vertical}
         <div><label>Venue contact name <span class="hint">(coordinator)</span></label><input id="venContact" placeholder="e.g. event manager"></div>
         <div><label>Venue contact phone</label><input id="venPhone" type="tel"></div>
       </div>
-      <div class="grid" style="margin-top:12px">
+      <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--gray-200)">
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:.82rem;color:var(--gray-700)">
+          <input type="checkbox" id="daySame" style="width:auto" onchange="onDaySameToggle()">
+          Day-of contact is the same as customer
+        </label>
+      </div>
+      <div class="grid">
         <div><label>Day-of contact name <span class="hint">(if different from customer)</span></label><input id="dayName" placeholder="e.g. planner / family member"></div>
         <div><label>Day-of contact phone</label><input id="dayPhone" type="tel"></div>
       </div>
@@ -227,7 +233,14 @@ textarea{resize:vertical}
     <!-- OTHER FOOD + KITCHEN NOTES -->
     <div class="card">
       <div class="sec-title">Notes</div>
-      <div style="margin-bottom:12px"><label>Other food being served <span class="hint">(by host / outside caterer)</span></label><textarea id="otherFood" rows="2"></textarea></div>
+      <div style="margin-bottom:12px">
+        <label>Other food being served <span class="hint">(by host / outside caterer)?</span></label>
+        <div style="display:flex;gap:18px;align-items:center;margin:6px 0">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="no" style="width:auto" onchange="onOtherFoodToggle()" checked> No</label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:.86rem;color:var(--gray-700)"><input type="radio" name="otherFoodFlag" value="yes" style="width:auto" onchange="onOtherFoodToggle()"> Yes</label>
+        </div>
+        <div id="otherFoodWrap" style="display:none"><label>Particulars <span class="hint">(what, who's providing, etc.)</span></label><textarea id="otherFood" rows="2" placeholder="e.g. dessert table from family · drinks by venue"></textarea></div>
+      </div>
       <div><label>Special kitchen notes <span class="hint">(allergies, packing, prints on the kitchen order)</span></label><textarea id="kitchenNotes" rows="2"></textarea></div>
     </div>
 
@@ -236,7 +249,13 @@ textarea{resize:vertical}
       <div class="sec-title">Communication log</div>
       <div id="commList"><div class="muted" style="font-size:.82rem">No notes yet.</div></div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-        <select id="commDir" style="max-width:150px"><option value="note">Note</option><option value="incoming">Call — in</option><option value="outgoing">Call — out</option></select>
+        <select id="commDir" style="max-width:170px">
+          <option value="note">Note</option>
+          <option value="incoming">Call — in</option>
+          <option value="outgoing">Call — out</option>
+          <option value="email-in">Email — in</option>
+          <option value="email-out">Email — out</option>
+        </select>
         <input id="commText" placeholder="Add a note from a call…" style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter')addComm()">
         <button class="btn btn-ghost" onclick="addComm()">Add note</button>
       </div>
@@ -283,6 +302,7 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById('mainContent').style.display='';
     buildRestaurantPickers();
     buildStatePicker();
+    wireDaySameSync();
     await loadMenuCatalog();
     if(isNew){
       lines=[blankLine()];renderLines();
@@ -337,6 +357,25 @@ function openMaps(){
   const a=composeAddress();
   if(!a){alert('Enter at least a street or city before opening Maps.');return;}
   window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a),'_blank');
+}
+
+// ---------- day-of contact = same as customer ----------
+function wireDaySameSync(){
+  ['custFirst','custLast','custPhone'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el && !el._daySync){el._daySync=true; el.addEventListener('input', ()=>{ if(document.getElementById('daySame').checked) syncDayFromCustomer(); });}
+  });
+}
+function syncDayFromCustomer(){
+  const name=composeName({firstName:getV('custFirst'),lastName:getV('custLast')});
+  document.getElementById('dayName').value=name;
+  document.getElementById('dayPhone').value=getV('custPhone');
+}
+function onDaySameToggle(){
+  const on=document.getElementById('daySame').checked;
+  const nameEl=document.getElementById('dayName'),phoneEl=document.getElementById('dayPhone');
+  if(on){ syncDayFromCustomer(); nameEl.disabled=true; phoneEl.disabled=true; nameEl.style.background='var(--gray-50)'; phoneEl.style.background='var(--gray-50)'; }
+  else{ nameEl.disabled=false; phoneEl.disabled=false; nameEl.style.background=''; phoneEl.style.background=''; }
 }
 
 async function loadMenuCatalog(){
@@ -459,6 +498,12 @@ function onFulMode(){
   document.getElementById('driverWrap').style.display=(mode==='delivery')?'':'none';
 }
 
+function onOtherFoodToggle(){
+  const yes=document.querySelector('input[name="otherFoodFlag"]:checked').value==='yes';
+  document.getElementById('otherFoodWrap').style.display=yes?'':'none';
+  if(!yes)document.getElementById('otherFood').value='';
+}
+
 // ---------- load existing ----------
 async function loadBooking(){
   try{
@@ -490,8 +535,13 @@ async function loadBooking(){
     setV('venContact',v.contactName);setV('venPhone',v.contactPhone);
     updateAddrPreview();
     setV('dayName',x.dayOfContact&&x.dayOfContact.name);setV('dayPhone',x.dayOfContact&&x.dayOfContact.phone);
+    if(x.dayOfContact&&x.dayOfContact.sameAsCustomer){document.getElementById('daySame').checked=true;onDaySameToggle();}
     if(x.guests){setV('gTotal',x.guests.total);setV('gAdult',x.guests.adults);setV('gChild',x.guests.children);setV('gVeg',x.guests.veg);setV('gNon',x.guests.nonVeg);}
     setV('otherFood',x.otherFood);setV('kitchenNotes',x.kitchenNotes);
+    // Other-food yes/no: explicit flag wins; if absent, infer "yes" when there's text.
+    const otherYes=(x.hasOtherFood===true)||(x.hasOtherFood===undefined && !!(x.otherFood||'').trim());
+    document.querySelector('input[name="otherFoodFlag"][value="'+(otherYes?'yes':'no')+'"]').checked=true;
+    onOtherFoodToggle();
     if(x.fulfillment){
       const r=document.querySelector('input[name="ful"][value="'+(x.fulfillment.mode||'delivery')+'"]');if(r)r.checked=true;
       setV('fulDriver',x.fulfillment.driver);setV('fulReady',x.fulfillment.readyTime);
@@ -521,7 +571,7 @@ async function loadComms(){
 function renderComms(){
   const c=document.getElementById('commList');
   if(!comms.length){c.innerHTML='<div class="muted" style="font-size:.82rem">No notes yet.</div>';return;}
-  const icon={incoming:'📞 in',outgoing:'📞 out',note:'📝 note'};
+  const icon={incoming:'📞 in',outgoing:'📞 out','email-in':'✉ email in','email-out':'✉ email out',note:'📝 note'};
   c.innerHTML=comms.map(m=>`<div class="comm"><div><div class="meta">${escHtml(m.atLabel||m.at||'')} · ${icon[m.direction]||'note'}</div><div class="txt">${escHtml(m.text||'')}</div></div></div>`).join('');
 }
 async function addComm(){
@@ -551,11 +601,12 @@ function collectData(){
     customer:{firstName:first,lastName:last,name:(first+' '+last).trim(),email:getV('custEmail'),phone:getV('custPhone')},
     event:{type:getV('evType'),date:getV('evDate'),arrivalTime:getV('evArrival'),serveTime:getV('evServe')},
     venue:{type:getV('venType'),name:getV('venName'),street:getV('venStreet'),city:getV('venCity'),state:getV('venState'),zip:getV('venZip'),address:composeAddress(),contactName:getV('venContact'),contactPhone:getV('venPhone')},
-    dayOfContact:{name:getV('dayName'),phone:getV('dayPhone')},
+    dayOfContact:{name:getV('dayName'),phone:getV('dayPhone'),sameAsCustomer:document.getElementById('daySame').checked},
     billingRestaurant:getV('billing'),
     fulfillingRestaurant:getV('fulfilling'),
     guests:{total:int('gTotal'),adults:int('gAdult'),children:int('gChild'),veg:int('gVeg'),nonVeg:int('gNon')},
     menu:lines.filter(l=>l.name).map(l=>({name:l.name,description:l.description||'',billedQty:Number(l.billedQty)||0,kitchenQty:Number(l.kitchenQty)||0,unitPrice:Number(l.unitPrice)||0,notes:l.notes||'',isCustom:!!l.isCustom})),
+    hasOtherFood:document.querySelector('input[name="otherFoodFlag"]:checked').value==='yes',
     otherFood:getV('otherFood'),
     kitchenNotes:getV('kitchenNotes'),
     fulfillment:{mode:document.querySelector('input[name="ful"]:checked').value,driver:getV('fulDriver'),readyTime:getV('fulReady')},
@@ -660,7 +711,7 @@ function printKitchenOrder(){
    </div>
    <table><thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th>Prep notes</th></tr></thead><tbody>${rowsHtml}</tbody></table>
    ${d.kitchenNotes?('<div class="kn"><span class="lbl">Special kitchen notes</span><br>'+escHtml(d.kitchenNotes)+'</div>'):''}
-   ${d.otherFood?('<div class="small" style="margin-top:10px"><strong>Other food (host/outside):</strong> '+escHtml(d.otherFood)+'</div>'):''}
+   ${(d.hasOtherFood&&d.otherFood)?('<div class="small" style="margin-top:10px"><strong>Other food (host/outside):</strong> '+escHtml(d.otherFood)+'</div>'):''}
    <button onclick="window.print()" style="margin-top:20px;padding:10px 18px;font-size:14px;cursor:pointer">Print / Save as PDF</button>
   </body></html>`);
   win.document.close();

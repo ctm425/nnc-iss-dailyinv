@@ -75,6 +75,18 @@ tbody tr:hover td{background:var(--gray-50)}
 .completebtn{padding:5px 10px;border:1px solid var(--gray-300);background:#fff;color:var(--gray-700);border-radius:6px;font-size:.74rem;font-weight:600;cursor:pointer}
 .completebtn:hover{background:#f0fdf4;border-color:#86efac;color:#166534}
 tbody tr.done td{opacity:.7}
+/* inline status popover (from calendar chip) */
+.statuspop{position:absolute;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:14px;z-index:200;min-width:260px;max-width:300px}
+.statuspop .name{font-weight:700;font-size:.92rem;margin-bottom:2px;padding-right:18px}
+.statuspop .sub{font-size:.74rem;color:var(--gray-500);margin-bottom:10px}
+.statuspop .opts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.statuspop .opts button{padding:5px 11px;border:1px solid var(--gray-300);background:#fff;border-radius:14px;font-size:.74rem;font-weight:600;cursor:pointer;color:var(--gray-700);display:inline-flex;align-items:center;gap:5px}
+.statuspop .opts button:hover{background:var(--gray-50)}
+.statuspop .opts button.active{background:var(--gray-900);color:#fff;border-color:var(--gray-900)}
+.statuspop .opts button i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.statuspop a.open{font-size:.78rem;color:var(--primary-light);text-decoration:none;font-weight:600;cursor:pointer}
+.statuspop .closex{position:absolute;top:6px;right:9px;background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:1.05rem;line-height:1;padding:0}
+.statuspop .savemsg{font-size:.72rem;color:var(--gray-400);margin-top:6px;min-height:14px}
 .calmore{font-size:.65rem;color:var(--gray-500);font-weight:600;cursor:pointer}
 @media(max-width:768px){.wrap{padding:10px}.card{overflow-x:auto}th,td{padding:8px}input,select{font-size:16px}.calday{min-height:64px}.caldnum{font-size:.7rem}.calchip{font-size:.62rem;padding:1px 3px}}
 </style>
@@ -124,17 +136,18 @@ tbody tr.done td{opacity:.7}
         <button onclick="navMonth(1)">Next ›</button>
         <div class="month" id="calMonthLabel"></div>
         <div class="callegend">
-          <span><i style="background:#D4537E"></i> wedding</span>
-          <span><i style="background:#378ADD"></i> graduation</span>
-          <span><i style="background:#BA7517"></i> birthday</span>
-          <span><i style="background:#7F77DD"></i> anniversary</span>
-          <span><i style="background:#1D9E75"></i> eid</span>
-          <span><i style="background:#888780"></i> other</span>
+          <span><i style="background:#6b7280"></i> inquiry</span>
+          <span><i style="background:#d97706"></i> quoted</span>
+          <span><i style="background:#16a34a"></i> confirmed</span>
+          <span><i style="background:#2563eb"></i> completed</span>
+          <span><i style="background:#dc2626"></i> cancelled</span>
         </div>
       </div>
       <div class="calgrid" id="calGrid"></div>
-      <div class="muted" style="font-size:.75rem;margin-top:10px">Click an event to open it · click an empty day to add a new catering on that date · completed events are faded</div>
+      <div class="muted" style="font-size:.75rem;margin-top:10px">Click an event to change its status or open it · click an empty day to add a new catering · completed events are faded</div>
     </div>
+    <!-- inline status popover for calendar chips -->
+    <div id="statusPop" class="statuspop" style="display:none"></div>
 
     <!-- ACTIVE BOOKINGS — grouped by month -->
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
@@ -175,9 +188,10 @@ const STATUS_META={
   completed:{label:'Completed',bg:'#dbeafe',fg:'#1e40af'},
   cancelled:{label:'Cancelled',bg:'#fee2e2',fg:'#b91c1c'}
 };
-const EVENT_COLOR={
-  'Wedding':'#D4537E','Graduation':'#378ADD','Birthday party':'#BA7517','Anniversary':'#7F77DD',
-  'Retirement':'#888780','Eid al-Adha':'#1D9E75','Eid ul-Fitr':'#1D9E75','Other':'#888780'
+// Calendar chip color is driven by booking status (not event type) — matches the
+// status pills in the list and the legend above the calendar.
+const STATUS_COLOR={
+  inquiry:'#6b7280',quoted:'#d97706',confirmed:'#16a34a',completed:'#2563eb',cancelled:'#dc2626'
 };
 const STATUS_ORDER=['confirmed','quoted','inquiry','cancelled']; // for active sort tiebreaker
 const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -280,7 +294,7 @@ function rowHtml(c,showAction){
     <td>${escp(c.venue)||'<span class="muted">—</span>'}</td>
     <td>${escp(c.billing)}</td>
     <td>${escp(c.fulfilling)}</td>
-    <td><span class="pill" style="background:${sm.bg};color:${sm.fg}">${sm.label}</span></td>
+    <td><span class="pill" style="background:${sm.bg};color:${sm.fg};cursor:pointer" onclick="event.stopPropagation();openStatusPop('${c.id}',this)" title="Click to change status">${sm.label} <span style="opacity:.55;font-size:.7em">▾</span></span></td>
     <td class="right">${c.balance>0?money(c.balance):'<span class="muted">—</span>'}</td>
     ${actionTd}
   </tr>`;
@@ -402,10 +416,10 @@ function renderCalendar(){
     const events=(byDate[iso]||[]);
     const maxShown=3;
     events.slice(0,maxShown).forEach(c=>{
-      const color=EVENT_COLOR[c.eventType]||'#888780';
+      const color=STATUS_COLOR[c.status]||'#6b7280';
       const done=(c.status==='completed')?' done':'';
       const prefix=(c.status==='completed')?'✓ ':'';
-      chips+='<div class="calchip'+done+'" style="background:'+color+'" onclick="event.stopPropagation();navigateTo(\'catering-edit.html\',{id:\''+c.id+'\'})" title="'+escAttr(c.customerName+' — '+c.eventType+(c.venue?' @ '+c.venue:''))+'">'+prefix+escHtml(c.customerName)+'</div>';
+      chips+='<div class="calchip'+done+'" style="background:'+color+'" onclick="event.stopPropagation();openStatusPop(\''+c.id+'\',this)" title="'+escAttr(c.customerName+' — '+c.eventType+' · '+c.status+(c.venue?' @ '+c.venue:''))+'">'+prefix+escHtml(c.customerName)+'</div>';
     });
     if(events.length>maxShown)chips+='<div class="calmore">+ '+(events.length-maxShown)+' more</div>';
     cell.innerHTML='<div class="caldnum">'+d+'</div>'+chips;
@@ -427,6 +441,63 @@ function renderCalendar(){
 function pad(n){return n<10?'0'+n:n;}
 function escAttr(s){return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 function escHtml(s){return String(s==null?'':s).replace(/</g,'&lt;');}
+
+// ---------- inline status change popover ----------
+const STATUS_LIST=['inquiry','quoted','confirmed','completed','cancelled'];
+const STATUS_LABEL={inquiry:'Inquiry',quoted:'Quoted',confirmed:'Confirmed',completed:'Completed',cancelled:'Cancelled'};
+let _popOpenFor=null;
+
+function openStatusPop(id,anchor){
+  const c=caterings.find(x=>x.id===id);if(!c)return;
+  _popOpenFor=id;
+  const pop=document.getElementById('statusPop');
+  const opts=STATUS_LIST.map(s=>`<button class="${s===c.status?'active':''}" onclick="changeStatus('${id}','${s}')"><i style="background:${STATUS_COLOR[s]}"></i>${STATUS_LABEL[s]}</button>`).join('');
+  pop.innerHTML=
+    `<button class="closex" onclick="closeStatusPop()" aria-label="close">×</button>
+     <div class="name">${escHtml(c.customerName)}</div>
+     <div class="sub">${escHtml(c.eventType||'')}${c.eventDate?(' · '+c.eventDate):''}${c.venue?(' · '+escHtml(c.venue)):''}</div>
+     <div class="opts">${opts}</div>
+     <a class="open" onclick="navigateTo('catering-edit.html',{id:'${id}'})">Open booking →</a>
+     <div class="savemsg" id="popSaveMsg"></div>`;
+  // Position below the chip; keep within viewport.
+  pop.style.display='block';
+  const r=anchor.getBoundingClientRect();
+  const sx=window.scrollX,sy=window.scrollY;
+  const w=pop.offsetWidth,h=pop.offsetHeight;
+  let left=r.left+sx;let top=r.bottom+sy+6;
+  const vw=document.documentElement.clientWidth;
+  if(left+w>vw+sx-8) left=vw+sx-w-8;
+  if(left<sx+8) left=sx+8;
+  // If not enough room below, place above
+  if(r.bottom+6+h>document.documentElement.clientHeight && r.top>h+6) top=r.top+sy-h-6;
+  pop.style.left=left+'px';pop.style.top=top+'px';
+}
+function closeStatusPop(){_popOpenFor=null;document.getElementById('statusPop').style.display='none';}
+
+async function changeStatus(id,newStatus){
+  const c=caterings.find(x=>x.id===id);if(!c)return;
+  if(c.status===newStatus){closeStatusPop();return;}
+  const msg=document.getElementById('popSaveMsg');if(msg){msg.textContent='Saving…';msg.style.color='var(--gray-500)';}
+  const payload={status:newStatus,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:auth.currentUser.email};
+  if(newStatus==='completed')payload.completedAt=firebase.firestore.FieldValue.serverTimestamp();
+  try{
+    await db.collection('caterings').doc(id).update(payload);
+    c.status=newStatus;
+    render(); // re-renders calendar (new chip color) + active/completed lists
+    if(msg){msg.style.color='var(--success)';msg.textContent='✓ Saved';}
+    setTimeout(closeStatusPop,500);
+  }catch(e){console.error('changeStatus',e);if(msg){msg.style.color='var(--danger)';msg.textContent='Save failed: '+e.message;}}
+}
+
+// Close popover on outside click or ESC
+document.addEventListener('click',function(e){
+  if(!_popOpenFor)return;
+  const pop=document.getElementById('statusPop');
+  if(pop.contains(e.target))return;
+  if(e.target.classList && e.target.classList.contains('calchip'))return; // chip handler already opens fresh
+  closeStatusPop();
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeStatusPop();});
 </script>
 </body>
 </html>
