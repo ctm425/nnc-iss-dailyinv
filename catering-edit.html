@@ -152,7 +152,7 @@ textarea{resize:vertical}
       <div class="sec-title">Venue</div>
       <div class="grid">
         <div><label>Venue type</label>
-          <select id="venType"><option>Hotel</option><option>Home</option><option>Community center</option><option>General event venue</option></select></div>
+          <select id="venType"><option>Hotel</option><option>Home</option><option>Community center</option><option>Mosque</option><option>Church</option><option>General event venue</option></select></div>
         <div><label>Venue name <span class="hint">(if not a home)</span></label><input id="venName" placeholder="e.g. Hilton Bellevue"></div>
       </div>
       <div style="margin-top:12px">
@@ -234,7 +234,8 @@ textarea{resize:vertical}
         </div>
       </div>
       <div id="commList"><div class="muted" style="font-size:.82rem">No notes yet.</div></div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+        <input id="commDate" type="date" style="max-width:150px" title="Date of this interaction (defaults to today; pick a past date to backdate)">
         <select id="commDir" style="max-width:170px">
           <option value="note">Note</option>
           <option value="incoming">Call — in</option>
@@ -403,6 +404,7 @@ auth.onAuthStateChanged(async user=>{
     buildRestaurantPickers();
     buildStatePicker();
     wireDaySameSync();
+    document.getElementById('commDate').value=new Date().toISOString().slice(0,10);
     await loadMenuCatalog();
     if(isNew){
       lines=[blankLine()];renderLines();
@@ -842,12 +844,20 @@ async function addComm(){
   const text=document.getElementById('commText').value.trim();
   if(!text)return;
   if(isNew){const ok=await saveBooking(true);if(!ok)return;}
-  const now=new Date();
-  const entry={text,direction:document.getElementById('commDir').value,at:now.toISOString(),atLabel:now.toLocaleString(),createdBy:auth.currentUser.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+  // Use the date input — if it's today, snap to current time so same-day entries order correctly; otherwise noon-of-day.
+  const dateStr=document.getElementById('commDate').value;
+  const today=new Date();const todayISO=today.toISOString().slice(0,10);
+  const at=(!dateStr || dateStr===todayISO) ? today : new Date(dateStr+'T12:00:00');
+  const sameDay=(dateStr===todayISO || !dateStr);
+  const atLabel=sameDay ? at.toLocaleString() : at.toLocaleDateString();
+  const entry={text,direction:document.getElementById('commDir').value,at:at.toISOString(),atLabel,createdBy:auth.currentUser.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   try{
     await db.collection('caterings').doc(docId).collection('comms').add(entry);
-    comms.unshift(entry);renderComms();
+    comms.unshift(entry);
+    comms.sort((a,b)=>(b.at||'').localeCompare(a.at||'')); // keep newest first even with backdated entries
+    renderComms();
     document.getElementById('commText').value='';
+    document.getElementById('commDate').value=todayISO; // reset to today
   }catch(e){console.error('addComm',e);alert('Could not add note: '+e.message);}
 }
 
