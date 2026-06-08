@@ -144,10 +144,28 @@ textarea{resize:vertical}
         <div><label>Guest arrival</label><input id="evArrival" type="time"></div>
         <div><label>Food serving time</label><input id="evServe" type="time"></div>
       </div>
-      <div class="grid" style="margin-top:12px">
-        <div><label>Billing restaurant <span class="hint">(who invoices)</span></label><select id="billing"></select></div>
-        <div><label>Fulfilling restaurant <span class="hint">(who makes it)</span></label><select id="fulfilling"></select></div>
+      <!-- Cocktail hour -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--gray-200)">
+        <label style="display:flex;align-items:center;gap:6px;margin:0 0 6px"><input type="checkbox" id="hasCocktail" style="width:auto" onchange="onCocktailToggle()"> Cocktail hour</label>
+        <div id="cocktailWrap" style="display:none;padding-left:24px">
+          <label>Cocktail hour time</label>
+          <input id="cocktailTime" type="time" style="max-width:200px">
+        </div>
       </div>
+    </div>
+
+    <!-- RESTAURANTS -->
+    <div class="card">
+      <div class="sec-title">Restaurants</div>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Billing restaurant <span class="hint">(who invoices)</span></label><select id="billing" onchange="onRestaurantChange()"></select></div>
+        <div><label>Billing contact name</label><input id="billingContact" placeholder="who to reach on the billing side"></div>
+      </div>
+      <div class="grid" id="fulfillingRow" style="grid-template-columns:1fr 1fr;margin-top:12px">
+        <div><label>Fulfilling restaurant <span class="hint">(who makes it)</span></label><select id="fulfilling" onchange="onRestaurantChange()"></select></div>
+        <div id="fulfillingContactWrap"><label>Fulfilling contact name</label><input id="fulfillingContact" placeholder="who to reach on the kitchen side"></div>
+      </div>
+      <div id="sameRestaurantHint" class="muted" style="display:none;font-size:.75rem;margin-top:8px">Billing and fulfilling are the same restaurant — the billing contact will be used for both.</div>
     </div>
 
     <!-- FULFILLMENT -->
@@ -467,6 +485,7 @@ auth.onAuthStateChanged(async user=>{
     }
     document.getElementById('mainContent').style.display='';
     buildRestaurantPickers();
+    onRestaurantChange();
     buildStatePicker();
     wireDaySameSync();
     wireAllPhones();
@@ -935,6 +954,22 @@ function onDepReqToggle(){
   recalc();
 }
 
+function onCocktailToggle(){
+  const on=document.getElementById('hasCocktail').checked;
+  document.getElementById('cocktailWrap').style.display=on?'block':'none';
+  if(!on)document.getElementById('cocktailTime').value='';
+}
+
+function onRestaurantChange(){
+  // If billing and fulfilling are the same restaurant, hide the fulfilling-contact field —
+  // the billing contact will be used for both on save.
+  const same=getV('billing')===getV('fulfilling');
+  const wrap=document.getElementById('fulfillingContactWrap');
+  const hint=document.getElementById('sameRestaurantHint');
+  if(wrap)wrap.style.display=same?'none':'block';
+  if(hint)hint.style.display=same?'block':'none';
+}
+
 function onEventTypeChange(){
   const isOther=document.getElementById('evType').value==='Other';
   const other=document.getElementById('evTypeOther');
@@ -970,9 +1005,15 @@ async function loadBooking(){
     setV('custEmail', c.email);
     setV('custPhone', fmtPhoneStr(c.phone));
     setV('evType',x.event&&x.event.type);setV('evTypeOther',(x.event&&x.event.typeOther)||'');onEventTypeChange();setV('status',x.status||'inquiry');
+    document.getElementById('hasCocktail').checked=!!(x.event&&x.event.hasCocktailHour);
+    setV('cocktailTime',(x.event&&x.event.cocktailHourTime)||'');
+    onCocktailToggle();
     setV('evDate',x.event&&x.event.date);setV('evArrival',x.event&&x.event.arrivalTime);setV('evServe',x.event&&x.event.serveTime);
     if(x.billingRestaurant)setV('billing',x.billingRestaurant);
     if(x.fulfillingRestaurant)setV('fulfilling',x.fulfillingRestaurant);
+    setV('billingContact',x.billingContactName||'');
+    setV('fulfillingContact',x.fulfillingContactName||'');
+    onRestaurantChange();
     setV('venType',x.venue&&x.venue.type);setV('venName',x.venue&&x.venue.name);
     setV('venUrl',x.venue&&x.venue.url);updateVenueUrlBtn();
     const r=x.referredBy||{};setV('refName',r.name);setV('refPhone',fmtPhoneStr(r.phone));setV('refEmail',r.email);
@@ -1265,13 +1306,16 @@ function collectData(){
   const first=getV('custFirst'),last=getV('custLast');
   return {
     customer:{firstName:first,lastName:last,name:(first+' '+last).trim(),email:getV('custEmail'),phone:getV('custPhone')},
-    event:{type:getV('evType'),typeOther:(getV('evType')==='Other'?getV('evTypeOther'):''),date:getV('evDate'),arrivalTime:getV('evArrival'),serveTime:getV('evServe')},
+    event:{type:getV('evType'),typeOther:(getV('evType')==='Other'?getV('evTypeOther'):''),date:getV('evDate'),arrivalTime:getV('evArrival'),serveTime:getV('evServe'),hasCocktailHour:document.getElementById('hasCocktail').checked,cocktailHourTime:(document.getElementById('hasCocktail').checked?getV('cocktailTime'):'')},
     venue:{type:getV('venType'),name:getV('venName'),url:normalizeUrl(getV('venUrl')),street:getV('venStreet'),city:getV('venCity'),state:getV('venState'),zip:getV('venZip'),address:composeAddress(),contactName:getV('venContact'),contactPhone:getV('venPhone')},
     referredBy:{name:getV('refName'),phone:getV('refPhone'),email:getV('refEmail')},
     originalInquiry:{date:getV('inqDate'),channel:getV('inqChannel')},
     dayOfContact:{name:getV('dayName'),phone:getV('dayPhone'),sameAsCustomer:document.getElementById('daySame').checked},
     billingRestaurant:getV('billing'),
     fulfillingRestaurant:getV('fulfilling'),
+    billingContactName:getV('billingContact'),
+    // If billing == fulfilling, persist the same contact for the fulfilling side as well.
+    fulfillingContactName:(getV('billing')===getV('fulfilling'))?getV('billingContact'):getV('fulfillingContact'),
     guests:{total:int('gTotal'),adults:int('gAdult'),children:int('gChild'),veg:int('gVeg'),nonVeg:int('gNon')},
     menu:lines.filter(l=>l.name).map(l=>({name:l.name,description:l.description||'',billedQty:Number(l.billedQty)||0,kitchenQty:Number(l.kitchenQty)||0,unitPrice:Number(l.unitPrice)||0,notes:l.notes||'',isCustom:!!l.isCustom})),
     hasOtherFood:document.querySelector('input[name="otherFoodFlag"]:checked').value==='yes',
@@ -1470,8 +1514,12 @@ function printBooking(){
     row('Date',ev.date?(dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date)):'')+
     row('Guest arrival',t12(ev.arrivalTime))+
     row('Serving time',t12(ev.serveTime))+
-    row('Billing restaurant',escHtml(_restName(d.billingRestaurant)))+
-    row('Fulfilling restaurant',escHtml(_restName(d.fulfillingRestaurant)))
+    (ev.hasCocktailHour?row('Cocktail hour',t12(ev.cocktailHourTime)||'(time not set)'):'')
+  );
+  const sameRest=(d.billingRestaurant===d.fulfillingRestaurant);
+  const restaurants=sect('Restaurants',
+    row('Billing',escHtml(_restName(d.billingRestaurant))+(d.billingContactName?(' · '+escHtml(d.billingContactName)):''))+
+    row('Fulfilling',sameRest?'(same as billing)':escHtml(_restName(d.fulfillingRestaurant))+(d.fulfillingContactName?(' · '+escHtml(d.fulfillingContactName)):''))
   );
 
   const inquiry=sect('Original inquiry',
@@ -1591,7 +1639,7 @@ function printBooking(){
      <div><h1>Catering booking</h1><div class="small">${escHtml(name)} · ${escHtml(resolvedEventType(ev))}${ev.date?(' · '+dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date)):''}</div></div>
      <div class="small" style="text-align:right">Printed ${new Date().toLocaleString()}<br>Status: <strong>${escHtml(d.status||'')}</strong></div>
    </div>
-   ${customer}${referred}${event}${inquiry}${venue}${dayOf}${guests}${notes}${menuHtml}${fulHtml}${payment}${documents}${commHtml}
+   ${customer}${referred}${event}${restaurants}${inquiry}${venue}${dayOf}${guests}${notes}${menuHtml}${fulHtml}${payment}${documents}${commHtml}
    <button onclick="window.print()" style="margin-top:24px;padding:10px 18px;font-size:14px;cursor:pointer">Print / Save as PDF</button>
   </body></html>`);
   win.document.close();
@@ -1625,7 +1673,10 @@ function emailBooking(){
   if(ev.date)lines.push('Date: '+dayOfWeek(ev.date)+', '+fmtDateMDY(ev.date));
   if(ev.arrivalTime)lines.push('Guest arrival: '+t12(ev.arrivalTime));
   if(ev.serveTime)lines.push('Serving time: '+t12(ev.serveTime));
-  lines.push('Billing: '+_restName(d.billingRestaurant)+' · Fulfilling: '+_restName(d.fulfillingRestaurant));
+  if(ev.hasCocktailHour)lines.push('Cocktail hour: '+(t12(ev.cocktailHourTime)||'time TBD'));
+  const _sameRest=(d.billingRestaurant===d.fulfillingRestaurant);
+  lines.push('Billing: '+_restName(d.billingRestaurant)+(d.billingContactName?(' ('+d.billingContactName+')'):''));
+  lines.push('Fulfilling: '+(_sameRest?'same as billing':_restName(d.fulfillingRestaurant)+(d.fulfillingContactName?(' ('+d.fulfillingContactName+')'):'')));
   lines.push('');
   lines.push('— VENUE —');
   if(v.type)lines.push(v.type+(v.name?(' — '+v.name):''));
