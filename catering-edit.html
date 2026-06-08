@@ -100,6 +100,11 @@ textarea{resize:vertical}
     <!-- CUSTOMER -->
     <div class="card">
       <div class="sec-title">Customer</div>
+      <div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px dashed var(--gray-200)">
+        <label class="hint">Look up past customer</label>
+        <input list="custList" id="custLookup" placeholder="Type a name to fill customer info from a past booking…" oninput="onCustomerPick(this.value)" onchange="onCustomerPick(this.value)">
+        <datalist id="custList"></datalist>
+      </div>
       <div class="grid">
         <div><label>First name</label><input id="custFirst" placeholder="e.g. Priya"></div>
         <div><label>Last name</label><input id="custLast" placeholder="e.g. Sharma"></div>
@@ -245,9 +250,14 @@ textarea{resize:vertical}
     <!-- VENUE -->
     <div class="card">
       <div class="sec-title">Venue</div>
+      <div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px dashed var(--gray-200)">
+        <label class="hint">Look up past venue</label>
+        <input list="venueList" id="venueLookup" placeholder="Type a venue name to fill from a past booking…" oninput="onVenuePick(this.value)" onchange="onVenuePick(this.value)">
+        <datalist id="venueList"></datalist>
+      </div>
       <div class="grid">
         <div><label>Venue type</label>
-          <select id="venType"><option>Hotel</option><option>Home</option><option>Community center</option><option>Mosque</option><option>Church</option><option>General event venue</option></select></div>
+          <select id="venType"><option>Hotel</option><option>Home</option><option>Community center</option><option>Mosque</option><option>Church</option><option>General event venue</option><option>N/A - Pickup</option></select></div>
         <div><label>Venue name <span class="hint">(if not a home)</span></label><input id="venName" placeholder="e.g. Hilton Bellevue"></div>
       </div>
       <div style="margin-top:12px">
@@ -464,6 +474,8 @@ let loadedDoc=null;
 let pdfDoc={url:'',path:'',name:''}; // current quote-PDF state
 let staffMembers=[]; // for full-service: [{name, phone, confirmed}]
 let deliveryTeam=[]; // [{name, phone, role: 'Driver'|'Helper'}]
+let pastCustomers=[]; // for lookup: [{firstName,lastName,email,phone}]
+let pastVenues=[];    // for lookup: [{name,type,street,city,state,zip,contactName,contactPhone,url}]
 
 async function handleLogin(){
   const email=document.getElementById('loginEmail').value.trim();
@@ -492,6 +504,7 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById('evDate').addEventListener('change',onEventDateChange);
     document.getElementById('commDate').value=new Date().toISOString().slice(0,10);
     await loadMenuCatalog();
+    loadPeopleVenueCatalog(); // async, no need to await — populates datalists when ready
     if(isNew){
       lines=[blankLine()];renderLines();
       document.getElementById('pageTitle').textContent='New catering';
@@ -711,6 +724,69 @@ async function loadMenuCatalog(){
   }catch(e){console.error('menu catalog',e);}
 }
 
+// ---------- Past customers + venues (autocomplete from prior bookings) ----------
+async function loadPeopleVenueCatalog(){
+  try{
+    const snap=await db.collection('caterings').get();
+    const seenC=new Set(),seenV=new Set();
+    snap.docs.forEach(d=>{
+      const x=d.data();
+      const c=x.customer||{};
+      const ckey=((c.firstName||'').trim()+'|'+(c.lastName||'').trim()+'|'+(c.email||'').trim()+'|'+(c.phone||'').trim()).toLowerCase();
+      if(ckey!=='|||'&&!seenC.has(ckey)){
+        seenC.add(ckey);
+        pastCustomers.push({firstName:c.firstName||'',lastName:c.lastName||'',email:c.email||'',phone:c.phone||''});
+      }
+      const v=x.venue||{};
+      const vkey=((v.name||'').trim()+'|'+(v.city||'').trim()+'|'+(v.street||'').trim()).toLowerCase();
+      if(vkey!=='||'&&!seenV.has(vkey)){
+        seenV.add(vkey);
+        pastVenues.push({name:v.name||'',type:v.type||'',street:v.street||'',city:v.city||'',state:v.state||'',zip:v.zip||'',contactName:v.contactName||'',contactPhone:v.contactPhone||'',url:v.url||''});
+      }
+    });
+    pastCustomers.sort((a,b)=>(a.lastName||a.firstName||'').localeCompare(b.lastName||b.firstName||''));
+    pastVenues.sort((a,b)=>(a.name||a.city||'').localeCompare(b.name||b.city||''));
+    populateCustomerDatalist();populateVenueDatalist();
+  }catch(e){console.error('past customers/venues',e);}
+}
+function customerLabel(c){
+  const name=(c.firstName+' '+c.lastName).trim()||'(no name)';
+  const tail=c.phone?(' · '+c.phone):(c.email?(' · '+c.email):'');
+  return name+tail;
+}
+function venueLabel(v){
+  return (v.name||'(no name)')+(v.city?(' · '+v.city):'');
+}
+function populateCustomerDatalist(){
+  const dl=document.getElementById('custList');if(!dl)return;
+  dl.innerHTML=pastCustomers.map(c=>`<option value="${escAttr(customerLabel(c))}"></option>`).join('');
+}
+function populateVenueDatalist(){
+  const dl=document.getElementById('venueList');if(!dl)return;
+  dl.innerHTML=pastVenues.map(v=>`<option value="${escAttr(venueLabel(v))}"></option>`).join('');
+}
+function onCustomerPick(val){
+  // Only fill on an exact match to a known option (so mid-typing doesn't trigger).
+  const match=pastCustomers.find(c=>customerLabel(c)===val);
+  if(!match)return;
+  setV('custFirst',match.firstName);setV('custLast',match.lastName);
+  setV('custEmail',match.email);setV('custPhone',fmtPhoneStr(match.phone));
+  document.getElementById('custLookup').value='';
+}
+function onVenuePick(val){
+  const match=pastVenues.find(v=>venueLabel(v)===val);
+  if(!match)return;
+  setV('venName',match.name);
+  if(match.type)document.getElementById('venType').value=match.type;
+  setV('venUrl',match.url);updateVenueUrlBtn();
+  setV('venStreet',match.street);setV('venCity',match.city);
+  if(match.state)document.getElementById('venState').value=match.state;
+  setV('venZip',match.zip);
+  setV('venContact',match.contactName);setV('venPhone',fmtPhoneStr(match.contactPhone));
+  updateAddrPreview();
+  document.getElementById('venueLookup').value='';
+}
+
 function blankLine(){return {name:'',description:'',billedQty:1,kitchenQty:1,unitPrice:0,notes:'',isCustom:false,saveToMenu:true};}
 
 // ---------- menu line rendering ----------
@@ -841,6 +917,12 @@ function onFulMode(){
   document.getElementById('fulPickupWrap').style.display=isPickup?'':'none';
   document.getElementById('fulDriverWrap').style.display=isDelivery?'':'none';
   document.getElementById('fulTimingWrap').style.display=isDelivery?'grid':'none';
+  // Pickup forces the venue type to "N/A - Pickup"; switching away from pickup resets if still on that.
+  const venTypeEl=document.getElementById('venType');
+  if(venTypeEl){
+    if(isPickup){venTypeEl.value='N/A - Pickup';}
+    else if(venTypeEl.value==='N/A - Pickup'){venTypeEl.value='Hotel';}
+  }
   document.getElementById('fulVenueHint').style.display=isDelivery?'':'none';
   // Hot boxes only for delivery and delivery+setup (not pickup, not full-service)
   document.getElementById('fulHotBoxWrap').style.display=(mode==='delivery'||mode==='delivery-setup')?'':'none';
