@@ -47,7 +47,7 @@ textarea{resize:vertical}
 .btn-danger{background:#fff;border:1px solid #fecaca;color:var(--danger)}
 .btn-dark{background:var(--primary);color:#fff}
 /* menu table */
-.mhead,.mrow{display:grid;grid-template-columns:1.6fr 70px 116px 84px 84px 28px;gap:8px;align-items:center}
+.mhead,.mrow{display:grid;grid-template-columns:1.6fr 70px 116px 84px 84px 40px;gap:8px;align-items:center}
 .mhead{font-size:.68rem;text-transform:uppercase;color:var(--gray-500);font-weight:700;padding:0 2px 6px}
 .mrow{padding:8px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;align-items:start}
 .mrow.adj{background:var(--warn-bg);border-color:#fcd34d}
@@ -825,12 +825,16 @@ function buildRow(ln,i){
      <div><input type="number" min="0" class="right" value="${ln.billedQty}" oninput="onBilled(${i},this.value)"></div>
      <div class="stepper">
        <button onclick="stepKitchen(${i},-1)" aria-label="one fewer">−</button>
-       <span class="kq" id="kq${i}">${ln.kitchenQty}</span>
+       <input class="kq" id="kq${i}" type="number" min="0" value="${ln.kitchenQty}" oninput="onKitchen(${i},this.value)" style="width:40px;height:26px;text-align:center;font-weight:700;border:1px solid var(--gray-300);border-radius:5px;padding:2px;font-family:inherit">
        <button onclick="stepKitchen(${i},1)" aria-label="one more">+</button>
      </div>
      <div><input type="number" min="0" step="0.01" class="right" value="${ln.unitPrice}" oninput="onUnit(${i},this.value)"></div>
      <div class="right" id="lt${i}" style="padding-top:8px;font-size:.86rem">$0</div>
-     <div style="text-align:center;padding-top:4px"><button class="btn btn-ghost" style="padding:4px 8px" onclick="removeLine(${i})" title="Remove">✕</button></div>`;
+     <div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+       <button onclick="moveLine(${i},-1)" title="Move up" style="border:none;background:transparent;cursor:pointer;font-size:13px;line-height:1;color:var(--gray-500);padding:2px">▲</button>
+       <button class="btn btn-ghost" style="padding:2px 6px;font-size:11px" onclick="removeLine(${i})" title="Remove">✕</button>
+       <button onclick="moveLine(${i},1)" title="Move down" style="border:none;background:transparent;cursor:pointer;font-size:13px;line-height:1;color:var(--gray-500);padding:2px">▼</button>
+     </div>`;
   return row;
 }
 function onPick(i,val){
@@ -846,16 +850,37 @@ function onPick(i,val){
 }
 function onBilled(i,v){
   const b=Math.max(0,parseInt(v||0,10));lines[i].billedQty=b;
-  if(lines[i].kitchenQty>b){lines[i].kitchenQty=b;document.getElementById('kq'+i).textContent=b;}
+  if(lines[i].kitchenQty>b){
+    lines[i].kitchenQty=b;
+    const el=document.getElementById('kq'+i);if(el)el.value=b;
+  }
   refreshRowState(i);recalc();
 }
 function onUnit(i,v){lines[i].unitPrice=parseFloat(v||0)||0;recalc();}
+function onKitchen(i,v){
+  // Typed kitchen quantity — clamp to [0, billed].
+  const b=Number(lines[i].billedQty)||0;
+  let k=Math.max(0,parseInt(v||0,10));
+  if(k>b)k=b;
+  lines[i].kitchenQty=k;
+  const el=document.getElementById('kq'+i);
+  if(el && String(k)!==el.value)el.value=k;
+  refreshRowState(i);
+}
 function stepKitchen(i,delta){
   const ln=lines[i];const b=Number(ln.billedQty)||0;
   let k=(Number(ln.kitchenQty)||0)+delta;
   if(k<0)k=0;if(k>b)k=b;
-  ln.kitchenQty=k;document.getElementById('kq'+i).textContent=k;
+  ln.kitchenQty=k;
+  const el=document.getElementById('kq'+i);if(el)el.value=k;
   refreshRowState(i);
+}
+function moveLine(i,delta){
+  const j=i+delta;
+  if(j<0||j>=lines.length)return;
+  const [moved]=lines.splice(i,1);
+  lines.splice(j,0,moved);
+  renderLines();
 }
 function refreshRowState(i){
   const row=document.querySelector('.mrow[data-i="'+i+'"]');if(!row)return;
@@ -1598,7 +1623,7 @@ function printDeliveryOrder(){
   // Menu: BILLED quantities (driver-facing list of what was ordered). No pricing on the delivery sheet.
   const billedMenu=d.menu.filter(m=>Number(m.billedQty)>0);
   const menuRowsHtml=billedMenu.map(m=>{
-    return `<tr><td class="q">${m.billedQty}</td><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}${m.notes?'<div class="sub" style="color:#666"><em>Note: '+escHtml(m.notes)+'</em></div>':''}</td><td>${escHtml(m.packagedIn||'—')}</td></tr>`;
+    return `<tr><td class="q">${m.billedQty}</td><td>${escHtml(m.name)}${m.notes?'<div class="sub" style="color:#666"><em>Note: '+escHtml(m.notes)+'</em></div>':''}</td><td>${escHtml(m.packagedIn||'—')}</td></tr>`;
   }).join('')||'<tr><td colspan="3" style="color:#888">No items.</td></tr>';
   const g=d.guests;
   const guestStr=g.total?(g.total+' total · '+(g.veg||0)+' veg / '+(g.nonVeg||0)+' non-veg'):'—';
@@ -1610,26 +1635,29 @@ function printDeliveryOrder(){
   if(!win){alert('Pop-up blocked. Allow pop-ups to print the delivery sheet.');return;}
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Delivery — ${escHtml(d.customer.name||'')}</title>
   <style>
-   body{font-family:-apple-system,Arial,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;padding:28px}
-   .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:10px;margin-bottom:14px}
-   h1{font-size:22px;margin:0} h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#555;margin:16px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
-   .small{font-size:12px;color:#555}
-   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px;margin-bottom:8px}
-   .grid2 .lbl{color:#777}
-   .fbox{background:#eaf2ff;border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:13px;margin-bottom:14px;border:1px solid #c9dcf7}
-   .addrbox{background:#fef7e8;border:1px solid #f5d68a;border-radius:6px;padding:10px 14px;font-size:13px;margin-bottom:14px}
-   .addrbox a{color:#1e3a5f}
-   .driverbox{background:#f3f1ea;border-radius:6px;padding:10px 14px;font-size:13px;margin-bottom:14px}
-   table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
-   th{text-align:left;border-bottom:1px solid #ccc;color:#777;font-size:11px;padding:6px 4px;text-transform:uppercase}
-   td{padding:8px 4px;border-bottom:.5px solid #e5e2d8;vertical-align:top}
-   td.q{text-align:center;font-weight:700;width:46px} td.r,th.r{text-align:right}
-   .sub{color:#888;font-size:11px}
-   .totals{margin-left:auto;width:50%;border-top:1px solid #1a1a1a;margin-top:6px}
-   .totals td{padding:6px 4px} .totals .grand{font-weight:700;font-size:15px}
-   .kn{border:1px dashed #bbb;border-radius:6px;padding:10px 14px;font-size:13px;margin-top:12px}
-   .kn .lbl{color:#777;font-size:11px;text-transform:uppercase}
-   .flag{background:#fee2e2;border:1px solid #fca5a5;color:#7f1d1d;border-radius:6px;padding:8px 12px;font-size:13px;font-weight:600;margin-bottom:12px}
+   @page{size:Letter;margin:0.4in}
+   body{font-family:-apple-system,Arial,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;padding:0;font-size:12px}
+   .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:6px;margin-bottom:10px}
+   h1{font-size:18px;margin:0}
+   .small{font-size:11px;color:#555}
+   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:3px 24px;font-size:12px;margin-bottom:8px}
+   .grid2 .lbl{color:#777;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+   .fbox{background:#eaf2ff;border-radius:5px;padding:7px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px;border:1px solid #c9dcf7}
+   .fbox .lbl{color:#5a7090;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+   .addrbox{background:#fef7e8;border:1px solid #f5d68a;border-radius:5px;padding:7px 12px;font-size:12px;margin-bottom:8px}
+   .addrbox .lbl{color:#92400e;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+   .driverbox{background:#f3f1ea;border-radius:5px;padding:7px 12px;font-size:12px;margin-bottom:8px}
+   .driverbox .lbl{color:#555;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+   table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}
+   th{text-align:left;border-bottom:1px solid #ccc;color:#777;font-size:10px;padding:4px 4px;text-transform:uppercase}
+   td{padding:4px 4px;border-bottom:.5px solid #e5e2d8;vertical-align:top}
+   td.q{text-align:center;font-weight:700;width:42px}
+   .sub{color:#888;font-size:10px;margin-top:1px}
+   .flag{background:#fee2e2;border:1px solid #fca5a5;color:#7f1d1d;border-radius:5px;padding:6px 10px;font-size:12px;font-weight:600;margin-bottom:8px}
+   .sig{margin-top:14px;display:flex;gap:18px}
+   .sig .field{flex:1}
+   .sig .line{border-bottom:1px solid #1a1a1a;height:24px}
+   .sig .lbl{color:#777;font-size:10px;margin-top:3px}
    @media print{button{display:none}}
   </style></head><body>
    <div class="top">
@@ -1657,40 +1685,26 @@ function printDeliveryOrder(){
    </div>
 
    <div class="driverbox">
-     <span class="lbl">Driver / Team</span><br>
+     <span class="lbl">Driver / Team</span> &nbsp; <span class="lbl">·</span> &nbsp; <span class="lbl">Day-of contacts:</span> ${escHtml(dayOf1)||'(none)'}${dayOf2?' · '+escHtml(dayOf2):''}<br>
      ${driverList}
    </div>
 
-   <h2>Day-of contacts</h2>
-   <div class="small"><strong>Primary:</strong> ${escHtml(dayOf1)||'(none)'}${dayOf2?'<br><strong>Additional:</strong> '+escHtml(dayOf2):''}</div>
+   ${(fm==='delivery'||fm==='delivery-setup')?`<div class="flag">Hot boxes: ${hb?'STAY WITH CUSTOMER':'BRING BACK TO NNC'}${fm==='delivery-setup'?(' · Floor plan: '+(d.fulfillment.floorPlanProvided?'provided':'NOT provided')):''}</div>`:''}
 
-   ${(fm==='delivery'||fm==='delivery-setup')?`<div class="flag" style="margin-top:14px">Hot boxes: ${hb?'STAY WITH CUSTOMER (do not bring back)':'BRING BACK TO NNC'}${fm==='delivery-setup'?(' · Floor plan: '+(d.fulfillment.floorPlanProvided?'provided':'NOT provided')):''}</div>`:''}
-
-   <h2>Order — billed</h2>
    <table>
      <thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th>Packaged in</th></tr></thead>
      <tbody>${menuRowsHtml}</tbody>
    </table>
 
-   ${(d.hasOtherFood&&d.otherFood)?('<div class="small" style="margin-top:10px"><strong>Other food (host/outside):</strong> '+escHtml(d.otherFood)+'</div>'):''}
+   ${(d.hasOtherFood&&d.otherFood)?('<div class="small" style="margin-top:6px"><strong>Other food (host/outside):</strong> '+escHtml(d.otherFood)+'</div>'):''}
 
-   <!-- Received-by signature -->
-   <div style="margin-top:36px;display:flex;gap:30px">
-     <div style="flex:2">
-       <div style="border-bottom:1px solid #1a1a1a;height:34px"></div>
-       <div style="color:#777;font-size:11px;margin-top:4px">Received by (signature)</div>
-     </div>
-     <div style="flex:1">
-       <div style="border-bottom:1px solid #1a1a1a;height:34px"></div>
-       <div style="color:#777;font-size:11px;margin-top:4px">Print name</div>
-     </div>
-     <div style="flex:1">
-       <div style="border-bottom:1px solid #1a1a1a;height:34px"></div>
-       <div style="color:#777;font-size:11px;margin-top:4px">Date / Time</div>
-     </div>
+   <div class="sig">
+     <div class="field"><div class="line"></div><div class="lbl">Received by (signature)</div></div>
+     <div class="field"><div class="line"></div><div class="lbl">Print name</div></div>
+     <div class="field"><div class="line"></div><div class="lbl">Date / Time</div></div>
    </div>
 
-   <button onclick="window.print()" style="margin-top:24px;padding:10px 18px;font-size:14px;cursor:pointer">Print / Save as PDF</button>
+   <button onclick="window.print()" style="margin-top:14px;padding:8px 14px;font-size:13px;cursor:pointer">Print / Save as PDF</button>
   </body></html>`);
   win.document.close();
   setTimeout(()=>{try{win.focus();win.print();}catch(e){}},400);
