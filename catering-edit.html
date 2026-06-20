@@ -1542,6 +1542,10 @@ function printKitchenOrder(){
   </style></head><body>
    <div class="top"><div><h1>Kitchen order</h1><div class="small">${escHtml(r(d.fulfillingRestaurant))} — fulfilling${d.billingRestaurant!==d.fulfillingRestaurant?(' · billed to '+escHtml(r(d.billingRestaurant))):''}</div></div>
    <div class="small" style="text-align:right">Printed ${new Date().toLocaleDateString()}<br>${escHtml(d.status||'')}</div></div>
+   <div style="background:#fffbe6;border:2px solid #f59e0b;border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:16px">
+     <div><div style="font-size:11px;text-transform:uppercase;color:#92400e;letter-spacing:.6px;font-weight:600">Event date</div><div style="font-size:24px;font-weight:800;color:#1a1a1a;line-height:1.15">${d.event.date?fmtDateMDY(d.event.date):'—'}</div></div>
+     <div style="text-align:right"><div style="font-size:11px;text-transform:uppercase;color:#92400e;letter-spacing:.6px;font-weight:600">Ready by</div><div style="font-size:24px;font-weight:800;color:#1a1a1a;line-height:1.15">${escHtml(t12(d.fulfillment.readyTime))}</div></div>
+   </div>
    <div class="meta">
      <div><span class="lbl">Event</span><br><strong>${escHtml(d.customer.name||'')} · ${escHtml(resolvedEventType(d.event))}</strong></div>
      <div><span class="lbl">Event date</span><br><strong>${escHtml(d.event.date||'—')}</strong></div>
