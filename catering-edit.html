@@ -792,7 +792,7 @@ function onVenuePick(val){
   document.getElementById('venueLookup').value='';
 }
 
-function blankLine(){return {name:'',description:'',billedQty:1,kitchenQty:1,unitPrice:0,notes:'',isCustom:false,saveToMenu:true};}
+function blankLine(){return {name:'',description:'',billedQty:1,kitchenQty:1,unitPrice:0,notes:'',packagedIn:'',isCustom:false,saveToMenu:true};}
 
 // ---------- menu line rendering ----------
 function renderLines(){
@@ -816,6 +816,10 @@ function buildRow(ln,i){
        <div style="display:flex;align-items:center;gap:5px;margin-top:6px">
          <span class="muted" style="font-size:.72rem">🌶 notes</span>
          <input placeholder="spice level, adjustments, requests" value="${escAttr(ln.notes)}" style="font-size:.8rem" oninput="lines[${i}].notes=this.value">
+       </div>
+       <div style="display:flex;align-items:center;gap:5px;margin-top:6px">
+         <span class="muted" style="font-size:.72rem">📦 packaged in</span>
+         <input placeholder="e.g. 2 trays, 1 box, 3 chafing dishes" value="${escAttr(ln.packagedIn||'')}" style="font-size:.8rem" oninput="lines[${i}].packagedIn=this.value">
        </div>
      </div>
      <div><input type="number" min="0" class="right" value="${ln.billedQty}" oninput="onBilled(${i},this.value)"></div>
@@ -1186,7 +1190,7 @@ async function loadBooking(){
 }
 function normalizeLine(li){
   const known=menuItems.some(m=>m.name===li.name);
-  return {name:li.name||'',description:li.description||'',billedQty:Number(li.billedQty)||0,kitchenQty:(li.kitchenQty!=null?Number(li.kitchenQty):Number(li.billedQty)||0),unitPrice:Number(li.unitPrice)||0,notes:li.notes||'',isCustom:!!li.isCustom&&!known,saveToMenu:false};
+  return {name:li.name||'',description:li.description||'',billedQty:Number(li.billedQty)||0,kitchenQty:(li.kitchenQty!=null?Number(li.kitchenQty):Number(li.billedQty)||0),unitPrice:Number(li.unitPrice)||0,notes:li.notes||'',packagedIn:li.packagedIn||'',isCustom:!!li.isCustom&&!known,saveToMenu:false};
 }
 function setV(id,v){const el=document.getElementById(id);if(el!=null&&v!=null)el.value=v;}
 function getV(id){const el=document.getElementById(id);return el?el.value.trim():'';}
@@ -1406,7 +1410,7 @@ function collectData(){
     // If billing == fulfilling, persist the same contact for the fulfilling side as well.
     fulfillingContactName:(getV('billing')===getV('fulfilling'))?getV('billingContact'):getV('fulfillingContact'),
     guests:{total:int('gTotal'),adults:int('gAdult'),children:int('gChild'),veg:int('gVeg'),nonVeg:int('gNon')},
-    menu:lines.filter(l=>l.name).map(l=>({name:l.name,description:l.description||'',billedQty:Number(l.billedQty)||0,kitchenQty:Number(l.kitchenQty)||0,unitPrice:Number(l.unitPrice)||0,notes:l.notes||'',isCustom:!!l.isCustom})),
+    menu:lines.filter(l=>l.name).map(l=>({name:l.name,description:l.description||'',billedQty:Number(l.billedQty)||0,kitchenQty:Number(l.kitchenQty)||0,unitPrice:Number(l.unitPrice)||0,notes:l.notes||'',packagedIn:l.packagedIn||'',isCustom:!!l.isCustom})),
     hasOtherFood:document.querySelector('input[name="otherFoodFlag"]:checked').value==='yes',
     otherFood:getV('otherFood'),
     kitchenNotes:getV('kitchenNotes'),
@@ -1581,20 +1585,17 @@ function printDeliveryOrder(){
   const fmLabel={pickup:'Customer pickup',delivery:'Delivery','delivery-setup':'Delivery + Setup','full-service':'Full Service'}[fm]||fm;
   const v=d.venue||{};
   const fullAddr=v.address||'';
-  const mapsLink='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(fullAddr||v.name||'');
   // Day-of contacts
   const dayOf1=(d.dayOfContact&&d.dayOfContact.sameAsCustomer)
     ? ((composeName({firstName:getV('custFirst'),lastName:getV('custLast')})||'')+(d.customer.phone?(' · '+d.customer.phone):''))
     : ((d.dayOfContact&&d.dayOfContact.name||'')+(d.dayOfContact&&d.dayOfContact.phone?(' · '+d.dayOfContact.phone):''));
   const dayOf2Obj=d.dayOfContact2||{};
   const dayOf2=(dayOf2Obj.name||dayOf2Obj.phone)?(dayOf2Obj.name||'')+(dayOf2Obj.phone?(' · '+dayOf2Obj.phone):''):'';
-  // Menu: BILLED quantities (driver shows the customer what was ordered).
+  // Menu: BILLED quantities (driver-facing list of what was ordered). No pricing on the delivery sheet.
   const billedMenu=d.menu.filter(m=>Number(m.billedQty)>0);
   const menuRowsHtml=billedMenu.map(m=>{
-    const t=(Number(m.billedQty)||0)*(Number(m.unitPrice)||0);
-    return `<tr><td class="q">${m.billedQty}</td><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}${m.notes?'<div class="sub" style="color:#666"><em>Note: '+escHtml(m.notes)+'</em></div>':''}</td><td class="r">${money(m.unitPrice)}</td><td class="r">${money(t)}</td></tr>`;
-  }).join('')||'<tr><td colspan="4" style="color:#888">No items.</td></tr>';
-  const sub=d.menu.reduce((s,m)=>s+(Number(m.billedQty)||0)*(Number(m.unitPrice)||0),0);
+    return `<tr><td class="q">${m.billedQty}</td><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}${m.notes?'<div class="sub" style="color:#666"><em>Note: '+escHtml(m.notes)+'</em></div>':''}</td><td>${escHtml(m.packagedIn||'—')}</td></tr>`;
+  }).join('')||'<tr><td colspan="3" style="color:#888">No items.</td></tr>';
   const g=d.guests;
   const guestStr=g.total?(g.total+' total · '+(g.veg||0)+' veg / '+(g.nonVeg||0)+' non-veg'):'—';
   const driverList=team.length
@@ -1642,7 +1643,6 @@ function printDeliveryOrder(){
    <div class="addrbox">
      <span class="lbl">Delivery address</span><br>
      <strong>${escHtml(v.name||v.type||'')}</strong>${fullAddr?'<br>'+escHtml(fullAddr):''}
-     <div style="margin-top:6px"><a href="${mapsLink}" target="_blank">📍 Open in Google Maps</a></div>
      ${v.contactName?'<div class="small" style="margin-top:6px"><span class="lbl">Venue contact:</span> '+escHtml(v.contactName)+(v.contactPhone?(' · '+escHtml(v.contactPhone)):'')+'</div>':''}
    </div>
 
@@ -1664,12 +1664,27 @@ function printDeliveryOrder(){
 
    <h2>Order — billed</h2>
    <table>
-     <thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th class="r">Unit</th><th class="r">Total</th></tr></thead>
+     <thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th>Packaged in</th></tr></thead>
      <tbody>${menuRowsHtml}</tbody>
    </table>
-   <table class="totals"><tr class="grand"><td>Subtotal</td><td class="r">${money(sub)}</td></tr></table>
 
    ${(d.hasOtherFood&&d.otherFood)?('<div class="small" style="margin-top:10px"><strong>Other food (host/outside):</strong> '+escHtml(d.otherFood)+'</div>'):''}
+
+   <!-- Received-by signature -->
+   <div style="margin-top:36px;display:flex;gap:30px">
+     <div style="flex:2">
+       <div style="border-bottom:1px solid #1a1a1a;height:34px"></div>
+       <div style="color:#777;font-size:11px;margin-top:4px">Received by (signature)</div>
+     </div>
+     <div style="flex:1">
+       <div style="border-bottom:1px solid #1a1a1a;height:34px"></div>
+       <div style="color:#777;font-size:11px;margin-top:4px">Print name</div>
+     </div>
+     <div style="flex:1">
+       <div style="border-bottom:1px solid #1a1a1a;height:34px"></div>
+       <div style="color:#777;font-size:11px;margin-top:4px">Date / Time</div>
+     </div>
+   </div>
 
    <button onclick="window.print()" style="margin-top:24px;padding:10px 18px;font-size:14px;cursor:pointer">Print / Save as PDF</button>
   </body></html>`);
