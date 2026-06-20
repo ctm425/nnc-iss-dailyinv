@@ -1543,7 +1543,7 @@ function printKitchenOrder(){
   else if(fm==='full-service'){const fs=d.fulfillment.fullService||{};ful='Full service'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')+(fs.staffNeeded?' · '+fs.staffNeeded+' staff':'');}
   else ful='Delivery'+(d.fulfillment.driver?' — '+escHtml(d.fulfillment.driver):'')+hbTag;
   const rowsHtml=d.menu.filter(m=>Number(m.kitchenQty)>0).map(m=>
-    `<tr><td class="q">${m.kitchenQty}</td><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}</td><td>${escHtml(m.notes||'—')}</td></tr>`).join('')
+    `<tr><td class="q">${m.kitchenQty}</td><td>${escHtml(m.name)}</td><td>${escHtml(m.notes||'—')}</td></tr>`).join('')
     || '<tr><td colspan="3" style="color:#888">No kitchen quantities set.</td></tr>';
   const g=d.guests;
   const guestStr=g.total?(g.total+' total · '+(g.veg||0)+' veg / '+(g.nonVeg||0)+' non-veg'):'—';
