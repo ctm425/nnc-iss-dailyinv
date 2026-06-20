@@ -195,8 +195,8 @@ textarea{resize:vertical}
 
       <!-- Arrival + departure at venue (delivery modes only) -->
       <div id="fulTimingWrap" class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:10px;display:none">
+        <div><label>Departure from Naan N Curry</label><input id="fulDeparture" type="time"></div>
         <div><label>Arrival at venue</label><input id="fulArrival" type="time"></div>
-        <div><label>Departure from venue</label><input id="fulDeparture" type="time"></div>
       </div>
 
       <!-- Delivery / delivery+setup / full service: assigned team -->
@@ -293,6 +293,10 @@ textarea{resize:vertical}
       <div class="grid">
         <div><label>Day-of contact name <span class="hint">(if different from customer)</span></label><input id="dayName" placeholder="e.g. planner / family member"></div>
         <div><label>Day-of contact phone</label><input id="dayPhone" type="tel"></div>
+      </div>
+      <div class="grid" style="margin-top:10px">
+        <div><label>Additional day-of contact name <span class="hint">(optional)</span></label><input id="dayName2" placeholder="backup contact on event day"></div>
+        <div><label>Additional day-of contact phone</label><input id="dayPhone2" type="tel"></div>
       </div>
     </div>
 
@@ -458,6 +462,7 @@ textarea{resize:vertical}
     <button class="btn btn-ghost" onclick="emailBooking()" title="Open your email client with a summary">✉ Email summary</button>
     <button class="btn btn-ghost" onclick="printBooking()" title="Open a printable full-booking PDF">🖨 Print booking</button>
     <button class="btn btn-dark" onclick="printKitchenOrder()">🖨 Kitchen order</button>
+    <button class="btn btn-dark" onclick="printDeliveryOrder()">🚚 Delivery sheet</button>
     <button class="btn btn-primary" onclick="saveBooking()">Save booking</button>
   </div>
 </div>
@@ -556,7 +561,7 @@ function wirePhoneFormatting(el){
   el.addEventListener('blur',()=>{el.value=fmtPhoneStr(el.value);});
 }
 function wireAllPhones(){
-  ['custPhone','venPhone','dayPhone','refPhone'].forEach(id=>wirePhoneFormatting(document.getElementById(id)));
+  ['custPhone','venPhone','dayPhone','dayPhone2','refPhone'].forEach(id=>wirePhoneFormatting(document.getElementById(id)));
 }
 
 // US states + DC. WA is pinned first, the rest sorted alphabetically by full name.
@@ -1110,6 +1115,7 @@ async function loadBooking(){
     setV('venContact',v.contactName);setV('venPhone',fmtPhoneStr(v.contactPhone));
     updateAddrPreview();
     setV('dayName',x.dayOfContact&&x.dayOfContact.name);setV('dayPhone',fmtPhoneStr(x.dayOfContact&&x.dayOfContact.phone));
+    setV('dayName2',(x.dayOfContact2&&x.dayOfContact2.name)||'');setV('dayPhone2',fmtPhoneStr(x.dayOfContact2&&x.dayOfContact2.phone));
     if(x.dayOfContact&&x.dayOfContact.sameAsCustomer){document.getElementById('daySame').checked=true;onDaySameToggle();}
     if(x.guests){setV('gTotal',x.guests.total);setV('gAdult',x.guests.adults);setV('gChild',x.guests.children);setV('gVeg',x.guests.veg);setV('gNon',x.guests.nonVeg);}
     setV('otherFood',x.otherFood);setV('kitchenNotes',x.kitchenNotes);
@@ -1393,6 +1399,7 @@ function collectData(){
     referredBy:{name:getV('refName'),phone:getV('refPhone'),email:getV('refEmail')},
     originalInquiry:{date:getV('inqDate'),channel:getV('inqChannel')},
     dayOfContact:{name:getV('dayName'),phone:getV('dayPhone'),sameAsCustomer:document.getElementById('daySame').checked},
+    dayOfContact2:{name:getV('dayName2'),phone:getV('dayPhone2')},
     billingRestaurant:getV('billing'),
     fulfillingRestaurant:getV('fulfilling'),
     billingContactName:getV('billingContact'),
@@ -1543,7 +1550,7 @@ function printKitchenOrder(){
      <div><span class="lbl">Fulfillment</span><br><strong>${ful}</strong></div>
      <div><span class="lbl">Ready by</span><br><strong>${escHtml(t12(d.fulfillment.readyTime))}</strong></div>
      <div><span class="lbl">Serve time</span><br><strong>${escHtml(t12(d.event.serveTime))}</strong></div>
-     ${(fm!=='pickup'&&(d.fulfillment.arrivalTime||d.fulfillment.departureTime))?`<div><span class="lbl">At venue</span><br><strong>${escHtml(t12(d.fulfillment.arrivalTime))} → ${escHtml(t12(d.fulfillment.departureTime))}</strong></div>`:''}
+     ${(fm!=='pickup'&&(d.fulfillment.departureTime||d.fulfillment.arrivalTime))?`<div><span class="lbl">Leaves NNC</span><br><strong>${escHtml(t12(d.fulfillment.departureTime))}</strong></div><div><span class="lbl">Arrives venue</span><br><strong>${escHtml(t12(d.fulfillment.arrivalTime))}</strong></div>`:''}
    </div>
    <table><thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th>Prep notes</th></tr></thead><tbody>${rowsHtml}</tbody></table>
    ${d.kitchenNotes?('<div class="kn"><span class="lbl">Special kitchen notes</span><br>'+escHtml(d.kitchenNotes)+'</div>'):''}
@@ -1561,7 +1568,115 @@ function t12(t){
   if(!t)return '—';const p=t.split(':');if(p.length<2)return t;
   let h=parseInt(p[0],10);const m=p[1];const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m+' '+ap;
 }
-function fmtDateMDY(iso){if(!iso)return '—';const p=iso.split('-');if(p.length<3)return iso;return p[1]+'/'+p[2]+'/'+p[0].slice(2);}
+
+// ---------- Print DELIVERY sheet (for the driver) ----------
+// Same scope as the kitchen order but billed quantities/items (customer-facing copy),
+// with driver/team, address, contacts, and delivery logistics prominent.
+function printDeliveryOrder(){
+  const d=collectData();
+  const r=(k)=>locationLabel(k);
+  const fm=d.fulfillment.mode;
+  const team=d.fulfillment.team||[];
+  const hb=d.fulfillment.hotBoxesStayWithCustomer;
+  const fmLabel={pickup:'Customer pickup',delivery:'Delivery','delivery-setup':'Delivery + Setup','full-service':'Full Service'}[fm]||fm;
+  const v=d.venue||{};
+  const fullAddr=v.address||'';
+  const mapsLink='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(fullAddr||v.name||'');
+  // Day-of contacts
+  const dayOf1=(d.dayOfContact&&d.dayOfContact.sameAsCustomer)
+    ? ((composeName({firstName:getV('custFirst'),lastName:getV('custLast')})||'')+(d.customer.phone?(' · '+d.customer.phone):''))
+    : ((d.dayOfContact&&d.dayOfContact.name||'')+(d.dayOfContact&&d.dayOfContact.phone?(' · '+d.dayOfContact.phone):''));
+  const dayOf2Obj=d.dayOfContact2||{};
+  const dayOf2=(dayOf2Obj.name||dayOf2Obj.phone)?(dayOf2Obj.name||'')+(dayOf2Obj.phone?(' · '+dayOf2Obj.phone):''):'';
+  // Menu: BILLED quantities (driver shows the customer what was ordered).
+  const billedMenu=d.menu.filter(m=>Number(m.billedQty)>0);
+  const menuRowsHtml=billedMenu.map(m=>{
+    const t=(Number(m.billedQty)||0)*(Number(m.unitPrice)||0);
+    return `<tr><td class="q">${m.billedQty}</td><td>${escHtml(m.name)}${m.description?'<div class="sub">'+escHtml(m.description)+'</div>':''}${m.notes?'<div class="sub" style="color:#666"><em>Note: '+escHtml(m.notes)+'</em></div>':''}</td><td class="r">${money(m.unitPrice)}</td><td class="r">${money(t)}</td></tr>`;
+  }).join('')||'<tr><td colspan="4" style="color:#888">No items.</td></tr>';
+  const sub=d.menu.reduce((s,m)=>s+(Number(m.billedQty)||0)*(Number(m.unitPrice)||0),0);
+  const g=d.guests;
+  const guestStr=g.total?(g.total+' total · '+(g.veg||0)+' veg / '+(g.nonVeg||0)+' non-veg'):'—';
+  const driverList=team.length
+    ? team.map(t=>'<strong>'+escHtml(t.role||'Helper')+':</strong> '+escHtml(t.name||'(unnamed)')+(t.phone?(' · '+escHtml(t.phone)):'')).join('<br>')
+    : (d.fulfillment.driver?escHtml(d.fulfillment.driver):'<em style="color:#888">no team assigned</em>');
+
+  const win=window.open('','_blank');
+  if(!win){alert('Pop-up blocked. Allow pop-ups to print the delivery sheet.');return;}
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Delivery — ${escHtml(d.customer.name||'')}</title>
+  <style>
+   body{font-family:-apple-system,Arial,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;padding:28px}
+   .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:10px;margin-bottom:14px}
+   h1{font-size:22px;margin:0} h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#555;margin:16px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
+   .small{font-size:12px;color:#555}
+   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px;margin-bottom:8px}
+   .grid2 .lbl{color:#777}
+   .fbox{background:#eaf2ff;border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:13px;margin-bottom:14px;border:1px solid #c9dcf7}
+   .addrbox{background:#fef7e8;border:1px solid #f5d68a;border-radius:6px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+   .addrbox a{color:#1e3a5f}
+   .driverbox{background:#f3f1ea;border-radius:6px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+   table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
+   th{text-align:left;border-bottom:1px solid #ccc;color:#777;font-size:11px;padding:6px 4px;text-transform:uppercase}
+   td{padding:8px 4px;border-bottom:.5px solid #e5e2d8;vertical-align:top}
+   td.q{text-align:center;font-weight:700;width:46px} td.r,th.r{text-align:right}
+   .sub{color:#888;font-size:11px}
+   .totals{margin-left:auto;width:50%;border-top:1px solid #1a1a1a;margin-top:6px}
+   .totals td{padding:6px 4px} .totals .grand{font-weight:700;font-size:15px}
+   .kn{border:1px dashed #bbb;border-radius:6px;padding:10px 14px;font-size:13px;margin-top:12px}
+   .kn .lbl{color:#777;font-size:11px;text-transform:uppercase}
+   .flag{background:#fee2e2;border:1px solid #fca5a5;color:#7f1d1d;border-radius:6px;padding:8px 12px;font-size:13px;font-weight:600;margin-bottom:12px}
+   @media print{button{display:none}}
+  </style></head><body>
+   <div class="top">
+     <div><h1>Delivery sheet</h1><div class="small">${escHtml(fmLabel)} · ${escHtml(r(d.fulfillingRestaurant))} kitchen</div></div>
+     <div class="small" style="text-align:right">Printed ${new Date().toLocaleString()}<br>Status: <strong>${escHtml(d.status||'')}</strong></div>
+   </div>
+
+   <div class="grid2">
+     <div><span class="lbl">Customer</span><br><strong>${escHtml(d.customer.name||'')}</strong>${d.customer.phone?'<br>'+escHtml(d.customer.phone):''}</div>
+     <div><span class="lbl">Event date</span><br><strong>${d.event.date?fmtDateMDY(d.event.date):'—'}</strong></div>
+     <div><span class="lbl">Event</span><br><strong>${escHtml(resolvedEventType(d.event))}</strong></div>
+     <div><span class="lbl">Guests</span><br>${escHtml(guestStr)}</div>
+   </div>
+
+   <div class="addrbox">
+     <span class="lbl">Delivery address</span><br>
+     <strong>${escHtml(v.name||v.type||'')}</strong>${fullAddr?'<br>'+escHtml(fullAddr):''}
+     <div style="margin-top:6px"><a href="${mapsLink}" target="_blank">📍 Open in Google Maps</a></div>
+     ${v.contactName?'<div class="small" style="margin-top:6px"><span class="lbl">Venue contact:</span> '+escHtml(v.contactName)+(v.contactPhone?(' · '+escHtml(v.contactPhone)):'')+'</div>':''}
+   </div>
+
+   <div class="fbox">
+     <div><span class="lbl">Leaves NNC</span><br><strong>${escHtml(t12(d.fulfillment.departureTime))}</strong></div>
+     <div><span class="lbl">Arrives venue</span><br><strong>${escHtml(t12(d.fulfillment.arrivalTime))}</strong></div>
+     <div><span class="lbl">Serve time</span><br><strong>${escHtml(t12(d.event.serveTime))}</strong></div>
+   </div>
+
+   <div class="driverbox">
+     <span class="lbl">Driver / Team</span><br>
+     ${driverList}
+   </div>
+
+   <h2>Day-of contacts</h2>
+   <div class="small"><strong>Primary:</strong> ${escHtml(dayOf1)||'(none)'}${dayOf2?'<br><strong>Additional:</strong> '+escHtml(dayOf2):''}</div>
+
+   ${(fm==='delivery'||fm==='delivery-setup')?`<div class="flag" style="margin-top:14px">Hot boxes: ${hb?'STAY WITH CUSTOMER (do not bring back)':'BRING BACK TO NNC'}${fm==='delivery-setup'?(' · Floor plan: '+(d.fulfillment.floorPlanProvided?'provided':'NOT provided')):''}</div>`:''}
+
+   <h2>Order — billed</h2>
+   <table>
+     <thead><tr><th class="q" style="text-align:center">Qty</th><th>Item</th><th class="r">Unit</th><th class="r">Total</th></tr></thead>
+     <tbody>${menuRowsHtml}</tbody>
+   </table>
+   <table class="totals"><tr class="grand"><td>Subtotal</td><td class="r">${money(sub)}</td></tr></table>
+
+   ${(d.hasOtherFood&&d.otherFood)?('<div class="small" style="margin-top:10px"><strong>Other food (host/outside):</strong> '+escHtml(d.otherFood)+'</div>'):''}
+
+   <button onclick="window.print()" style="margin-top:24px;padding:10px 18px;font-size:14px;cursor:pointer">Print / Save as PDF</button>
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>{try{win.focus();win.print();}catch(e){}},400);
+}
+function fmtDateMDY(iso){if(!iso)return '—';const p=iso.split('-');if(p.length<3)return iso;return p[1]+'-'+p[2]+'-'+p[0];}
 function dayOfWeek(iso){if(!iso)return '';const dt=new Date(iso+'T00:00:00');if(isNaN(dt))return '';return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];}
 function _restName(k){return locationLabel(k);}
 
@@ -1616,8 +1731,10 @@ function printBooking(){
     row('Venue contact',v.contactName?(escHtml(v.contactName)+(v.contactPhone?(' · '+escHtml(v.contactPhone)):'')):'')
   );
 
+  const d2=d.dayOfContact2||{};
   const dayOf=sect('Day-of contact',
-    sameDay?row('','Same as customer'):(row('Name',escHtml(d.dayOfContact.name))+row('Phone',escHtml(d.dayOfContact.phone)))
+    (sameDay?row('','Same as customer'):(row('Name',escHtml(d.dayOfContact.name))+row('Phone',escHtml(d.dayOfContact.phone))))+
+    ((d2.name||d2.phone)?row('Additional', escHtml(d2.name||'')+(d2.phone?(' · '+escHtml(d2.phone)):'')):'')
   );
 
   const guests=sect('Guests',
@@ -1650,8 +1767,8 @@ function printBooking(){
   let fulRows=row('Mode',fmLabel)+row('Ready by',t12(f.readyTime));
   if(f.mode==='pickup')fulRows+=row('Pickup time',t12(f.pickupTime));
   if(f.mode!=='pickup'){
+    if(f.departureTime)fulRows+=row('Departure from Naan N Curry',t12(f.departureTime));
     if(f.arrivalTime)fulRows+=row('Arrival at venue',t12(f.arrivalTime));
-    if(f.departureTime)fulRows+=row('Departure from venue',t12(f.departureTime));
   }
   if(f.mode==='delivery'||f.mode==='delivery-setup'||f.mode==='full-service'){
     const team=(f.team||[]);
@@ -1772,7 +1889,7 @@ function emailBooking(){
   }
   lines.push('— FULFILLMENT —');
   lines.push(fmLabel+(f.driver?(' — '+f.driver):'')+(f.mode==='pickup'&&f.pickupTime?(' at '+t12(f.pickupTime)):''));
-  if(f.mode!=='pickup' && (f.arrivalTime||f.departureTime))lines.push('At venue: '+(t12(f.arrivalTime)||'—')+' → '+(t12(f.departureTime)||'—'));
+  if(f.mode!=='pickup' && (f.departureTime||f.arrivalTime))lines.push('Leaves NNC: '+(t12(f.departureTime)||'—')+' · Arrives venue: '+(t12(f.arrivalTime)||'—'));
   if(f.mode==='delivery'||f.mode==='delivery-setup')lines.push('Hot boxes: '+(f.hotBoxesStayWithCustomer?'staying with customer':'returning with driver'));
   if(f.mode==='delivery-setup')lines.push('Floor plan: '+(f.floorPlanProvided?'provided':'NOT provided'));
   if((f.team||[]).length){
