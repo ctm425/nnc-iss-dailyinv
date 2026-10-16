@@ -596,16 +596,34 @@ async function syncDataToFirestore(d){
       lastSync:new Date()
     },{merge:true}).catch(err=>console.error('Firestore config sync error (non-fatal):',err));
   }
-  // Save each day's data — all signed-in users are allowed
+  // Save ONLY the days that changed since the last sync. Previously every save
+  // re-wrote every day in history (~300 docs per keystroke), which backed up the
+  // write queue so the last items entered were lost when the tab closed, and let
+  // stale copies on one device overwrite newer data from another.
   if(d.days){
     Object.keys(d.days).forEach(dateKey=>{
-      if(dateKey!=='__meta'){
-        db.collection('days').doc(dateKey).set(d.days[dateKey],{merge:true})
-          .catch(err=>console.error('Error saving day data:',err));
-      }
+      if(dateKey==='__meta')return;
+      const json=JSON.stringify(d.days[dateKey]);
+      if(_syncedDays[dateKey]===json)return;
+      _syncedDays[dateKey]=json;
+      _pendingDayWrites++;
+      db.collection('days').doc(dateKey).set(d.days[dateKey],{merge:true})
+        .catch(err=>{delete _syncedDays[dateKey];console.error('Error saving day data:',err);
+          if(typeof showToast==='function')showToast('Save failed for '+dateKey+'. Do not close this page; check your connection.');})
+        .finally(()=>{_pendingDayWrites--});
     });
   }
 }
+// Snapshot of each day as last read from / written to Firestore, so we only write real changes
+const _syncedDays={};
+let _pendingDayWrites=0;
+function markDaysSynced(days){
+  Object.keys(days||{}).forEach(k=>{_syncedDays[k]=JSON.stringify(days[k])});
+}
+// Warn before closing while saves are still on their way to the database
+window.addEventListener('beforeunload',e=>{
+  if(_pendingDayWrites>0){e.preventDefault();e.returnValue='Still saving. Wait a few seconds before closing.';return e.returnValue}
+});
 async function loadDataFromFirestore(){
   if(!currentUser)return null;
   try{
@@ -773,6 +791,7 @@ auth.onAuthStateChanged(async(user)=>{
     const fsData=await loadDataFromFirestore();
     if(fsData){
       // Update local cache with Firestore data
+      markDaysSynced(fsData.days);
       try{localStorage.setItem(STORAGE_KEY,JSON.stringify(fsData))}catch(e){}
       items=fsData.items;
     }else{
@@ -842,6 +861,7 @@ function setupRealtimeListeners(){
         const d=loadData();
         if(!d.days)d.days={};
         d.days[dateKey]=change.doc.data();
+        _syncedDays[dateKey]=JSON.stringify(d.days[dateKey]);
         // Update local cache
         try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
       }

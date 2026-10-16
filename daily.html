@@ -1026,20 +1026,30 @@ function loadInventoryPerson(){
 function r2(v){if(v===''||v===null||v===undefined)return v;const n=Number(v);return isNaN(n)?v:Math.round(n*100)/100}
 
 // ==================== CALCULATIONS ====================
-function calcAM(itemId){
-  const prev=new Date(currentDate);prev.setDate(prev.getDate()-1);
-  const pd=getDayData(dk(prev))[itemId]||{};
+// AM = previous day's PM + previous day's Total Order (exactly what that day's screen shows).
+// Exception: kitchen items after a Sunday with no Monday delivery -> AM = Sunday PM.
+function amFromPrevDay(itemId,dateObj,allDays){
+  const prev=new Date(dateObj);prev.setDate(prev.getDate()-1);
+  const prevDay=(allDays&&allDays[dk(prev)])||{};
+  const pd=prevDay[itemId]||{};
+  if(pd.pm===undefined||pd.pm===null||pd.pm==='')return null;
+  const pm=Number(pd.pm);
   const item=items.find(i=>i.id===itemId);
-  // If previous day has PM data, calculate AM
-  if(pd.pm!==undefined){
-    // Sunday = no delivery Monday for kitchen items only, so Monday AM = Sunday PM (ignore orders)
-    if(prev.getDay()===0&&item&&item.category==='kitchen') return Number(pd.pm);
-    // All other days (and produce on any day): AM = PM + Total Order
-    const prevNormal=(pd.normalOrder!==undefined&&pd.normalOrder!==null)?Number(pd.normalOrder):0;
-    const prevExtra=pd.extraOrder?Number(pd.extraOrder):0;
-    return Number(pd.pm)+prevNormal+prevExtra;
-  }
-  // Fall back to stored/seed AM only when no previous day data exists
+  if(!item)return pm;
+  const sunOn=!!(prevDay.__meta&&prevDay.__meta.sundayOrders);
+  if(isSunday(prev)&&!sunOn&&item.category==='kitchen')return pm;
+  // Same rule the Order column uses: manual override if set, otherwise auto from PM vs next-day par
+  const normal=(pd.manualOrder===true&&pd.normalOrder!==undefined&&pd.normalOrder!==null)
+    ?Number(pd.normalOrder)
+    :(calcNormalOrder(item,pm,prev,sunOn)||0);
+  const extra=pd.extraOrder?Number(pd.extraOrder):0;
+  return r2(pm+normal+extra);
+}
+function calcAM(itemId){
+  const d=loadData();
+  const v=amFromPrevDay(itemId,currentDate,d.days||{});
+  if(v!==null)return v;
+  // Fall back to stored/seed AM only when the previous day has no PM
   const todayData=getDayData(dk(currentDate))[itemId]||{};
   if(todayData.am!==undefined) return Number(todayData.am);
   return null;
@@ -1065,11 +1075,13 @@ function getOrderStep(item) {
   return item.orderStep || 0.5; // default 0.5 for items without explicit step
 }
 
-function calcNormalOrder(item,pmVal){
+function calcNormalOrder(item,pmVal,forDate,sundayOn){
   if(pmVal===undefined||pmVal===null||pmVal==='') return null;
+  const base=forDate||currentDate;
+  const sunOn=(sundayOn===undefined)?sundayOrdersEnabled:sundayOn;
   // If Sunday and orders not enabled, return 0 for kitchen items (no Monday delivery)
-  if(isSunday(currentDate)&&!sundayOrdersEnabled&&item.category==='kitchen') return 0;
-  const nextDay=new Date(currentDate);nextDay.setDate(nextDay.getDate()+1);
+  if(isSunday(base)&&!sunOn&&item.category==='kitchen') return 0;
+  const nextDay=new Date(base);nextDay.setDate(nextDay.getDate()+1);
   const nextPar=getPar(item,nextDay);
   const raw = Math.max(0, nextPar - Number(pmVal));
   return snapToStep(raw, getOrderStep(item));
@@ -1135,11 +1147,11 @@ function resetOrder(key,itemId){
 }
 
 // ==================== SUNDAY ORDER TOGGLE ====================
-function toggleSundayOrders(){
-  sundayOrdersEnabled=!sundayOrdersEnabled;
+function updateSundayBanner(){
   const banner=document.getElementById('noDeliveryBanner');
+  if(!banner)return;
   if(sundayOrdersEnabled){
-    banner.querySelector('span').textContent='Monday orders enabled for this session.';
+    banner.querySelector('span').textContent='Monday orders enabled for this Sunday.';
     banner.querySelector('button').textContent='Disable Orders';
     banner.style.background='#f0fdf4';banner.style.borderColor='#86efac';banner.style.color='#166534';
   }else{
@@ -1147,6 +1159,11 @@ function toggleSundayOrders(){
     banner.querySelector('button').textContent='Enable Orders';
     banner.style.background='#fef2f2';banner.style.borderColor='#fca5a5';banner.style.color='#991b1b';
   }
+}
+function toggleSundayOrders(){
+  sundayOrdersEnabled=!sundayOrdersEnabled;
+  // Remember the choice on the Sunday itself so Monday's AM includes Sunday orders when they were sent
+  setField(dk(currentDate),'__meta','sundayOrders',sundayOrdersEnabled);
   render();
 }
 
@@ -1177,6 +1194,12 @@ function render(){
   }
   // Show/hide no-delivery banner
   document.getElementById('noDeliveryBanner').style.display=isSunday(d)?'flex':'none';
+  if(isSunday(d)){
+    // Sunday order toggle is saved on the day, so it survives navigation and reloads
+    const sm=(getDayData(dk(d))['__meta'])||{};
+    sundayOrdersEnabled=sm.sundayOrders===true;
+    updateSundayBanner();
+  }
   // Load inventory person
   document.getElementById('inventoryPerson').value=loadInventoryPerson();
   // Sync tab bar active state
@@ -1728,16 +1751,8 @@ function clearAnalyticsFilters(){
 function calcAMForDate(dateKey,itemId,allDays){
   // Same logic as calcAM but for any date, not just currentDate
   const dateObj=new Date(dateKey+'T12:00:00');
-  const prev=new Date(dateObj);prev.setDate(prev.getDate()-1);
-  const prevKey=dk(prev);
-  const pd=(allDays[prevKey]&&allDays[prevKey][itemId])||{};
-  const item=items.find(i=>i.id===itemId);
-  if(pd.pm!==undefined){
-    if(prev.getDay()===0&&item&&item.category==='kitchen') return Number(pd.pm);
-    const prevNormal=(pd.normalOrder!==undefined&&pd.normalOrder!==null)?Number(pd.normalOrder):0;
-    const prevExtra=pd.extraOrder?Number(pd.extraOrder):0;
-    return Number(pd.pm)+prevNormal+prevExtra;
-  }
+  const v=amFromPrevDay(itemId,dateObj,allDays);
+  if(v!==null)return v;
   const td=(allDays[dateKey]&&allDays[dateKey][itemId])||{};
   if(td.am!==undefined) return Number(td.am);
   return null;
