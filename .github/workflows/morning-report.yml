@@ -1,0 +1,46 @@
+name: Morning report
+
+on:
+  schedule:
+    # GitHub runs schedules in UTC. 09:17 UTC = 2:17am Pacific in summer,
+    # 1:17am Pacific in winter. Data is in by 11pm, and this leaves hours
+    # of room if GitHub runs late.
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: 'Run for a specific day (YYYY-MM-DD). Leave blank for today.'
+        required: false
+
+permissions:
+  contents: read
+  actions: write   # only used to keep this schedule from being auto-disabled
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: morning-report
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: Build report and write to Notion
+        run: node report.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: 10634015654041e29d43b48293a9fe7d
+          REPORT_DATE: ${{ github.event.inputs.report_date }}
+      # GitHub switches off schedules in public repos after 60 days with no
+      # commits. Re-enabling the workflow resets that clock.
+      - name: Keep schedule alive
+        if: always()
+        working-directory: .
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/morning-report.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
