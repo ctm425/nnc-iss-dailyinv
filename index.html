@@ -959,7 +959,7 @@ async function renderUserMgmt() {
 }
 
 async function inviteUser() {
-  const email = document.getElementById('inviteEmail').value.trim();
+  const email = document.getElementById('inviteEmail').value.trim().toLowerCase();
   const password = document.getElementById('invitePassword').value;
   const role = document.getElementById('inviteRole').value;
   const status = document.getElementById('inviteStatus');
@@ -982,6 +982,16 @@ async function inviteUser() {
   const ownerEmail = auth.currentUser.email;
 
   try {
+    // Record the invite first, while still signed in as the owner.
+    // The security rules only let the new account create a profile that
+    // matches this invite exactly.
+    await db.collection('invites').doc(email).set({
+      role: role,
+      restaurants: ['nnc-iss'],
+      invitedBy: ownerEmail,
+      createdAt: new Date()
+    });
+
     // Create the new user account
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     const newUid = cred.user.uid;
