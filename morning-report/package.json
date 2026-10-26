@@ -1,0 +1,13 @@
+{
+  "name": "nnc-morning-report",
+  "private": true,
+  "type": "module",
+  "description": "Overnight Issaquah report into the Notion Daily Checklist",
+  "scripts": {
+    "start": "node report.mjs",
+    "test": "node test.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
