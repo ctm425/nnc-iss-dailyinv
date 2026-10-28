@@ -377,7 +377,8 @@ function applyEditMode() {
 
   AUTO_FIELDS.forEach(id => {
     const el = document.getElementById(id);
-    if (hist && owner) { el.removeAttribute('readonly'); } else { el.setAttribute('readonly', true); }
+    // Owner can still type a manual override into Usage/Waste on past days; Total follows it
+    if (hist && owner) { el.removeAttribute('readonly'); el.oninput = histRecalc; } else { el.setAttribute('readonly', true); el.oninput = null; }
   });
 
   // Non-owner historical lock + popup wiring
@@ -449,7 +450,8 @@ function openEditRequest() {
 
 // ==================== CALCULATIONS ====================
 function calcRice() {
-  if (isHistorical()) { histRecalc(); return; }
+  // Runs on past days too (Oct 28 2026). Previously past days skipped the math, so
+  // changing Made or PM on an old day left Usage/Waste at their old values.
   const made = num('rice_made'), pm = num('rice_pm');
   const usage = made - pm;
   const waste = pm; // all leftover is waste

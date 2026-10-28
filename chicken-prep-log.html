@@ -405,7 +405,7 @@ function applyEditMode() {
 
   AUTO_FIELDS.forEach(id => {
     const el = document.getElementById(id);
-    if (hist && owner) { el.removeAttribute('readonly'); } else { el.setAttribute('readonly', true); }
+    if (hist && owner) { el.removeAttribute('readonly'); el.oninput = calcChickenTotals; } else { el.setAttribute('readonly', true); el.oninput = null; }
   });
 }
 
@@ -470,15 +470,44 @@ function calcChicken() {
 
   document.getElementById('weight_full_cases').value = weightFullCases;
   document.getElementById('weight_15lb_bags').value = weight15lbBags;
+  calcChickenTotals();
+}
 
+// Totals from whatever is in the weight boxes (so an owner override on a past day counts)
+function calcChickenTotals() {
   // Total chicken weight = 15lb bags + Non-15lb + Small pieces + Fat
-  const totalChickenWeight = weight15lbBags + weightNon15lb + weightSmallPieces + weightFat;
-
+  const totalChickenWeight = num('weight_15lb_bags') + num('weight_non_15lb') + num('weight_small_pieces') + num('weight_fat');
   // Water = Full cases weight - Total chicken weight
-  const water = weightFullCases - totalChickenWeight;
-
+  const water = num('weight_full_cases') - totalChickenWeight;
   document.getElementById('total_chicken_weight').textContent = totalChickenWeight.toFixed(1);
   document.getElementById('total_water').textContent = water.toFixed(1);
+}
+
+// Oct 28 2026: collectData() used to read these totals with num(), which reads .value,
+// but the totals are <div>s (textContent). So every save stored them as 0, and the weekly
+// table, analytics, daily report and morning report all saw 0. When the owner opens the
+// page, rewrite the saved totals on past records from their own saved inputs (only records
+// where the total is 0/missing but the inputs are not). Runs once per device.
+async function _backfillChickenTotals() {
+  const FLAG = 'nnc.backfill.chickenTotals.v1';
+  try { if (localStorage.getItem(FLAG)) return; } catch (e) {}
+  if (!isOwner() || !auth.currentUser) return;
+  try {
+    const snap = await db.collection('chicken-prep/nnc-iss/records').get();
+    const n = v => parseFloat(v) || 0;
+    let fixed = 0; const writes = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      const total = n(d.weight_15lb_bags) + n(d.weight_non_15lb) + n(d.weight_small_pieces) + n(d.weight_fat);
+      if (n(d.total_chicken_weight) !== 0 || total === 0) return;
+      const water = n(d.weight_full_cases) - total;
+      writes.push(doc.ref.set({ total_chicken_weight: Math.round(total * 10) / 10, total_water: Math.round(water * 10) / 10 }, { merge: true }));
+      fixed++;
+    });
+    await Promise.all(writes);
+    try { localStorage.setItem(FLAG, new Date().toISOString()); } catch (e) {}
+    if (fixed) { showToast('Fixed missing chicken totals on ' + fixed + ' past days'); loadWeekData(); }
+  } catch (err) { console.error('Chicken totals backfill error:', err); }
 }
 
 function num(id) { return parseFloat(document.getElementById(id).value) || 0; }
@@ -496,8 +525,8 @@ function collectData() {
     weight_non_15lb: num('weight_non_15lb'),
     weight_small_pieces: num('weight_small_pieces'),
     weight_fat: num('weight_fat'),
-    total_chicken_weight: num('total_chicken_weight').textContent ? parseFloat(document.getElementById('total_chicken_weight').textContent) : 0,
-    total_water: num('total_water').textContent ? parseFloat(document.getElementById('total_water').textContent) : 0,
+    total_chicken_weight: parseFloat(document.getElementById('total_chicken_weight').textContent) || 0,
+    total_water: parseFloat(document.getElementById('total_water').textContent) || 0,
     updatedAt: new Date().toISOString(),
     updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
   };
@@ -540,8 +569,9 @@ async function loadDayData() {
       if (isHistorical()) {
         document.getElementById('weight_full_cases').value = d.weight_full_cases || '';
         document.getElementById('weight_15lb_bags').value = d.weight_15lb_bags || '';
-        document.getElementById('total_chicken_weight').textContent = d.total_chicken_weight || 0;
-        document.getElementById('total_water').textContent = d.total_water || 0;
+        // Totals are derived from the boxes above, so recompute instead of trusting the saved
+        // value (saved totals were always 0 before the Oct 28 2026 fix)
+        calcChickenTotals();
       } else {
         calcChicken();
       }
@@ -870,6 +900,7 @@ auth.onAuthStateChanged(async user => {
     document.getElementById('loginOverlay').classList.add('hidden');
     await loadUserProfile();
     setDate(new Date());
+    _backfillChickenTotals();
     // Default analytics range
     setAnalyticsRange(14);
   } else {

@@ -608,7 +608,7 @@ function applyEditMode() {
     const el = document.getElementById(id);
     if (hist && owner) {
       el.removeAttribute('readonly');
-      el.oninput = histRecalcTotals;
+      el.oninput = id.startsWith('naan') ? calcNaanUsage : calcRotiUsage;
     } else {
       el.setAttribute('readonly', true);
       el.oninput = null;
@@ -661,13 +661,9 @@ function histRecalcTotals() {
   document.getElementById('roti_flour_lbs').textContent = rotiFlourLbs;
   document.getElementById('roti_flour_bags').textContent = rotiFlourBags ? rotiFlourBags.toFixed(1) : '0';
 
-  // Naan usage total
-  const naanUsage = num('naan_usage');
-  document.getElementById('naan_total_usage').textContent = naanUsage;
-
-  // Roti usage total
-  const rotiUsage = num('roti_usage');
-  document.getElementById('roti_total_usage').textContent = rotiUsage;
+  // Usage totals = usage + waste (same as what gets saved)
+  document.getElementById('naan_total_usage').textContent = num('naan_usage') + num('naan_waste');
+  document.getElementById('roti_total_usage').textContent = num('roti_usage') + num('roti_waste');
 }
 
 // ==================== TAB SWITCHING ====================
@@ -757,8 +753,11 @@ function openEditRequest() {
 }
 
 // ==================== PREP CALCULATIONS ====================
+// Oct 28 2026: the calc functions now run on past days too, whenever a field is edited.
+// Before, past days skipped all math, so fixing a count left Usage/Made stale.
+// Saved values are still shown as-is when a past day is opened (loadAllData does not
+// recalc on load), so earlier manual overrides are kept until a related field changes.
 function calcNaanPrep() {
-  if (isHistorical()) return; // In historical mode, user controls all values directly
   const trays = num('naan_trays_full');
   document.getElementById('naan_doughballs_full').value = trays * 24 || '';
   const pt = num('naan_trays_partial');
@@ -777,7 +776,6 @@ function calcNaanPrep() {
 }
 
 function calcRotiPrep() {
-  if (isHistorical()) return;
   const trays = num('roti_trays_full');
   document.getElementById('roti_doughballs_full').value = trays * 12 || '';
   const pt = num('roti_trays_partial');
@@ -796,31 +794,27 @@ function calcRotiPrep() {
 
 // ==================== USAGE CALCULATIONS ====================
 function calcNaanUsage() {
-  if (isHistorical()) { histRecalcTotals(); return; }
   const am = num('naan_am'), made = num('naan_made'), pm = num('naan_pm'), waste = num('naan_waste');
   const usage = (am + made) - (pm + waste);
   document.getElementById('naan_usage').value = usage;
-  document.getElementById('naan_total_usage').textContent = usage;
+  document.getElementById('naan_total_usage').textContent = usage + waste;
 }
 
 function calcRotiUsage() {
-  if (isHistorical()) { histRecalcTotals(); return; }
   const am = num('roti_am'), made = num('roti_made'), pm = num('roti_pm'), waste = num('roti_waste');
   const usage = (am + made) - (pm + waste);
   document.getElementById('roti_usage').value = usage;
-  document.getElementById('roti_total_usage').textContent = usage;
+  document.getElementById('roti_total_usage').textContent = usage + waste;
 }
 
 function num(id) { return parseFloat(document.getElementById(id).value) || 0; }
 
 function linkNaanPrepToUsage() {
-  if (isHistorical()) return; // Don't override manual entries in historical mode
   const totalTrays = parseInt(document.getElementById('naan_total_trays').textContent) || 0;
   document.getElementById('naan_made').value = totalTrays || '';
 }
 
 function linkRotiPrepToUsage() {
-  if (isHistorical()) return;
   const totalTrays = parseInt(document.getElementById('roti_total_trays').textContent) || 0;
   document.getElementById('roti_made').value = totalTrays || '';
 }
@@ -890,6 +884,7 @@ async function saveAll() {
       db.doc(usageDocPath(ds)).set(usage, { merge: true })
     ]);
     showToast('✅ All data saved for ' + ds);
+    if (isHistorical()) await _carryPMToNextDay(ds, usage);
     document.getElementById('saveStatus').textContent = 'Last saved: ' + new Date().toLocaleTimeString();
     prepWeekData[ds] = prep;
     usageWeekData[ds] = usage;
@@ -898,6 +893,34 @@ async function saveAll() {
   } catch (err) {
     console.error('Save error:', err);
     showToast('❌ Error saving: ' + err.message);
+  }
+}
+
+// Next day's AM = this day's PM. When a past day's PM is corrected, the next day's saved
+// AM and usage were left stale (today's page recalculates on open, but its saved record and
+// the weekly table did not). Update the next day's saved usage record if one exists.
+async function _carryPMToNextDay(ds, usage) {
+  try {
+    const next = new Date(ds + 'T12:00:00'); next.setDate(next.getDate() + 1);
+    const nds = formatDate(next);
+    const ref = db.doc(usageDocPath(nds));
+    const snap = await ref.get();
+    if (!snap.exists) return;
+    const n = snap.data();
+    if ((n.naan_am || 0) === (usage.naan_pm || 0) && (n.roti_am || 0) === (usage.roti_pm || 0)) return;
+    const upd = { naan_am: usage.naan_pm || 0, roti_am: usage.roti_pm || 0 };
+    upd.naan_usage = (upd.naan_am + (n.naan_made || 0)) - ((n.naan_pm || 0) + (n.naan_waste || 0));
+    upd.roti_usage = (upd.roti_am + (n.roti_made || 0)) - ((n.roti_pm || 0) + (n.roti_waste || 0));
+    upd.naan_total_usage = upd.naan_usage + (n.naan_waste || 0);
+    upd.roti_total_usage = upd.roti_usage + (n.roti_waste || 0);
+    upd.updatedAt = new Date().toISOString();
+    upd.updatedBy = auth.currentUser ? auth.currentUser.email : 'unknown';
+    await ref.set(upd, { merge: true });
+    if (usageWeekData[nds]) { Object.assign(usageWeekData[nds], upd); renderNaanWeekly(); renderRotiWeekly(); }
+    showToast('✅ Saved. Also updated ' + nds + ' AM and usage to match');
+  } catch (err) {
+    console.error('Next-day carry error:', err);
+    showToast('⚠ Saved, but could not update ' + ds + ' next day AM. Open that day and save it.');
   }
 }
 
@@ -954,8 +977,10 @@ async function loadAllData() {
         document.getElementById('roti_flour_bags').textContent = rotiFlourBags ? Number(rotiFlourBags).toFixed(1) : '0';
       }
     }
-    calcNaanPrep();
-    calcRotiPrep();
+    if (!isHistorical()) {
+      calcNaanPrep();
+      calcRotiPrep();
+    }
 
     if (isHistorical()) {
       // Historical: populate ALL usage fields from saved data directly

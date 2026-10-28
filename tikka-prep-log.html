@@ -588,7 +588,7 @@ function collectData() {
     raw_bulk_dark: num('raw_bulk_dark'),
     renton_dark_raw: num('renton_dark_raw'),
     renton_white_raw: num('renton_white_raw'),
-    total_raw: num('total_raw'),
+    total_raw: parseFloat(document.getElementById('total_raw').textContent) || 0,
 
     cooked_white_line: num('cooked_white_line'),
     cooked_dark_line: num('cooked_dark_line'),
@@ -596,7 +596,7 @@ function collectData() {
     cooked_bulk_dark: num('cooked_bulk_dark'),
     renton_dark_cooked: num('renton_dark_cooked'),
     renton_white_cooked: num('renton_white_cooked'),
-    total_cooked: num('total_cooked'),
+    total_cooked: parseFloat(document.getElementById('total_cooked').textContent) || 0,
 
     cut_dark: num('cut_dark'),
     dark_wastage_oz: num('dark_wastage_oz'),
@@ -668,17 +668,11 @@ async function loadDayData() {
       document.getElementById('cut_white').value = d.cut_white || '';
       document.getElementById('white_wastage_oz').value = d.white_wastage_oz || '';
 
-      if (isHistorical()) {
-        document.getElementById('total_raw').textContent = d.total_raw || '0';
-        document.getElementById('total_cooked').textContent = d.total_cooked || '0';
-        document.getElementById('total_dark').textContent = d.total_dark || '0';
-        document.getElementById('total_white').textContent = d.total_white || '0';
-        document.getElementById('total_cut').textContent = d.total_cut || '0';
-      } else {
-        calcTikkaRaw();
-        calcTikkaCooked();
-        calcTikkaCutting();
-      }
+      // Totals are pure sums of the boxes above, so always recompute (past days included).
+      // Saved total_raw / total_cooked were always 0 before the Oct 28 2026 fix.
+      calcTikkaRaw();
+      calcTikkaCooked();
+      calcTikkaCutting();
     }
   } catch (err) { console.error(err); }
 }
@@ -991,9 +985,42 @@ function showToast(msg) {
 }
 
 // ==================== INIT ====================
-function initPage() {
+async function initPage() {
   if (!auth.currentUser) return;
+  // This page never loaded the signed-in user's role, so isOwner() was always false and
+  // past days were locked even for the owner. (Fixed Oct 28 2026.)
+  await loadUserProfile();
   setDate(new Date());
+  _backfillTikkaTotals();
+}
+
+// Oct 28 2026: collectData() used to read these totals with num(), which reads .value,
+// but the totals are <div>s (textContent). So every save stored them as 0, and the weekly
+// table, analytics, daily report and morning report all saw 0. When the owner opens the
+// page, rewrite the saved totals on past records from their own saved inputs (only records
+// where the total is 0/missing but the inputs are not). Runs once per device.
+async function _backfillTikkaTotals() {
+  const FLAG = 'nnc.backfill.tikkaTotals.v1';
+  try { if (localStorage.getItem(FLAG)) return; } catch (e) {}
+  if (!isOwner() || !auth.currentUser) return;
+  try {
+    const snap = await db.collection('tikka-prep/nnc-iss/records').get();
+    const n = v => parseFloat(v) || 0;
+    const RAW = ['raw_white_line','raw_dark_line','raw_bulk_white','raw_bulk_dark','renton_dark_raw','renton_white_raw'];
+    const COOKED = ['cooked_white_line','cooked_dark_line','cooked_bulk_white','cooked_bulk_dark','renton_dark_cooked','renton_white_cooked'];
+    let fixed = 0; const writes = [];
+    snap.forEach(doc => {
+      const d = doc.data(); const upd = {};
+      const raw = RAW.reduce((a, k) => a + n(d[k]), 0);
+      const cooked = COOKED.reduce((a, k) => a + n(d[k]), 0);
+      if (n(d.total_raw) === 0 && raw !== 0) upd.total_raw = raw;
+      if (n(d.total_cooked) === 0 && cooked !== 0) upd.total_cooked = cooked;
+      if (Object.keys(upd).length) { writes.push(doc.ref.set(upd, { merge: true })); fixed++; }
+    });
+    await Promise.all(writes);
+    try { localStorage.setItem(FLAG, new Date().toISOString()); } catch (e) {}
+    if (fixed) { showToast('Fixed missing tikka totals on ' + fixed + ' past days'); loadWeekData(); }
+  } catch (err) { console.error('Tikka totals backfill error:', err); }
 }
 
 // Auth state observer

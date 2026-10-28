@@ -194,6 +194,10 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 
 .toast{position:fixed;bottom:24px;right:24px;background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:.85rem;font-weight:500;z-index:200;transform:translateY(100px);opacity:0;transition:all .3s}
 .toast.show{transform:translateY(0);opacity:1}
+.autosave-status{display:inline-block;margin-top:10px;font-size:.85rem;font-weight:600;padding:6px 12px;border-radius:999px}
+.autosave-status.ok{color:#047857;background:#d1fae5}
+.autosave-status.busy{color:#92400e;background:#fef3c7}
+.autosave-status.err{color:#991b1b;background:#fee2e2}
 
 .hidden{display:none!important}
 
@@ -330,7 +334,8 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   <div class="table-wrap" id="mainContent"></div>
 
   <div style="text-align:center;padding:20px 0">
-    <button class="btn btn-success" onclick="saveData(loadData());showToast('All data saved!')" style="min-width:220px;font-size:1rem;padding:12px 24px">💾 Save All Data</button>
+    <button class="btn btn-success" onclick="_commitActiveField();saveData(loadData());showToast(_pendingDayWrites>0?'Saving… keep this page open a moment':'All changes are saved')" style="min-width:220px;font-size:1rem;padding:12px 24px">💾 Save Now</button>
+    <div><span id="autosaveStatus" class="autosave-status ok">✓ All changes saved automatically</span></div>
   </div>
 </div>
 
@@ -606,15 +611,84 @@ async function syncDataToFirestore(d){
       lastSync:new Date()
     },{merge:true}).catch(err=>console.error('Firestore config sync error (non-fatal):',err));
   }
-  // Save each day's data — all signed-in users are allowed
+  // Save ONLY the days that changed since the last sync. Previously every save
+  // re-wrote every day in history (~300 docs per keystroke), which backed up the
+  // write queue so the last items entered were lost when the tab closed, and let
+  // stale copies on one device overwrite newer data from another.
+  // (Ported from produce-daily.html Oct 16 2026 fix on Oct 28 2026.)
   if(d.days){
     Object.keys(d.days).forEach(dateKey=>{
-      if(dateKey!=='__meta'){
-        db.collection('days').doc(dateKey).set(d.days[dateKey],{merge:true})
-          .catch(err=>console.error('Error saving day data:',err));
-      }
+      if(dateKey==='__meta')return;
+      const json=JSON.stringify(d.days[dateKey]);
+      if(_syncedDays[dateKey]===json)return;
+      _syncedDays[dateKey]=json;
+      _pendingDayWrites++;_updateSaveStatus();
+      // JSON round-trip strips undefined values, which Firestore rejects
+      db.collection('days').doc(dateKey).set(JSON.parse(json),{merge:true})
+        .then(()=>{_saveFailed=false})
+        .catch(err=>{delete _syncedDays[dateKey];_saveFailed=true;console.error('Error saving day data:',err);
+          if(typeof showToast==='function')showToast('Save failed for '+dateKey+'. Do not close this page; check your connection.');})
+        .finally(()=>{_pendingDayWrites--;_updateSaveStatus()});
     });
   }
+}
+// Snapshot of each day as last read from / written to Firestore, so we only write real changes
+const _syncedDays={};
+let _pendingDayWrites=0;
+function markDaysSynced(days){
+  Object.keys(days||{}).forEach(k=>{_syncedDays[k]=JSON.stringify(days[k])});
+}
+// Warn before closing while saves are still on their way to the database
+window.addEventListener('beforeunload',e=>{
+  _commitActiveField();
+  if(_pendingDayWrites>0||_saveFailed){e.preventDefault();e.returnValue='Still saving. Wait a few seconds before closing.';return e.returnValue}
+});
+
+// ==================== AUTOSAVE STATUS + SAFETY NET (Oct 28 2026) ====================
+// Every field already saves as soon as it changes. This block makes that visible
+// to staff and closes the two gaps where entries were still being lost:
+//  1. A number typed into a box only saves when the box loses focus. If the tab was
+//     closed or the tablet locked while the cursor was still in the box, it never saved.
+//  2. If the tab closed before the database confirmed a save, the entry sat only in this
+//     device's local copy, which was then overwritten by the database copy on next open.
+let _saveFailed=false;
+function _updateSaveStatus(){
+  const el=document.getElementById('autosaveStatus');if(!el)return;
+  if(_saveFailed){el.textContent='⚠ Not saved. Check wifi and do not close this page.';el.className='autosave-status err'}
+  else if(_pendingDayWrites>0){el.textContent='Saving…';el.className='autosave-status busy'}
+  else{el.textContent='✓ All changes saved automatically';el.className='autosave-status ok'}
+}
+// Commit whatever is in the box the cursor is in (fires its normal onchange save)
+function _commitActiveField(){
+  const a=document.activeElement;
+  if(a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)&&a.type!=='password')a.blur();
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')_commitActiveField()});
+window.addEventListener('pagehide',_commitActiveField);
+// On sign-in, before the database copy replaces this device's copy, keep any entries
+// for today or later that exist on this device but never reached the database.
+// Only fills blanks. It never overwrites a value that is already in the database.
+function _recoverUnsyncedDays(fsDays){
+  let local;try{local=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')}catch(e){local=null}
+  if(!local||!local.days||!fsDays)return 0;
+  const today=dk(new Date());let count=0;
+  const blank=v=>v===undefined||v===null||v==='';
+  Object.keys(local.days).forEach(dateKey=>{
+    if(dateKey==='__meta'||dateKey<today)return;
+    const ld=local.days[dateKey];if(!ld||typeof ld!=='object')return;
+    if(!fsDays[dateKey])fsDays[dateKey]={};
+    const sd=fsDays[dateKey];
+    Object.keys(ld).forEach(itemId=>{
+      if(itemId==='__meta')return;
+      const li=ld[itemId];if(!li||typeof li!=='object'||Array.isArray(li))return;
+      if(!sd[itemId]||typeof sd[itemId]!=='object')sd[itemId]={};
+      Object.keys(li).forEach(f=>{
+        if(blank(li[f]))return;
+        if(blank(sd[itemId][f])){sd[itemId][f]=li[f];if(itemId!=='__sendTo')count++}
+      });
+    });
+  });
+  return count;
 }
 async function loadDataFromFirestore(){
   if(!currentUser)return null;
@@ -929,7 +1003,11 @@ auth.onAuthStateChanged(async(user)=>{
 
     // Try to load data from Firestore
     const fsData=await loadDataFromFirestore();
+    let _recovered=0;
     if(fsData){
+      // Mark what the database has, then pull back any unsaved entries from this device
+      markDaysSynced(fsData.days);
+      _recovered=_recoverUnsyncedDays(fsData.days);
       // Update local cache with Firestore data
       try{localStorage.setItem(STORAGE_KEY,JSON.stringify(fsData))}catch(e){}
       items=fsData.items;
@@ -945,6 +1023,10 @@ auth.onAuthStateChanged(async(user)=>{
     // Start the app
     if(typeof render==='function'){render()}
     if(typeof goToToday==='function'){goToToday()}
+    if(_recovered>0){
+      syncDataToFirestore(loadData()).catch(err=>console.error('Recovery sync error:',err));
+      showToast('Recovered '+_recovered+' unsaved '+(_recovered===1?'entry':'entries')+' from this device');
+    }
   }else{
     // User is logged out
     currentUser=null;
@@ -996,6 +1078,7 @@ function setupRealtimeListeners(){
         const d=loadData();
         if(!d.days)d.days={};
         d.days[dateKey]=change.doc.data();
+        _syncedDays[dateKey]=JSON.stringify(d.days[dateKey]);
         // Update local cache
         try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}
       }
