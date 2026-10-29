@@ -726,9 +726,9 @@ function renderWeekly() {
       const ds = formatDate(d);
       const val = weekData[ds] ? (weekData[ds][row.key] || 0) : 0;
       wt = Math.round((wt + val) * 100) / 100;
-      body += `<td${ds===ts?' class="today-col"':''}>${(Math.round(val * 100) / 100) || ''}</td>`;
+      body += `<td${ds===ts?' class="today-col"':''}>${(Math.round(val * 100) / 100) || 0}</td>`;
     });
-    body += `<td style="font-weight:700">${wt || ''}</td></tr>`;
+    body += `<td style="font-weight:700">${wt || 0}</td></tr>`;
   });
   document.getElementById('weeklyBody').innerHTML = body;
 }

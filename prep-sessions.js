@@ -32,6 +32,13 @@
 // ============================================================================
 (function () {
   const NAMES_KEY = 'nnc.prepStaffNames';
+  // Staff list (Oct 29 2026). Shown as tap-to-select buttons on every prep page.
+  // To add or remove someone, edit this list (keep it alphabetical) and re-upload this file.
+  // Later this should move to a shared staff list in the database (see CLAUDE.md).
+  const STAFF_ROSTER = [
+    'Adan', 'Antonio', 'Christopher', 'Damian', 'Delfino', 'Enrique', 'Gilberto', 'Humberto',
+    'Juan Carlos', 'Kalet', 'Nectalid', 'Ramon', 'Raymundo', 'Sergio', 'Tarcisio'
+  ];
   const instances = [];
 
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -91,6 +98,11 @@
 .ps-person{display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:999px;padding:4px 6px 4px 12px;font-weight:600;font-size:.85rem}
 .ps-person button{border:none;background:#d1fae5;color:#065f46;border-radius:50%;width:22px;height:22px;cursor:pointer;font-weight:700;line-height:1}
 .ps-addrow{display:flex;gap:6px}
+.ps-roster{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.ps-pick{border:1.5px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:999px;padding:9px 14px;font-weight:600;font-size:.92rem;cursor:pointer}
+.ps-pick.on{background:#059669;border-color:#059669;color:#fff}
+.ps-other{margin-top:4px}
+.ps-other summary{font-size:.8rem;font-weight:600;color:#475569;cursor:pointer;padding:4px 0}
 .ps-full{grid-column:1/-1}
 .ps-warn{font-size:.8rem;color:#b91c1c;font-weight:600;margin-top:6px}
 .ps-status{font-size:.78rem;font-weight:600;color:#64748b;margin-top:8px;text-align:right}
@@ -106,6 +118,7 @@
 .ps-total{background:#ecfeff;border:1px solid #a5f3fc;color:#155e75;border-radius:8px;padding:5px 10px;font-size:.8rem;font-weight:600}
 .ps-total b{color:#0e7490}
 .ps-note{font-size:.78rem;color:#0f766e;font-weight:600;margin-bottom:10px}
+.ps-total-task{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#334155;margin:2px 0 6px}
 input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!important;color:#155e75!important;font-weight:700}
 @media (max-width:520px){.ps-grid{grid-template-columns:1fr}}
 `;
@@ -301,6 +314,12 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       inst.changed();
       if (refocus) { const again = document.getElementById(inputId); if (again) again.focus(); }
     };
+    inst.togglePerson = function (id, rosterIdx) {
+      const s = find(id); const name = STAFF_ROSTER[rosterIdx]; if (!s || !name) return;
+      const i = s.staff.findIndex(x => x.toLowerCase() === name.toLowerCase());
+      if (i >= 0) s.staff.splice(i, 1); else s.staff.push(name);
+      inst.changed();
+    };
     inst.removePerson = function (id, idx) { const s = find(id); if (!s) return; s.staff.splice(idx, 1); inst.changed(); };
     inst.remove = function (id) {
       if (inst.confirmRemove !== id) { inst.confirmRemove = id; inst.render(); setTimeout(() => { if (inst.confirmRemove === id) { inst.confirmRemove = null; inst.render(); } }, 4000); return; }
@@ -339,12 +358,17 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
         h += `<div class="ps-field"><label>Start</label><div class="ps-timebox"><input type="time" value="${esc(s.start)}" onchange="${me}.set('${s.id}','start',this.value)"><button type="button" class="ps-btn ps-now" onclick="${me}.now('${s.id}','start')">Now</button></div></div>`;
         h += `<div class="ps-field"><label>End</label><div class="ps-timebox"><input type="time" value="${esc(s.end)}" onchange="${me}.set('${s.id}','end',this.value)"><button type="button" class="ps-btn ps-now" onclick="${me}.now('${s.id}','end')">Now</button></div></div>`;
         const inId = `${opts.mountId}_p_${s.id}`;
-        h += `<div class="ps-field ps-full"><label>Who worked</label><div class="ps-people">` +
-          s.staff.map((n, idx) => `<span class="ps-person">${esc(n)}<button type="button" aria-label="Remove ${esc(n)}" onclick="${me}.removePerson('${s.id}',${idx})">×</button></span>`).join('') +
-          `</div><div class="ps-addrow"><input type="text" id="${inId}" list="psStaffNames" placeholder="Type a name" autocomplete="off"
+        const onRoster = n => STAFF_ROSTER.some(r => r.toLowerCase() === n.toLowerCase());
+        const picked = n => s.staff.some(x => x.toLowerCase() === n.toLowerCase());
+        const others = s.staff.map((n, idx) => ({ n, idx })).filter(o => !onRoster(o.n));
+        h += `<div class="ps-field ps-full"><label>Who worked (tap all that apply)</label><div class="ps-roster">` +
+          STAFF_ROSTER.map((n, i) => `<button type="button" class="ps-pick${picked(n) ? ' on' : ''}" aria-pressed="${picked(n)}" onclick="${me}.togglePerson('${s.id}',${i})">${picked(n) ? '✓ ' : ''}${esc(n)}</button>`).join('') +
+          `</div>` +
+          (others.length ? `<div class="ps-people">` + others.map(o => `<span class="ps-person">${esc(o.n)}<button type="button" aria-label="Remove ${esc(o.n)}" onclick="${me}.removePerson('${s.id}',${o.idx})">×</button></span>`).join('') + `</div>` : '') +
+          `<details class="ps-other"${others.length ? ' open' : ''}><summary>Someone not on the list?</summary><div class="ps-addrow"><input type="text" id="${inId}" list="psStaffNames" placeholder="Type their name" autocomplete="off"
             onkeydown="if(event.key==='Enter'){event.preventDefault();${me}.addPerson('${s.id}','${inId}',true)}"
-            onblur="if(this.value.trim())${me}.addPerson('${s.id}','${inId}')"><button type="button" class="ps-btn ps-addp" onmousedown="event.preventDefault()" onclick="${me}.addPerson('${s.id}','${inId}',true)">Add</button></div>
-            ${!s.staff.length ? '<div class="ps-warn">Add at least one name</div>' : ''}</div>`;
+            onblur="if(this.value.trim())${me}.addPerson('${s.id}','${inId}')"><button type="button" class="ps-btn ps-addp" onmousedown="event.preventDefault()" onclick="${me}.addPerson('${s.id}','${inId}',true)">Add</button></div></details>
+            ${!s.staff.length ? '<div class="ps-warn">Tap at least one name</div>' : ''}</div>`;
         const qf = inst.qtyFor(s.task);
         if (qf.length) {
           h += `<div class="ps-qty"><div class="ps-qty-title">What was done this session</div><div class="ps-qty-grid">` +
@@ -366,8 +390,17 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       if (!fieldsList.length) return '';
       const t = inst.totals();
       if (!t.hasQty) return `<div class="ps-note">Enter what was done in each session and the day totals above fill in automatically.</div>`;
-      return `<div class="ps-note">Day totals above are added up from these sessions.</div><div class="ps-totals">` +
-        fieldsList.filter(f => t.sums[f.key] && !f.noTotal).map(f => `<span class="ps-total">${esc(f.label)}: <b>${Math.round(t.sums[f.key] * 100) / 100}</b></span>`).join('') + `</div>`;
+      const chips = list => list.filter(f => t.sums[f.key] && !f.noTotal).map(f => `<span class="ps-total">${esc(f.label)}: <b>${Math.round(t.sums[f.key] * 100) / 100}</b></span>`).join('');
+      let out = `<div class="ps-note">Day totals above are added up from these sessions.</div>`;
+      // Per-task quantities: one row of totals per task (e.g. Cut Korma / Only Clean)
+      if (!Array.isArray(opts.quantities)) {
+        inst.tasks.forEach(task => {
+          const c = chips(inst.qtyFor(task.key));
+          if (c) out += `<div class="ps-total-task">${esc(task.label)}</div><div class="ps-totals">${c}</div>`;
+        });
+        return out;
+      }
+      return out + `<div class="ps-totals">${chips(fieldsList)}</div>`;
     };
     inst.summaryHTML = function () {
       const f = inst.fields();
@@ -413,7 +446,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       const el = document.getElementById(k); if (!el) return;
       if (t.hasQty) {
         const v = t.sums[k] || 0;
-        el.value = v ? Math.round(v * 100) / 100 : '';
+        el.value = Math.round(v * 100) / 100;
         if (!el.hasAttribute('readonly')) { el.setAttribute('readonly', true); el.dataset.psSum = '1'; }
         el.classList.add('ps-from-sessions'); el.title = 'Added up from the Time & Staff sessions';
       } else if (el.classList.contains('ps-from-sessions')) {

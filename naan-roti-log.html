@@ -1094,7 +1094,7 @@ function weeklyRows(rows, dates, prepMap, usageMap, todayStr) {
       return;
     }
     const fmt = v => {
-      if (!v) return '';
+      if (!v) v = 0; // show 0, not blank (Oct 29 2026)
       return row.decimals ? Number(v).toFixed(row.decimals) : v;
     };
     const cls = row.rowClass ? ` class="total-row ${row.rowClass}"` : '';

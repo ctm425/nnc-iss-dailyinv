@@ -218,7 +218,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="content">
 
   <div class="section">
-    <div class="section-header">🍗 Raw Chicken — Daily Processing</div>
+    <div class="section-header">🍗 Cut Korma — Daily Totals</div>
     <div class="section-body">
       <div class="form-row">
         <label>Cases Opened:<span class="hint">Number of full cases opened today</span></label>
@@ -267,9 +267,47 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
     </div>
   </div>
 
+  <!-- ONLY CLEAN (Oct 29 2026): chicken that is cleaned but not cut into korma.
+       Same water-loss math as korma: water = cases x 40 - (clean chicken + fat). -->
+  <div class="section">
+    <div class="section-header" style="background:linear-gradient(135deg,#0f766e,#14b8a6)">🧼 Only Clean — Daily Totals</div>
+    <div class="section-body">
+      <div class="form-row">
+        <label>Cases Opened:<span class="hint">Cases cleaned only (not cut)</span></label>
+        <input type="number" id="cleaned_cases" min="0" step="0.5" oninput="calcClean()">
+      </div>
+      <div class="form-row">
+        <label>Weight of Full Cases:<span class="hint">= Cases Opened × 40 lbs</span></label>
+        <input type="number" id="cleaned_full_weight" class="auto" readonly>
+      </div>
+      <hr class="divider">
+      <div class="form-row">
+        <label>Clean Chicken:<span class="hint">Pounds of clean chicken</span></label>
+        <input type="number" id="cleaned_weight" min="0" step="0.1" oninput="calcClean()">
+      </div>
+      <div class="form-row">
+        <label>Small Pieces Weight:<span class="hint">Weight of small pieces in lbs</span></label>
+        <input type="number" id="cleaned_small_pieces" min="0" step="0.1" oninput="calcClean()">
+      </div>
+      <div class="form-row">
+        <label>Fat Weight:<span class="hint">Fat removed while cleaning, in lbs</span></label>
+        <input type="number" id="cleaned_fat" min="0" step="0.1" oninput="calcClean()">
+      </div>
+      <hr class="divider">
+      <div class="totals-row">
+        <label>Total Clean + Small Pieces + Fat:</label>
+        <div class="total-val" id="cleaned_total">0</div>
+      </div>
+      <div class="totals-row">
+        <label>Water Loss:</label>
+        <div class="total-val" id="cleaned_water">0</div>
+      </div>
+    </div>
+  </div>
+
   <!-- TIME & STAFF (prep-sessions.js, Oct 29 2026) -->
   <div class="section">
-    <div style="padding:14px 20px;font-size:1.05rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#334155,#475569)">⏱️ Time & Staff — Chicken Cutting</div>
+    <div style="padding:14px 20px;font-size:1.05rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#334155,#475569)">⏱️ Time & Staff — Chicken</div>
     <div class="section-body"><div id="psMain"></div></div>
   </div>
 
@@ -374,6 +412,11 @@ const FIELD_DEFS = [
   { key: 'weight_non_15lb', label: 'Non-15lb Weight', color: '#a855f7', default: false },
   { key: 'weight_small_pieces', label: 'Small Pieces', color: '#ec4899', default: false },
   { key: 'weight_fat', label: 'Fat', color: '#f43f5e', default: false },
+  { key: 'cleaned_cases', label: 'Clean Cases', color: '#0d9488', default: false },
+  { key: 'cleaned_weight', label: 'Clean Chicken', color: '#0f766e', default: false },
+  { key: 'cleaned_small_pieces', label: 'Clean Small Pieces', color: '#115e59', default: false },
+  { key: 'cleaned_fat', label: 'Clean Fat', color: '#14b8a6', default: false },
+  { key: 'cleaned_water', label: 'Clean Water Loss', color: '#06b6d4', default: false },
   { key: 'total_chicken_weight', label: 'Total Weight', color: '#059669', default: true },
   { key: 'total_water', label: 'Water Loss', color: '#dc2626', default: true }
 ];
@@ -482,6 +525,15 @@ function calcChicken() {
   calcChickenTotals();
 }
 
+// Only Clean: water = cases x 40 - (clean chicken + small pieces + fat), same as korma
+function calcClean() {
+  const full = num('cleaned_cases') * 40;
+  document.getElementById('cleaned_full_weight').value = full;
+  const total = num('cleaned_weight') + num('cleaned_small_pieces') + num('cleaned_fat');
+  document.getElementById('cleaned_total').textContent = total.toFixed(1);
+  document.getElementById('cleaned_water').textContent = (full - total).toFixed(1);
+}
+
 // Totals from whatever is in the weight boxes (so an owner override on a past day counts)
 function calcChickenTotals() {
   // Total chicken weight = 15lb bags + Non-15lb + Small pieces + Fat
@@ -536,6 +588,13 @@ function collectData() {
     weight_non_15lb: r1(num('weight_non_15lb')),
     weight_small_pieces: r1(num('weight_small_pieces')),
     weight_fat: r1(num('weight_fat')),
+    cleaned_cases: r1(num('cleaned_cases')),
+    cleaned_full_weight: r1(num('cleaned_cases') * 40),
+    cleaned_weight: r1(num('cleaned_weight')),
+    cleaned_small_pieces: r1(num('cleaned_small_pieces')),
+    cleaned_fat: r1(num('cleaned_fat')),
+    cleaned_total: r1(parseFloat(document.getElementById('cleaned_total').textContent) || 0),
+    cleaned_water: r1(parseFloat(document.getElementById('cleaned_water').textContent) || 0),
     total_chicken_weight: r1(parseFloat(document.getElementById('total_chicken_weight').textContent) || 0),
     total_water: r1(parseFloat(document.getElementById('total_water').textContent) || 0),
     updatedAt: new Date().toISOString(),
@@ -564,7 +623,8 @@ async function saveData() {
 async function loadDayData() {
   if (!auth.currentUser) return;
   const ds = formatDate(currentDate);
-  ['cases_opened','bags_15lb','non_15lb_count','weight_non_15lb','weight_small_pieces','weight_fat'].forEach(f => { document.getElementById(f).value = ''; });
+  ['cases_opened','bags_15lb','non_15lb_count','weight_non_15lb','weight_small_pieces','weight_fat','cleaned_cases','cleaned_weight','cleaned_small_pieces','cleaned_fat','cleaned_full_weight'].forEach(f => { document.getElementById(f).value = ''; });
+  ['cleaned_total','cleaned_water'].forEach(f => { document.getElementById(f).textContent = '0'; });
   ['weight_full_cases','weight_15lb_bags'].forEach(f => { document.getElementById(f).value = ''; });
   document.getElementById('total_chicken_weight').textContent = '0';
   document.getElementById('total_water').textContent = '0';
@@ -572,15 +632,20 @@ async function loadDayData() {
     const doc = await db.doc(docPath(ds)).get();
     if (doc.exists) {
       const d = doc.data();
-      document.getElementById('cases_opened').value = d.cases_opened || '';
-      document.getElementById('bags_15lb').value = d.bags_15lb || '';
-      document.getElementById('non_15lb_count').value = d.non_15lb_count || '';
-      document.getElementById('weight_non_15lb').value = d.weight_non_15lb || '';
-      document.getElementById('weight_small_pieces').value = d.weight_small_pieces || '';
-      document.getElementById('weight_fat').value = d.weight_fat || '';
+      document.getElementById('cases_opened').value = d.cases_opened || 0;
+      document.getElementById('bags_15lb').value = d.bags_15lb || 0;
+      document.getElementById('non_15lb_count').value = d.non_15lb_count || 0;
+      document.getElementById('weight_non_15lb').value = d.weight_non_15lb || 0;
+      document.getElementById('weight_small_pieces').value = d.weight_small_pieces || 0;
+      document.getElementById('weight_fat').value = d.weight_fat || 0;
+      document.getElementById('cleaned_cases').value = d.cleaned_cases || 0;
+      document.getElementById('cleaned_weight').value = d.cleaned_weight || 0;
+      document.getElementById('cleaned_small_pieces').value = d.cleaned_small_pieces || 0;
+      document.getElementById('cleaned_fat').value = d.cleaned_fat || 0;
+      calcClean();
       if (isHistorical()) {
-        document.getElementById('weight_full_cases').value = d.weight_full_cases || '';
-        document.getElementById('weight_15lb_bags').value = d.weight_15lb_bags || '';
+        document.getElementById('weight_full_cases').value = d.weight_full_cases || 0;
+        document.getElementById('weight_15lb_bags').value = d.weight_15lb_bags || 0;
         // Totals are derived from the boxes above, so recompute instead of trusting the saved
         // value (saved totals were always 0 before the Oct 28 2026 fix)
         calcChickenTotals();
@@ -623,6 +688,11 @@ function renderWeekly() {
     { label: 'Fat', key: 'weight_fat' },
     { label: 'Total Chicken Weight', key: 'total_chicken_weight', rowClass: 'total-row' },
     { label: 'Water', key: 'total_water', rowClass: 'total-row' },
+    { label: 'Only Clean — Cases', key: 'cleaned_cases' },
+    { label: 'Only Clean — Clean Chicken', key: 'cleaned_weight' },
+    { label: 'Only Clean — Small Pieces', key: 'cleaned_small_pieces' },
+    { label: 'Only Clean — Fat', key: 'cleaned_fat' },
+    { label: 'Only Clean — Water', key: 'cleaned_water', rowClass: 'total-row' },
     { label: 'Staff Hours', key: 'labor_hours', rowClass: 'total-row' }
   ];
 
@@ -635,9 +705,9 @@ function renderWeekly() {
       const ds = formatDate(d);
       const val = weekData[ds] ? (weekData[ds][row.key] || 0) : 0;
       wt = Math.round((wt + val) * 10) / 10;
-      body += `<td${ds===ts?' class="today-col"':''}>${(Math.round(val * 10) / 10) || ''}</td>`;
+      body += `<td${ds===ts?' class="today-col"':''}>${(Math.round(val * 10) / 10) || 0}</td>`;
     });
-    body += `<td style="font-weight:700">${wt || ''}</td></tr>`;
+    body += `<td style="font-weight:700">${wt || 0}</td></tr>`;
   });
   document.getElementById('weeklyBody').innerHTML = body;
 }
@@ -912,12 +982,12 @@ function doLogout() { auth.signOut(); }
 PrepSessions.create({
   mountId: 'psMain',
   decimals: 1,
-  quantities: [{"key": "cases_opened", "label": "Cases opened", "step": 0.5}, {"key": "bags_15lb", "label": "15 lb bags", "step": 1}, {"key": "non_15lb_count", "label": "Non-15 lb bags (count)", "step": 1}, {"key": "weight_non_15lb", "label": "Non-15 lb bags weight (lbs)", "step": 0.1}, {"key": "weight_small_pieces", "label": "Small pieces (lbs)", "step": 0.1}, {"key": "weight_fat", "label": "Fat (lbs)", "step": 0.1}],
-  onTotals: t => PrepSessions.applyDaySums(t, ["cases_opened", "bags_15lb", "non_15lb_count", "weight_non_15lb", "weight_small_pieces", "weight_fat"], calcChicken),
+  quantities: {"cutting": [{"key": "cases_opened", "label": "Cases opened", "step": 0.5}, {"key": "bags_15lb", "label": "15 lb bags", "step": 1}, {"key": "non_15lb_count", "label": "Non-15 lb bags (count)", "step": 1}, {"key": "weight_non_15lb", "label": "Non-15 lb bags weight (lbs)", "step": 0.1}, {"key": "weight_small_pieces", "label": "Small pieces (lbs)", "step": 0.1}, {"key": "weight_fat", "label": "Fat (lbs)", "step": 0.1}], "cleaning": [{"key": "cleaned_cases", "label": "Cases opened", "step": 0.5}, {"key": "cleaned_weight", "label": "Clean chicken (lbs)", "step": 0.1}, {"key": "cleaned_small_pieces", "label": "Small pieces (lbs)", "step": 0.1}, {"key": "cleaned_fat", "label": "Fat (lbs)", "step": 0.1}]},
+  onTotals: t => PrepSessions.applyDaySums(t, ["cases_opened", "bags_15lb", "non_15lb_count", "weight_non_15lb", "weight_small_pieces", "weight_fat", "cleaned_cases", "cleaned_weight", "cleaned_small_pieces", "cleaned_fat"], () => { calcChicken(); calcClean(); }),
   extraWrites: ds => [{ path: docPath(ds), data: collectData() }],
   collectionPath: 'chicken-prep/nnc-iss/records',
   field: 'sessions', prefix: '',
-  tasks: [{"key": "cutting", "label": "Cutting & bagging chicken"}],
+  tasks: [{"key": "cutting", "label": "Cut Korma"}, {"key": "cleaning", "label": "Only Clean"}],
   getDate: () => formatDate(currentDate),
   isLocked: () => isHistorical() && !isOwner(),
   onSaved: (ds, f) => {
