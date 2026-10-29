@@ -341,6 +341,12 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
     </div>
   </div>
 
+  <!-- TIME & STAFF (prep-sessions.js, Oct 29 2026) -->
+  <div class="section">
+    <div style="padding:14px 20px;font-size:1.05rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#334155,#475569)">⏱️ Time & Staff — Packing</div>
+    <div class="section-body"><div id="psMain"></div></div>
+  </div>
+
   <!-- Weekly Summary -->
   <div class="weekly-summary">
     <div class="weekly-header">📊 Packing — Weekly Summary</div>
@@ -419,6 +425,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="toast" id="toast"></div>
 
 <script src="shared.js?v=20260405"></script>
+<script src="prep-sessions.js?v=20261029"></script>
 <script>
 // ==================== STATE ====================
 let currentDate = new Date();
@@ -518,13 +525,15 @@ function getWeekDates(d) {
 }
 
 function setDate(d) {
+  PrepSessions.flushAll(); // save any pending session edits for the day being left
   currentDate = new Date(d);
   document.getElementById('datePicker').value = formatDate(currentDate);
   document.getElementById('dayName').textContent = getDayName(currentDate);
   applyEditMode();
   isDirty = false;
-  loadDayData();
+  loadDayData().then(() => PrepSessions.reapply());
   loadWeekData();
+  PrepSessions.loadAll();
 }
 
 function changeDate(delta) { const d = new Date(currentDate); d.setDate(d.getDate()+delta); setDate(d); }
@@ -562,6 +571,7 @@ function collectData() {
     updatedAt: new Date().toISOString(),
     updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
   };
+  Object.assign(data, PrepSessions.fieldsAll());
   return data;
 }
 
@@ -638,7 +648,8 @@ function renderWeekly() {
     { label: 'Lamb Chops — Lbs from Renton', key: 'lambchops_lbs' },
     { label: 'Lamb Chops — Orders Packed', key: 'lambchops_orders' },
     { label: 'Boti Kabab — Lbs from Renton', key: 'botikabab_lbs' },
-    { label: 'Boti Kabab — Orders Packed', key: 'botikabab_orders' }
+    { label: 'Boti Kabab — Orders Packed', key: 'botikabab_orders' },
+    { label: 'Staff Hours', key: 'labor_hours', rowClass: 'total-row' }
   ];
 
   let body = '';
@@ -648,8 +659,8 @@ function renderWeekly() {
     dates.forEach(d => {
       const ds = formatDate(d);
       const val = weekData[ds] ? (weekData[ds][row.key] || 0) : 0;
-      wt += val;
-      body += `<td${ds===ts?' class="today-col"':''}>${val || ''}</td>`;
+      wt = Math.round((wt + val) * 100) / 100;
+      body += `<td${ds===ts?' class="today-col"':''}>${(Math.round(val * 100) / 100) || ''}</td>`;
     });
     body += `<td style="font-weight:700">${wt || ''}</td></tr>`;
   });
@@ -937,6 +948,25 @@ function doLogin() {
   auth.signInWithEmailAndPassword(email, pw).catch(err => { errEl.textContent = err.message; errEl.style.display = 'block'; });
 }
 function doLogout() { auth.signOut(); }
+
+// ==================== TIME & STAFF SESSIONS (Oct 29 2026) ====================
+PrepSessions.create({
+  mountId: 'psMain',
+  quantities: {"haleem": [{"key": "haleem_trays", "label": "Haleem trays", "step": 1}, {"key": "haleem_bags", "label": "Haleem ziploc bags", "step": 1}, {"key": "haleem_renton", "label": "Haleem bags sent to Renton", "step": 1}], "keema": [{"key": "keema_trays", "label": "Keema trays", "step": 1}, {"key": "keema_bags", "label": "Keema ziploc bags", "step": 1}, {"key": "keema_renton", "label": "Keema bags sent to Renton", "step": 1}], "seekh": [{"key": "seekh_chicken", "label": "Chicken seekh count", "step": 1}, {"key": "seekh_lamb", "label": "Lamb seekh count", "step": 1}], "karela": [{"key": "karela_cases", "label": "Karela cases", "step": 1}, {"key": "karela_bags", "label": "Karela ziploc bags", "step": 1}, {"key": "karela_renton", "label": "Karela bags sent to Renton", "step": 1}], "nehari": [{"key": "nehari_bags", "label": "Nehari sauce bags", "step": 1}, {"key": "nehari_renton", "label": "Nehari bags sent to Renton", "step": 1}], "lambchops": [{"key": "lambchops_lbs", "label": "Lamb chops lbs from Renton", "step": 0.5}, {"key": "lambchops_orders", "label": "Lamb chop orders packed", "step": 1}], "botikabab": [{"key": "botikabab_lbs", "label": "Boti kabab lbs from Renton", "step": 0.5}, {"key": "botikabab_orders", "label": "Boti kabab orders packed", "step": 1}]},
+  onTotals: t => PrepSessions.applyDaySums(t, ["haleem_trays", "haleem_bags", "haleem_renton", "keema_trays", "keema_bags", "keema_renton", "seekh_chicken", "seekh_lamb", "karela_cases", "karela_bags", "karela_renton", "nehari_bags", "nehari_renton", "lambchops_lbs", "lambchops_orders", "botikabab_lbs", "botikabab_orders"], null),
+  extraWrites: ds => [{ path: docPath(ds), data: collectData() }],
+  collectionPath: 'packing-log/nnc-iss/records',
+  field: 'sessions', prefix: '',
+  tasks: [{"key": "haleem", "label": "Haleem"}, {"key": "keema", "label": "Keema"}, {"key": "seekh", "label": "Seekh Kabab"}, {"key": "karela", "label": "Karela"}, {"key": "nehari", "label": "Nehari Sauce"}, {"key": "lambchops", "label": "Lamb Chops"}, {"key": "botikabab", "label": "Lamb Boti Kabab"}],
+  getDate: () => formatDate(currentDate),
+  isLocked: () => isHistorical() && !isOwner(),
+  onSaved: (ds, f) => {
+    if (!getWeekDates(currentDate).some(d => formatDate(d) === ds)) return;
+    weekData[ds] = Object.assign(weekData[ds] || {}, f);
+    renderWeekly();
+    isDirty = false;
+  }
+});
 
 auth.onAuthStateChanged(async user => {
   if (user) {

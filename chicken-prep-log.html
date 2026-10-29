@@ -244,16 +244,16 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
       </div>
       <div class="form-row">
         <label>Weight of Non-15lb Bags:<span class="hint">Total weight in lbs</span></label>
-        <input type="number" id="weight_non_15lb" min="0" step="0.5" oninput="calcChicken()">
+        <input type="number" id="weight_non_15lb" min="0" step="0.1" oninput="calcChicken()">
       </div>
       <hr class="divider">
       <div class="form-row">
         <label>Small Pieces Weight:<span class="hint">Weight of small pieces in lbs</span></label>
-        <input type="number" id="weight_small_pieces" min="0" step="0.5" oninput="calcChicken()">
+        <input type="number" id="weight_small_pieces" min="0" step="0.1" oninput="calcChicken()">
       </div>
       <div class="form-row">
         <label>Fat Weight:<span class="hint">Weight of fat rendered in lbs</span></label>
-        <input type="number" id="weight_fat" min="0" step="0.5" oninput="calcChicken()">
+        <input type="number" id="weight_fat" min="0" step="0.1" oninput="calcChicken()">
       </div>
       <hr class="divider">
       <div class="totals-row">
@@ -265,6 +265,12 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
         <div class="total-val" id="total_water">0</div>
       </div>
     </div>
+  </div>
+
+  <!-- TIME & STAFF (prep-sessions.js, Oct 29 2026) -->
+  <div class="section">
+    <div style="padding:14px 20px;font-size:1.05rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#334155,#475569)">⏱️ Time & Staff — Chicken Cutting</div>
+    <div class="section-body"><div id="psMain"></div></div>
   </div>
 
   <!-- Weekly Summary -->
@@ -348,6 +354,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="toast" id="toast"></div>
 
 <script src="shared.js?v=20260405"></script>
+<script src="prep-sessions.js?v=20261029"></script>
 <script>
 // ==================== STATE ====================
 let currentDate = new Date();
@@ -444,12 +451,14 @@ function openEditRequest() {
 }
 
 function setDate(d) {
+  PrepSessions.flushAll(); // save any pending session edits for the day being left
   currentDate = new Date(d);
   document.getElementById('datePicker').value = formatDate(currentDate);
   document.getElementById('dayName').textContent = getDayName(currentDate);
   applyEditMode();
-  loadDayData();
+  loadDayData().then(() => PrepSessions.reapply());
   loadWeekData();
+  PrepSessions.loadAll();
 }
 
 function changeDate(delta) { const d = new Date(currentDate); d.setDate(d.getDate()+delta); setDate(d); }
@@ -511,6 +520,8 @@ async function _backfillChickenTotals() {
 }
 
 function num(id) { return parseFloat(document.getElementById(id).value) || 0; }
+// Round to the nearest 0.1 (Oct 29 2026)
+function r1(x) { return Math.round((Number(x) || 0) * 10) / 10; }
 
 // ==================== FIREBASE ====================
 function docPath(ds) { return `chicken-prep/nnc-iss/records/${ds}`; }
@@ -518,18 +529,19 @@ function docPath(ds) { return `chicken-prep/nnc-iss/records/${ds}`; }
 function collectData() {
   const data = {
     cases_opened: num('cases_opened'),
-    weight_full_cases: num('weight_full_cases'),
+    weight_full_cases: r1(num('weight_full_cases')),
     bags_15lb: num('bags_15lb'),
-    weight_15lb_bags: num('weight_15lb_bags'),
+    weight_15lb_bags: r1(num('weight_15lb_bags')),
     non_15lb_count: num('non_15lb_count'),
-    weight_non_15lb: num('weight_non_15lb'),
-    weight_small_pieces: num('weight_small_pieces'),
-    weight_fat: num('weight_fat'),
-    total_chicken_weight: parseFloat(document.getElementById('total_chicken_weight').textContent) || 0,
-    total_water: parseFloat(document.getElementById('total_water').textContent) || 0,
+    weight_non_15lb: r1(num('weight_non_15lb')),
+    weight_small_pieces: r1(num('weight_small_pieces')),
+    weight_fat: r1(num('weight_fat')),
+    total_chicken_weight: r1(parseFloat(document.getElementById('total_chicken_weight').textContent) || 0),
+    total_water: r1(parseFloat(document.getElementById('total_water').textContent) || 0),
     updatedAt: new Date().toISOString(),
     updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
   };
+  Object.assign(data, PrepSessions.fieldsAll());
   return data;
 }
 
@@ -610,7 +622,8 @@ function renderWeekly() {
     { label: 'Small Pieces', key: 'weight_small_pieces' },
     { label: 'Fat', key: 'weight_fat' },
     { label: 'Total Chicken Weight', key: 'total_chicken_weight', rowClass: 'total-row' },
-    { label: 'Water', key: 'total_water', rowClass: 'total-row' }
+    { label: 'Water', key: 'total_water', rowClass: 'total-row' },
+    { label: 'Staff Hours', key: 'labor_hours', rowClass: 'total-row' }
   ];
 
   let body = '';
@@ -621,8 +634,8 @@ function renderWeekly() {
     dates.forEach(d => {
       const ds = formatDate(d);
       const val = weekData[ds] ? (weekData[ds][row.key] || 0) : 0;
-      wt += val;
-      body += `<td${ds===ts?' class="today-col"':''}>${val || ''}</td>`;
+      wt = Math.round((wt + val) * 10) / 10;
+      body += `<td${ds===ts?' class="today-col"':''}>${(Math.round(val * 10) / 10) || ''}</td>`;
     });
     body += `<td style="font-weight:700">${wt || ''}</td></tr>`;
   });
@@ -830,7 +843,7 @@ function renderRawDataTable() {
   rows.forEach(r => {
     body += '<tr>';
     body += `<td>${r.date}</td>`;
-    FIELD_DEFS.forEach(f => { body += `<td>${r[f.key]}</td>`; });
+    FIELD_DEFS.forEach(f => { body += `<td>${r1(r[f.key])}</td>`; });
     body += '</tr>';
   });
   if (!rows.length) body = `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--gray-400);padding:20px">No data found</td></tr>`;
@@ -850,7 +863,7 @@ function getExportRows() {
     const ds = formatDate(d);
     const v = dataMap[ds];
     const row = { Date: ds };
-    FIELD_DEFS.forEach(f => { row[f.label] = v ? (v[f.key] || 0) : 0; });
+    FIELD_DEFS.forEach(f => { row[f.label] = v ? r1(v[f.key] || 0) : 0; });
     return row;
   }).filter(r => FIELD_DEFS.some(f => r[f.label] !== 0));
 }
@@ -894,6 +907,25 @@ function doLogin() {
   auth.signInWithEmailAndPassword(email, pw).catch(err => { errEl.textContent = err.message; errEl.style.display = 'block'; });
 }
 function doLogout() { auth.signOut(); }
+
+// ==================== TIME & STAFF SESSIONS (Oct 29 2026) ====================
+PrepSessions.create({
+  mountId: 'psMain',
+  decimals: 1,
+  quantities: [{"key": "cases_opened", "label": "Cases opened", "step": 0.5}, {"key": "bags_15lb", "label": "15 lb bags", "step": 1}, {"key": "non_15lb_count", "label": "Non-15 lb bags (count)", "step": 1}, {"key": "weight_non_15lb", "label": "Non-15 lb bags weight (lbs)", "step": 0.1}, {"key": "weight_small_pieces", "label": "Small pieces (lbs)", "step": 0.1}, {"key": "weight_fat", "label": "Fat (lbs)", "step": 0.1}],
+  onTotals: t => PrepSessions.applyDaySums(t, ["cases_opened", "bags_15lb", "non_15lb_count", "weight_non_15lb", "weight_small_pieces", "weight_fat"], calcChicken),
+  extraWrites: ds => [{ path: docPath(ds), data: collectData() }],
+  collectionPath: 'chicken-prep/nnc-iss/records',
+  field: 'sessions', prefix: '',
+  tasks: [{"key": "cutting", "label": "Cutting & bagging chicken"}],
+  getDate: () => formatDate(currentDate),
+  isLocked: () => isHistorical() && !isOwner(),
+  onSaved: (ds, f) => {
+    if (!getWeekDates(currentDate).some(d => formatDate(d) === ds)) return;
+    weekData[ds] = Object.assign(weekData[ds] || {}, f);
+    renderWeekly();
+  }
+});
 
 auth.onAuthStateChanged(async user => {
   if (user) {

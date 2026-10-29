@@ -263,6 +263,12 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
     </div>
   </div>
 
+  <!-- TIME & STAFF (prep-sessions.js, Oct 29 2026) -->
+  <div class="section">
+    <div style="padding:14px 20px;font-size:1.05rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#334155,#475569)">⏱️ Time & Staff — Produce Prep</div>
+    <div class="section-body"><div id="psMain"></div></div>
+  </div>
+
   <!-- Weekly Summary -->
   <div class="weekly-summary">
     <div class="weekly-header">📊 Produce — Weekly Summary</div>
@@ -341,6 +347,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="toast" id="toast"></div>
 
 <script src="shared.js?v=20260405"></script>
+<script src="prep-sessions.js?v=20261029"></script>
 <script>
 // ==================== STATE ====================
 let currentDate = new Date();
@@ -428,12 +435,14 @@ function getWeekDates(d) {
 }
 
 function setDate(d) {
+  PrepSessions.flushAll(); // save any pending session edits for the day being left
   currentDate = new Date(d);
   document.getElementById('datePicker').value = formatDate(currentDate);
   document.getElementById('dayName').textContent = getDayName(currentDate);
   applyEditMode();
-  loadDayData();
+  loadDayData().then(() => PrepSessions.reapply());
   loadWeekData();
+  PrepSessions.loadAll();
 }
 
 function changeDate(delta) { const d = new Date(currentDate); d.setDate(d.getDate()+delta); setDate(d); }
@@ -469,6 +478,7 @@ function collectData() {
     updatedAt: new Date().toISOString(),
     updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
   };
+  Object.assign(data, PrepSessions.fieldsAll());
   return data;
 }
 
@@ -537,7 +547,8 @@ function renderWeekly() {
     { label: 'Potato (Bags)', key: 'potato_bags' },
     { label: 'Paneer Large (Blocks)', key: 'paneer_large' },
     { label: 'Paneer Small (Blocks)', key: 'paneer_small' },
-    { label: 'Paneer Packed Large', key: 'paneer_packed_large' }
+    { label: 'Paneer Packed Large', key: 'paneer_packed_large' },
+    { label: 'Staff Hours', key: 'labor_hours', rowClass: 'total-row' }
   ];
 
   let body = '';
@@ -547,8 +558,8 @@ function renderWeekly() {
     dates.forEach(d => {
       const ds = formatDate(d);
       const val = weekData[ds] ? (weekData[ds][row.key] || 0) : 0;
-      wt += val;
-      body += `<td${ds===ts?' class="today-col"':''}>${val || ''}</td>`;
+      wt = Math.round((wt + val) * 100) / 100;
+      body += `<td${ds===ts?' class="today-col"':''}>${(Math.round(val * 100) / 100) || ''}</td>`;
     });
     body += `<td style="font-weight:700">${wt || ''}</td></tr>`;
   });
@@ -810,6 +821,24 @@ function doLogin() {
   auth.signInWithEmailAndPassword(email, pw).catch(err => { errEl.textContent = err.message; errEl.style.display = 'block'; });
 }
 function doLogout() { auth.signOut(); }
+
+// ==================== TIME & STAFF SESSIONS (Oct 29 2026) ====================
+PrepSessions.create({
+  mountId: 'psMain',
+  quantities: {"onion": [{"key": "onion_bags", "label": "Peeled onion (bags)", "step": 0.5}], "potato": [{"key": "potato_pounds", "label": "Potato (lbs)", "step": 0.5}], "paneer": [{"key": "paneer_large", "label": "Paneer blocks for large", "step": 1}, {"key": "paneer_small", "label": "Paneer blocks for small", "step": 1}, {"key": "paneer_packed_large", "label": "Packed large count", "step": 1}]},
+  onTotals: t => PrepSessions.applyDaySums(t, ["onion_bags", "potato_pounds", "paneer_large", "paneer_small", "paneer_packed_large"], calcProduce),
+  extraWrites: ds => [{ path: docPath(ds), data: collectData() }],
+  collectionPath: 'produce-prep/nnc-iss/records',
+  field: 'sessions', prefix: '',
+  tasks: [{"key": "onion", "label": "Peeling onion"}, {"key": "potato", "label": "Potato"}, {"key": "paneer", "label": "Paneer"}],
+  getDate: () => formatDate(currentDate),
+  isLocked: () => isHistorical() && !isOwner(),
+  onSaved: (ds, f) => {
+    if (!getWeekDates(currentDate).some(d => formatDate(d) === ds)) return;
+    weekData[ds] = Object.assign(weekData[ds] || {}, f);
+    renderWeekly();
+  }
+});
 
 auth.onAuthStateChanged(async user => {
   if (user) {

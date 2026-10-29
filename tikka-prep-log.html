@@ -324,6 +324,12 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
     </div>
   </div>
 
+  <!-- TIME & STAFF (prep-sessions.js, Oct 29 2026) -->
+  <div class="section">
+    <div style="padding:14px 20px;font-size:1.05rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#334155,#475569)">⏱️ Time & Staff — Tikka</div>
+    <div class="section-body"><div id="psMain"></div></div>
+  </div>
+
   <!-- Weekly Summary -->
   <div class="weekly-summary">
     <div class="weekly-header">📊 Tikka — Weekly Summary</div>
@@ -405,6 +411,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="toast" id="toast"></div>
 
 <script src="shared.js?v=20260405"></script>
+<script src="prep-sessions.js?v=20261029"></script>
 <script>
 // ==================== STATE ====================
 let currentDate = new Date();
@@ -516,12 +523,14 @@ function getWeekDates(d) {
 }
 
 function setDate(d) {
+  PrepSessions.flushAll(); // save any pending session edits for the day being left
   currentDate = new Date(d);
   document.getElementById('datePicker').value = formatDate(currentDate);
   document.getElementById('dayName').textContent = getDayName(currentDate);
   applyEditMode();
-  loadDayData();
+  loadDayData().then(() => PrepSessions.reapply());
   loadWeekData();
+  PrepSessions.loadAll();
 }
 
 function changeDate(delta) { const d = new Date(currentDate); d.setDate(d.getDate()+delta); setDate(d); }
@@ -609,6 +618,7 @@ function collectData() {
     updatedAt: new Date().toISOString(),
     updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown'
   };
+  Object.assign(data, PrepSessions.fieldsAll());
   return data;
 }
 
@@ -703,7 +713,8 @@ function renderWeekly() {
     { label: 'Total Cooked', key: 'total_cooked' },
     { label: 'Cut Dark', key: 'cut_dark' },
     { label: 'Cut White', key: 'cut_white' },
-    { label: 'Total Cut', key: 'total_cut', rowClass: 'total-row' }
+    { label: 'Total Cut', key: 'total_cut', rowClass: 'total-row' },
+    { label: 'Staff Hours', key: 'labor_hours', rowClass: 'total-row' }
   ];
 
   let body = '';
@@ -714,8 +725,8 @@ function renderWeekly() {
     dates.forEach(d => {
       const ds = formatDate(d);
       const val = weekData[ds] ? (weekData[ds][row.key] || 0) : 0;
-      wt += val;
-      body += `<td${ds===ts?' class="today-col"':''}>${val || ''}</td>`;
+      wt = Math.round((wt + val) * 100) / 100;
+      body += `<td${ds===ts?' class="today-col"':''}>${(Math.round(val * 100) / 100) || ''}</td>`;
     });
     body += `<td style="font-weight:700">${wt || ''}</td></tr>`;
   });
@@ -1024,6 +1035,24 @@ async function _backfillTikkaTotals() {
 }
 
 // Auth state observer
+// ==================== TIME & STAFF SESSIONS (Oct 29 2026) ====================
+PrepSessions.create({
+  mountId: 'psMain',
+  quantities: {"raw": [{"key": "raw_white_line", "label": "Raw white (from line)", "step": 0.5}, {"key": "raw_dark_line", "label": "Raw dark (from line)", "step": 0.5}, {"key": "raw_bulk_white", "label": "Raw bulk white", "step": 0.5}, {"key": "raw_bulk_dark", "label": "Raw bulk dark", "step": 0.5}, {"key": "renton_dark_raw", "label": "Renton dark raw", "step": 0.5}, {"key": "renton_white_raw", "label": "Renton white raw", "step": 0.5}], "cooking": [{"key": "cooked_white_line", "label": "Cooked white (from line)", "step": 0.5}, {"key": "cooked_dark_line", "label": "Cooked dark (from line)", "step": 0.5}, {"key": "cooked_bulk_white", "label": "Cooked bulk white", "step": 0.5}, {"key": "cooked_bulk_dark", "label": "Cooked bulk dark", "step": 0.5}, {"key": "renton_dark_cooked", "label": "Renton dark cooked", "step": 0.5}, {"key": "renton_white_cooked", "label": "Renton white cooked", "step": 0.5}], "cutting": [{"key": "cut_dark", "label": "Cut dark (lbs)", "step": 0.5}, {"key": "dark_wastage_oz", "label": "Dark wastage (oz)", "step": 0.1}, {"key": "cut_white", "label": "Cut white (lbs)", "step": 0.5}, {"key": "white_wastage_oz", "label": "White wastage (oz)", "step": 0.1}]},
+  onTotals: t => PrepSessions.applyDaySums(t, ["raw_white_line", "raw_dark_line", "raw_bulk_white", "raw_bulk_dark", "renton_dark_raw", "renton_white_raw", "cooked_white_line", "cooked_dark_line", "cooked_bulk_white", "cooked_bulk_dark", "renton_dark_cooked", "renton_white_cooked", "cut_dark", "dark_wastage_oz", "cut_white", "white_wastage_oz"], () => { calcTikkaRaw(); calcTikkaCooked(); calcTikkaCutting(); }),
+  extraWrites: ds => [{ path: docPath(ds), data: collectData() }],
+  collectionPath: 'tikka-prep/nnc-iss/records',
+  field: 'sessions', prefix: '',
+  tasks: [{"key": "raw", "label": "Raw tikka prep / marinating"}, {"key": "cooking", "label": "Cooking tikka"}, {"key": "cutting", "label": "Cutting tikka"}],
+  getDate: () => formatDate(currentDate),
+  isLocked: () => isHistorical() && !isOwner(),
+  onSaved: (ds, f) => {
+    if (!getWeekDates(currentDate).some(d => formatDate(d) === ds)) return;
+    weekData[ds] = Object.assign(weekData[ds] || {}, f);
+    renderWeekly();
+  }
+});
+
 auth.onAuthStateChanged(user => {
   if (user) {
     document.getElementById('loginOverlay').classList.add('hidden');
