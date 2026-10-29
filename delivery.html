@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Delivery Log</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --primary:#1e3a5f;--primary-light:#2563eb;--success:#16a34a;--danger:#dc2626;
+  --gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-700:#374151;--gray-900:#111827;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+button,input,select{font-family:inherit}
+
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:32px 28px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box p{color:var(--gray-500);margin-bottom:20px;font-size:.9rem}
+.login-box label{display:block;font-size:.8rem;font-weight:700;color:var(--gray-700);margin-bottom:4px}
+.login-box input{width:100%;padding:12px 14px;border:1px solid var(--gray-300);border-radius:8px;font-size:16px;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.login-box button{width:100%;min-height:48px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:16px}
+.header-inner{max-width:640px;margin:0 auto;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+.header h1{font-size:1.35rem;font-weight:800}
+.header-sub{opacity:.8;font-size:.85rem;margin-top:2px}
+.header-links{display:flex;gap:8px;flex-wrap:wrap}
+.hbtn{display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border-radius:8px;font-size:.85rem;font-weight:600;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);text-decoration:none;cursor:pointer}
+
+.wrap{max-width:640px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:16px}
+.card{background:#fff;border:1px solid var(--gray-200);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card-title{font-size:1.15rem;font-weight:800;color:var(--primary)}
+.chip{font-size:.75rem;font-weight:700;padding:4px 10px;border-radius:999px}
+.chip.new{background:var(--gray-100);color:var(--gray-700)}
+.chip.open{background:#fff7ed;color:#9a3412}
+.chip.done{background:#f0fdf4;color:#166534}
+.sec-label{font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:6px;font-size:.82rem;font-weight:700;color:var(--gray-700)}
+.field select,.field input{height:48px;border:1px solid var(--gray-300);border-radius:10px;padding:0 10px;font-size:16px;color:var(--gray-900);background:#fff;width:100%}
+.field select:disabled{background:var(--gray-100);color:var(--gray-700)}
+
+.step{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px}
+.step.done{background:#f0fdf4;border:1px solid #bbf7d0}
+.step.wait{border:1px dashed var(--gray-300);color:var(--gray-500)}
+.step .dot{width:26px;height:26px;flex-shrink:0}
+.step .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.step .name{font-size:.98rem;font-weight:600}
+.step .meta{font-size:.75rem;color:#166534}
+.step .time{font-size:1.25rem;font-weight:800;color:#14532d;text-align:right}
+.undo{border:0;background:none;color:var(--primary-light);font-size:.82rem;font-weight:700;text-decoration:underline;cursor:pointer;padding:4px 0;min-height:32px}
+.tapbtn{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:64px;border:0;border-radius:12px;background:var(--primary-light);color:#fff;padding:12px 16px;font-size:1.1rem;font-weight:800;cursor:pointer;text-align:left}
+.tapbtn .pill{font-size:.78rem;font-weight:700;background:rgba(255,255,255,.2);padding:6px 10px;border-radius:999px;white-space:nowrap}
+.tapbtn:disabled{background:var(--gray-200);color:var(--gray-500);cursor:not-allowed}
+.odo-box{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:12px;background:#eff6ff;border:1.5px solid var(--primary-light)}
+.odo-box input{height:54px;border:1px solid var(--gray-300);border-radius:10px;padding:0 12px;font-size:20px;width:100%;background:#fff}
+.odo-hint{font-size:.82rem;color:#1e3a8a}
+.odo-hint.bad{color:var(--danger);font-weight:700}
+
+.durs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.dur .k{font-size:.75rem;color:var(--gray-500)}
+.dur .v{font-size:1.05rem;font-weight:700}
+.total{grid-column:1/-1;border-top:1px solid var(--gray-200);padding-top:12px;display:flex;justify-content:space-between;align-items:baseline}
+.total .v{font-size:1.4rem;font-weight:800;color:var(--primary)}
+
+.finish{min-height:56px;border:0;border-radius:12px;background:var(--success);color:#fff;font-size:1.05rem;font-weight:800;cursor:pointer}
+.finish:disabled{background:var(--gray-200);color:var(--gray-500);cursor:not-allowed}
+.addrun{min-height:52px;border:2px dashed var(--primary-light);border-radius:12px;background:transparent;color:var(--primary-light);font-size:1rem;font-weight:800;cursor:pointer}
+.note{font-size:.82rem;color:var(--gray-500);text-align:center}
+.msg{padding:40px 20px;text-align:center;color:var(--gray-500)}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 20px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>NNC Delivery Log</h2>
+    <p>Drivers: sign in with your username.</p>
+    <div class="login-error" id="loginError"></div>
+    <label for="loginUser">Username</label>
+    <input type="text" id="loginUser" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. vitali">
+    <label for="loginPassword">Password</label>
+    <input type="password" id="loginPassword" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <h1>Delivery Log</h1>
+      <div class="header-sub" id="headerSub"></div>
+    </div>
+    <div class="header-links">
+      <a class="hbtn" href="daily.html?restaurant=nnc-iss&amp;sheet=nnc-daily-kitchen">Kitchen Order (view)</a>
+      <a class="hbtn" id="ownerBackLink" href="index.html" style="display:none">Central Command</a>
+      <button class="hbtn" type="button" onclick="auth.signOut()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="app"><div class="msg">Loading…</div></div>
+<div id="toast"></div>
+
+<script src="shared.js?v=20261029"></script>
+<script>
+// Keep taps on the phone if the page is reloaded while offline. Must run
+// before any other Firestore call on this page.
+try { db.enablePersistence({ synchronizeTabs: true }).catch(e => console.warn('Offline cache not available:', e.code)); } catch (e) {}
+
+// ==================== DELIVERY LOG (driver page) ====================
+// Firestore: deliveries/{autoId} — one doc per run. Stamps hold the phone's
+// tap time (t, ms) and the server's time when the tap reached the database
+// (server). The owner page flags runs where the two disagree.
+
+const DEFAULT_LISTS = {
+  drivers: ['Vitali', 'Tasha', 'Bilal'],
+  vehicles: ['Renton Sprinter', 'Issaquah Transit'],
+  locations: ['Renton', 'Issaquah', 'Bellevue']
+};
+const STEPS = [
+  { k: 'shiftStart',  label: r => 'Shift start' },
+  { k: 'leftOrigin',  label: r => 'Left ' + r.origin, odo: 'odoStart' },
+  { k: 'arrivedDest', label: r => 'Arrived at ' + r.dest },
+  { k: 'leftDest',    label: r => 'Left ' + r.dest },
+  { k: 'backOrigin',  label: r => 'Back at ' + r.origin, odo: 'odoEnd' },
+  { k: 'shiftEnd',    label: r => 'Shift end' }
+];
+
+let lists = JSON.parse(JSON.stringify(DEFAULT_LISTS));
+let runs = [];           // [{ id, exists, data }]
+let odoDraft = {};       // runId -> { odoStart, odoEnd } as typed
+let busy = {};           // runId -> true while a write is in flight
+let unsubRuns = null;
+let profile = null;
+
+function todayKey(d) {
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function fmtT(ms) { return ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
+function fmtTS(ms) { return ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : ''; }
+function fmtDur(a, b) {
+  if (!a || !b) return '—';
+  const m = Math.max(0, Math.round((b - a) / 60000));
+  return m < 60 ? m + ' min' : Math.floor(m / 60) + ' hr ' + (m % 60) + ' min';
+}
+function stampMs(run, k) { const s = (run.data.stamps || {})[k]; return s && s.t ? s.t : null; }
+function num(v) { if (v === '' || v == null) return NaN; const n = Number(String(v).replace(/,/g, '')); return isFinite(n) ? n : NaN; }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = '1'; clearTimeout(toast._h); toast._h = setTimeout(() => { t.style.opacity = '0'; }, 3200); }
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = toLoginEmail(document.getElementById('loginUser').value);
+  const pw = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  if (!email || !pw) { err.textContent = 'Enter your username and password.'; err.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…'; err.style.display = 'none';
+  try { await auth.signInWithEmailAndPassword(email, pw); }
+  catch (e) {
+    err.textContent = (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found')
+      ? 'Username or password is wrong. Ask the owner if you need it reset.' : e.message;
+    err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+auth.onAuthStateChanged(async user => {
+  const overlay = document.getElementById('loginOverlay');
+  if (unsubRuns) { unsubRuns(); unsubRuns = null; }
+  runs = []; odoDraft = {}; busy = {};
+  if (!user) {
+    overlay.classList.remove('hidden');
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('loginBtn').textContent = 'Sign In';
+    document.getElementById('loginPassword').value = '';
+    return;
+  }
+  overlay.classList.add('hidden');
+  profile = await loadUserProfile();
+  if (profile) { try { await updateUserProfile({ lastLogin: new Date() }); } catch (e) {} }
+  const role = profile && profile.role;
+  const allowed = role === 'owner' || role === 'driver' || canAccessSheet('nnc-delivery-log', profile);
+  document.getElementById('ownerBackLink').style.display = (role && role !== 'driver') ? '' : 'none';
+  const today = new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+  document.getElementById('headerSub').textContent = (profile ? (profile.displayName || displayLogin(user.email)) : '') + ' · ' + today;
+  if (!allowed) {
+    document.getElementById('app').innerHTML = '<div class="card msg">This account doesn’t have access to the Delivery Log. Ask the owner to give you the Driver role.</div>';
+    return;
+  }
+  await loadLists();
+  subscribeRuns(user.uid);
+});
+
+async function loadLists() {
+  try {
+    const doc = await db.collection('delivery_config').doc('lists').get();
+    if (doc.exists) {
+      const d = doc.data();
+      ['drivers', 'vehicles', 'locations'].forEach(k => {
+        if (Array.isArray(d[k]) && d[k].length) lists[k] = d[k];
+      });
+    }
+  } catch (e) { console.warn('Could not load delivery lists, using defaults', e); }
+}
+
+function subscribeRuns(uid) {
+  let first = true;
+  unsubRuns = db.collection('deliveries')
+    .where('createdByUid', '==', uid)
+    .where('date', '==', todayKey())
+    .onSnapshot(snap => {
+      const drafts = runs.filter(r => !r.exists && !snap.docs.some(d => d.id === r.id));
+      runs = snap.docs.map(d => ({ id: d.id, exists: true, data: d.data({ serverTimestamps: 'estimate' }) }));
+      runs = runs.concat(drafts).sort((a, b) => (a.data.runNumber || 0) - (b.data.runNumber || 0));
+      if (first && runs.length === 0) addRun(true);
+      first = false;
+      render();
+    }, err => {
+      console.error('deliveries listener', err);
+      document.getElementById('app').innerHTML = '<div class="card msg">Couldn’t load today’s deliveries (' + esc(err.code || err.message) + '). Check your connection and reload.</div>';
+    });
+}
+
+// ==================== RUN STATE ====================
+function addRun(silent) {
+  const n = runs.reduce((m, r) => Math.max(m, r.data.runNumber || 0), 0) + 1;
+  const myName = profile && profile.displayName;
+  const driverName = lists.drivers.find(x => myName && x.toLowerCase() === String(myName).toLowerCase()) || '';
+  runs.push({
+    id: db.collection('deliveries').doc().id,
+    exists: false,
+    data: {
+      date: todayKey(), runNumber: n,
+      origin: lists.locations[0] || 'Renton',
+      dest: lists.locations[1] || 'Issaquah',
+      driverName: driverName, helperName: '',
+      vehicle: lists.vehicles[0] || '',
+      stamps: {}, status: 'open'
+    }
+  });
+  if (!silent) { render(); setTimeout(() => { const el = document.getElementById('run-' + runs[runs.length - 1].id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }
+}
+function getRun(id) { return runs.find(r => r.id === id); }
+function nextStep(run) { return STEPS.findIndex(s => !stampMs(run, s.k)); }
+function lastDone(run) { let i = -1; STEPS.forEach((s, j) => { if (stampMs(run, s.k)) i = j; }); return i; }
+function odoVal(run, f) {
+  const typed = odoDraft[run.id] && odoDraft[run.id][f];
+  if (typed !== undefined) return typed;
+  return run.data[f] != null ? String(run.data[f]) : '';
+}
+function odoState(run, f) {
+  const v = num(odoVal(run, f));
+  if (f === 'odoStart') return { ok: v > 0, v };
+  const s = num(run.data.odoStart != null ? run.data.odoStart : odoVal(run, 'odoStart'));
+  const raw = odoVal(run, 'odoEnd');
+  return { ok: v > 0 && v > s, v, start: s, tooLow: raw !== '' && !(v > s) };
+}
+
+function setDetail(id, field, value) {
+  const run = getRun(id); if (!run || run.data.status === 'done') return;
+  run.data[field] = value;
+  if (field === 'driverName' && run.data.helperName === value) run.data.helperName = '';
+  if (run.exists) {
+    const upd = { [field]: value, helperName: run.data.helperName || '', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    db.collection('deliveries').doc(id).update(upd)
+      .catch(e => { console.error(e); toast('Couldn’t save that change (' + (e.code || 'error') + ').'); });
+  }
+  render();
+}
+
+function onOdoInput(id, f, el) {
+  if (!odoDraft[id]) odoDraft[id] = {};
+  odoDraft[id][f] = el.value;
+  const run = getRun(id);
+  const st = odoState(run, f);
+  const btn = document.getElementById('tap-' + id);
+  if (btn) btn.disabled = !st.ok || !!busy[id];
+  const hint = document.getElementById('hint-' + id);
+  if (hint && f === 'odoEnd') {
+    hint.className = 'odo-hint' + (st.tooLow ? ' bad' : '');
+    hint.textContent = st.tooLow ? 'That’s not higher than the start reading of ' + st.start.toLocaleString() + '. Check the dash.' : 'Enter the odometer when you park. Start was ' + (isNaN(st.start) ? '?' : st.start.toLocaleString()) + '.';
+  }
+}
+
+// Writes are NOT awaited before the screen moves on: on the road the phone may
+// have no signal, and Firestore queues the write (persisted on the device) and
+// sends it when it reconnects. A short lockout stops a double tap from
+// stamping two stops at once.
+let lastTapAt = {};
+function tap(id) {
+  const run = getRun(id); if (!run) return;
+  const now = Date.now();
+  if (lastTapAt[id] && now - lastTapAt[id] < 2000) return;
+  const i = nextStep(run); if (i < 0) return;
+  const step = STEPS[i];
+  if (i === 0 && !run.data.driverName) { toast('Pick the driver first.'); return; }
+  const stamp = { t: Date.now(), server: firebase.firestore.FieldValue.serverTimestamp() };
+  const ref = db.collection('deliveries').doc(id);
+  let odoNum = null;
+  if (step.odo) {
+    const st = odoState(run, step.odo);
+    if (!st.ok) { toast(step.odo === 'odoStart' ? 'Enter the start odometer first.' : 'Enter an end odometer higher than the start.'); return; }
+    odoNum = st.v;
+  }
+  lastTapAt[id] = now;
+  // Optimistic local update so the screen responds instantly, even offline
+  run.data.stamps = Object.assign({}, run.data.stamps, { [step.k]: { t: stamp.t, server: null } });
+  if (step.odo) { run.data[step.odo] = odoNum; if (odoDraft[id]) delete odoDraft[id][step.odo]; }
+  let write;
+  if (!run.exists) {
+    const u = auth.currentUser;
+    run.exists = true;
+    write = ref.set({
+      date: run.data.date, runNumber: run.data.runNumber,
+      origin: run.data.origin, dest: run.data.dest,
+      driverName: run.data.driverName, helperName: run.data.helperName || '',
+      vehicle: run.data.vehicle,
+      stamps: { [step.k]: stamp },
+      status: 'open',
+      createdByUid: u.uid, createdByEmail: u.email,
+      createdByName: (profile && profile.displayName) || displayLogin(u.email),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } else {
+    const upd = { ['stamps.' + step.k]: stamp, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    if (step.odo) upd[step.odo] = odoNum;
+    write = ref.update(upd);
+  }
+  render();
+  write.catch(e => {
+    console.error('tap failed', e);
+    toast('“' + step.label(run.data) + '” didn’t save (' + (e.code || 'error') + '). Tap it again.');
+    if (run.data.stamps) delete run.data.stamps[step.k];
+    render();
+  });
+}
+
+function undo(id) {
+  const run = getRun(id); if (!run || run.data.status === 'done') return;
+  const i = lastDone(run); if (i < 0) return;
+  const step = STEPS[i];
+  if (!confirm('Undo "' + step.label(run.data) + '" at ' + fmtT(stampMs(run, step.k)) + '?')) return;
+  const prev = run.data.stamps[step.k];
+  delete run.data.stamps[step.k];
+  render();
+  db.collection('deliveries').doc(id).update({
+    ['stamps.' + step.k]: firebase.firestore.FieldValue.delete(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(e => { console.error(e); run.data.stamps[step.k] = prev; toast('Undo didn’t save. Try again.'); render(); });
+}
+
+function finishRun(id) {
+  const run = getRun(id); if (!run) return;
+  if (nextStep(run) !== -1) { toast('Finish all 6 taps first.'); return; }
+  const miles = Math.round((num(run.data.odoEnd) - num(run.data.odoStart)) * 10) / 10;
+  if (!confirm('Save this delivery? You can’t change it after saving.')) return;
+  run.data.status = 'done';
+  render();
+  toast('Delivery saved. Thanks!');
+  db.collection('deliveries').doc(id).update({
+    status: 'done', miles: miles,
+    finishedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(e => { console.error(e); run.data.status = 'open'; toast('Couldn’t save the delivery (' + (e.code || 'error') + '). Try again.'); render(); });
+}
+
+// ==================== RENDER ====================
+const ICON_DONE = '<svg class="dot" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg>';
+const ICON_WAIT = '<svg class="dot" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>';
+
+function selectHtml(id, field, label, options, value, disabled, blankLabel) {
+  const opts = (blankLabel != null ? [`<option value=""${!value ? ' selected' : ''}>${esc(blankLabel)}</option>`] : [])
+    .concat(options.map(o => `<option value="${esc(o)}"${o === value ? ' selected' : ''}>${esc(o)}</option>`));
+  if (value && !options.includes(value)) opts.push(`<option value="${esc(value)}" selected>${esc(value)}</option>`);
+  return `<label class="field">${esc(label)}<select ${disabled ? 'disabled' : ''} onchange="setDetail('${id}','${field}',this.value)">${opts.join('')}</select></label>`;
+}
+
+function runHtml(run) {
+  const r = run.data, id = run.id;
+  const done = r.status === 'done';
+  const ni = nextStep(run), li = lastDone(run);
+  const started = li >= 0;
+  const chip = done ? '<span class="chip done">Saved</span>' : started ? '<span class="chip open">In progress</span>' : '<span class="chip new">Not started</span>';
+  const lockRoute = started || done;   // route and van are fixed once the run starts
+  const b = !!busy[id];
+
+  let steps = '';
+  STEPS.forEach((s, i) => {
+    const ms = stampMs(run, s.k);
+    if (ms) {
+      const srv = r.stamps[s.k].server;
+      const srvMs = srv && srv.toMillis ? srv.toMillis() : null;
+      const odoLine = s.odo && r[s.odo] != null ? `<span class="meta" style="font-weight:700">Odometer ${Number(r[s.odo]).toLocaleString()}</span>` : '';
+      steps += `<div class="step done">${ICON_DONE}<div class="txt"><span class="name">${esc(s.label(r))}</span><span class="meta">${srvMs ? 'Saved ' + fmtTS(srvMs) : 'Saving… (will sync when online)'}</span>${odoLine}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end"><span class="time">${fmtT(ms)}</span>${(!done && i === li) ? `<button class="undo" type="button" onclick="undo('${id}')" ${b ? 'disabled' : ''}>Undo</button>` : ''}</div></div>`;
+    } else if (i === ni && !done) {
+      if (s.odo) {
+        const st = odoState(run, s.odo);
+        const isEnd = s.odo === 'odoEnd';
+        const hint = !isEnd ? 'Enter the odometer before you pull out. The button unlocks after.'
+          : (st.tooLow ? 'That’s not higher than the start reading of ' + st.start.toLocaleString() + '. Check the dash.'
+             : 'Enter the odometer when you park. Start was ' + (isNaN(st.start) ? '?' : st.start.toLocaleString()) + '.');
+        steps += `<div class="odo-box">
+          <label class="field" style="color:#1e3a8a">${isEnd ? 'End' : 'Start'} odometer, ${esc(r.vehicle)}
+            <input id="odo-${id}-${s.odo}" type="text" inputmode="decimal" autocomplete="off" placeholder="Read it off the dash" value="${esc(odoVal(run, s.odo))}" oninput="onOdoInput('${id}','${s.odo}',this)">
+          </label>
+          <div class="odo-hint${st.tooLow ? ' bad' : ''}" id="hint-${id}">${esc(hint)}</div>
+          <button class="tapbtn" id="tap-${id}" type="button" onclick="tap('${id}')" ${(!st.ok || b) ? 'disabled' : ''}><span>${esc(s.label(r))}</span><span class="pill">Tap now</span></button>
+        </div>`;
+      } else {
+        const blocked = i === 0 && !r.driverName;
+        steps += `<button class="tapbtn" id="tap-${id}" type="button" onclick="tap('${id}')" ${(b || blocked) ? 'disabled' : ''}><span>${esc(s.label(r))}</span><span class="pill">${blocked ? 'Pick driver first' : 'Tap now'}</span></button>`;
+      }
+    } else {
+      steps += `<div class="step wait">${ICON_WAIT}<span class="name" style="font-weight:500">${esc(s.label(r))}</span></div>`;
+    }
+  });
+
+  const T = k => stampMs(run, k);
+  const miles = (r.odoStart != null && r.odoEnd != null) ? (Math.round((r.odoEnd - r.odoStart) * 10) / 10) + ' mi' : 'Logged when back';
+  const canFinish = ni === -1 && !done && !b;
+
+  return `<div class="card" id="run-${id}">
+    <div class="card-head"><div class="card-title">Delivery ${r.runNumber}</div>${chip}</div>
+    <div class="sec-label">Run details</div>
+    <div class="grid2">
+      ${selectHtml(id, 'origin', 'From', lists.locations, r.origin, lockRoute)}
+      ${selectHtml(id, 'dest', 'To', lists.locations, r.dest, lockRoute)}
+    </div>
+    ${selectHtml(id, 'driverName', 'Driver', lists.drivers, r.driverName, done, 'Pick a driver')}
+    ${selectHtml(id, 'helperName', 'Helper on this run', lists.drivers.filter(x => x !== r.driverName), r.helperName, done, 'No helper')}
+    ${selectHtml(id, 'vehicle', 'Vehicle', lists.vehicles, r.vehicle, lockRoute)}
+    <div class="sec-label">Tap as it happens</div>
+    ${steps}
+    <div class="durs">
+      <div class="dur"><div class="k">Loading at ${esc(r.origin)}</div><div class="v">${fmtDur(T('shiftStart'), T('leftOrigin'))}</div></div>
+      <div class="dur"><div class="k">Drive to ${esc(r.dest)}</div><div class="v">${fmtDur(T('leftOrigin'), T('arrivedDest'))}</div></div>
+      <div class="dur"><div class="k">Unloading at ${esc(r.dest)}</div><div class="v">${fmtDur(T('arrivedDest'), T('leftDest'))}</div></div>
+      <div class="dur"><div class="k">Drive back</div><div class="v">${fmtDur(T('leftDest'), T('backOrigin'))}</div></div>
+      <div class="dur"><div class="k">Wrap up at ${esc(r.origin)}</div><div class="v">${fmtDur(T('backOrigin'), T('shiftEnd'))}</div></div>
+      <div class="dur"><div class="k">Miles this run</div><div class="v">${miles}</div></div>
+      <div class="total"><strong>Total shift</strong><span class="v">${fmtDur(T('shiftStart'), T('shiftEnd'))}</span></div>
+    </div>
+    ${done ? '<div class="note">Saved. Ask the owner if something needs fixing.</div>'
+      : `<button class="finish" type="button" onclick="finishRun('${id}')" ${canFinish ? '' : 'disabled'}>${ni === -1 ? 'Save delivery' : 'Save delivery (finish all 6 taps first)'}</button>`}
+  </div>`;
+}
+
+function render() {
+  const app = document.getElementById('app');
+  const active = document.activeElement && document.activeElement.id;
+  const caret = active && document.activeElement.selectionStart;
+  const hasDraft = runs.some(r => !r.exists);
+  app.innerHTML = runs.map(runHtml).join('') +
+    (hasDraft ? '' : `<button class="addrun" type="button" onclick="addRun()">+ Add another delivery today</button>`) +
+    '<div class="note">Times are saved the moment you tap. If you lose signal, keep tapping; it syncs when you’re back online.</div>';
+  if (active) {
+    const el = document.getElementById(active);
+    if (el && el.tagName === 'INPUT') { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} }
+  }
+}
+</script>
+</body>
+</html>

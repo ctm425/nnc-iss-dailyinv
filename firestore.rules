@@ -32,15 +32,42 @@ service cloud.firestore {
       return hasOwnerRole() || isOwnerEmail();
     }
 
+    // Driver accounts: Delivery Log only, plus view-only Kitchen Daily Order.
+    function isDriver() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userRole() == 'driver';
+    }
+
+    // Signed in and allowed to change inventory / prep data (everyone but drivers)
+    function canEdit() {
+      return isSignedIn() && !isDriver();
+    }
+
+    function inviteFor(email) {
+      return get(/databases/$(database)/documents/invites/$(email)).data;
+    }
+
     // ---------- users ----------
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isOwner());
-      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid && (
+                      isOwnerEmail()
+                      || request.resource.data.role == 'staff'
+                      || (exists(/databases/$(database)/documents/invites/$(request.auth.token.email))
+                          && request.resource.data.role == inviteFor(request.auth.token.email).role)
+                    );
       allow update: if isOwner()
                     || (isSignedIn() && request.auth.uid == uid
                         && request.resource.data.role == resource.data.role)
                     || (isOwnerEmail() && request.auth.uid == uid);
       allow delete: if isOwner();
+    }
+
+    // ---------- invites (index.html Manage Users > Create Account) ----------
+    match /invites/{email} {
+      allow read: if isOwner() || (isSignedIn() && request.auth.token.email == email);
+      allow write: if isOwner();
     }
 
     // ---------- config (settings, role-permissions, daily-report) ----------
@@ -53,74 +80,74 @@ service cloud.firestore {
     // ---------- days (daily kitchen + produce inventory) ----------
     match /days/{dateKey} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
 
     // ---------- edit-requests (HYPHEN — verified against client code) ----------
     match /edit-requests/{reqId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if canEdit();
       allow update, delete: if isOwner();
     }
 
     // ---------- inventory_config + inventory_weeks (drygoods.html) ----------
     match /inventory_config/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /inventory_weeks/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
 
     // ---------- warehouse_config + warehouse_weeks + warehouse_transfers ----------
     match /warehouse_config/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /warehouse_weeks/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /warehouse_transfers/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
 
     // ---------- storage_config + storage_weeks + storage_transfers ----------
     match /storage_config/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /storage_weeks/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /storage_transfers/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
 
     // ---------- inter_transfers (transfer-request.html) ----------
     match /inter_transfers/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
 
     // ---------- variance_logs (variance.js) ----------
     match /variance_logs/{doc} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if canEdit();
       allow update, delete: if isOwner();
     }
 
@@ -131,37 +158,37 @@ service cloud.firestore {
     // {document=**} matches the parent location doc AND the nested records subcollection.
     match /rice-usage/{document=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /chicken-prep/{document=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /tikka-prep/{document=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /produce-prep/{document=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /packing-log/{document=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /naan-roti-prep/{document=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
     match /naan-roti-usage/{document=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
 
@@ -169,7 +196,7 @@ service cloud.firestore {
     // Path: weekly-tasks/<location>/days/<dateKey>
     match /weekly-tasks/{document=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if canEdit();
       allow delete: if isOwner();
     }
 
@@ -187,6 +214,34 @@ service cloud.firestore {
     // by the owner and picked from on the booking form. HYPHENS, not underscores.
     match /catering-menu-items/{document=**} {
       allow read, write: if isOwner();
+    }
+
+    // ---------- deliveries (delivery.html driver page, delivery-data.html owner) ----------
+    // One doc per run. Drivers see and change only their own runs, and only
+    // until they press Save (status 'done'). Owner sees and fixes everything.
+    match /deliveries/{runId} {
+      allow read: if isOwner()
+                  || (isSignedIn() && resource.data.createdByUid == request.auth.uid);
+      allow create: if isSignedIn()
+                    && request.resource.data.createdByUid == request.auth.uid
+                    && request.resource.data.status == 'open'
+                    && request.resource.data.date is string;
+      allow update: if isOwner()
+                    || (isSignedIn()
+                        && resource.data.createdByUid == request.auth.uid
+                        && resource.data.status == 'open'
+                        && request.resource.data.createdByUid == request.auth.uid
+                        && request.resource.data.date == resource.data.date
+                        && request.resource.data.status in ['open', 'done']);
+      allow delete: if isOwner();
+    }
+
+    // ---------- delivery_config ----------
+    // lists = names for the driver dropdowns (any signed-in user may read).
+    // rates = wages and van costs: OWNER ONLY, read and write.
+    match /delivery_config/{doc} {
+      allow read: if isOwner() || (isSignedIn() && doc == 'lists');
+      allow write: if isOwner();
     }
 
     // ---------- default deny ----------

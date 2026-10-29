@@ -180,7 +180,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <h2>NNC Inventory System</h2>
     <p class="subtitle">Sign in to manage inventory across all locations</p>
     <div class="login-error" id="loginError"></div>
-    <input type="email" id="loginEmail" placeholder="Email address">
+    <input type="text" id="loginEmail" placeholder="Email or username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username">
     <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
     <button id="loginBtn" onclick="handleLogin()">Sign In</button>
   </div>
@@ -231,6 +231,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <!-- PREP DATA SECTION -->
     <div id="prepDataSection" style="margin-top:12px"></div>
 
+    <!-- DELIVERY DATA SECTION (owner-only) -->
+    <div id="deliverySection" style="margin-top:12px"></div>
+
     <!-- CATERINGS SECTION (owner-only) -->
     <div id="cateringsSection" style="margin-top:12px"></div>
   </div>
@@ -244,18 +247,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none"></div>
 
-<script src="shared.js?v=20260405"></script>
+<script src="shared.js?v=20261029"></script>
 <script>
 let selectedRestaurant = null;
 let viewAsRole = ''; // empty = real role, otherwise simulated role for preview
 
 // ==================== AUTH ====================
 async function handleLogin() {
-  const email = document.getElementById('loginEmail').value.trim();
+  const email = toLoginEmail(document.getElementById('loginEmail').value);
   const password = document.getElementById('loginPassword').value;
   const errorEl = document.getElementById('loginError');
   const btn = document.getElementById('loginBtn');
-  if (!email || !password) { errorEl.textContent = 'Please enter email and password.'; errorEl.style.display = 'block'; return; }
+  if (!email || !password) { errorEl.textContent = 'Please enter your email (or username) and password.'; errorEl.style.display = 'block'; return; }
   btn.disabled = true; btn.textContent = 'Signing in...'; errorEl.style.display = 'none';
   try {
     await auth.signInWithEmailAndPassword(email, password);
@@ -271,6 +274,8 @@ auth.onAuthStateChanged(async (user) => {
     overlay.classList.add('hidden');
     const profile = await loadUserProfile();
     await updateUserProfile({ lastLogin: new Date() });
+    // Drivers only get the delivery page (and view-only daily order from there)
+    if (profile && profile.role === 'driver') { window.location.replace('delivery.html'); return; }
     document.getElementById('userInfo').textContent = profile.displayName || user.email;
     document.getElementById('userRole').textContent = ROLES[profile.role]?.label || profile.role;
     if (canManageUsers(profile)) document.getElementById('manageUsersBtn').style.display = '';
@@ -450,7 +455,48 @@ function renderLocationCards() {
 
   container.innerHTML = html;
   renderPrepSection();
+  renderDeliverySection();
   renderCateringsSection();
+}
+
+// ==================== DELIVERY DATA SECTION (owner-only) ====================
+function renderDeliverySection() {
+  const profile = getEffectiveProfile();
+  const container = document.getElementById('deliverySection');
+  if (!container) return;
+  // Owner-only. View-as-manager/staff hides it too. The data itself is also
+  // locked to the owner in firestore.rules, so hiding here is not the guard.
+  if (!profile || profile.role !== 'owner') { container.innerHTML = ''; return; }
+
+  container.innerHTML = `
+    <div class="prep-section">
+      <h3>🚚 Delivery Data <span class="badge" style="background:#eef2ff;color:#4338ca;font-size:.72rem;padding:3px 10px;border-radius:12px;font-weight:600">Owner Only</span></h3>
+      <div class="prep-desc">
+        Renton to Issaquah runs: how long each stop takes, miles from the odometer, and what each run costs in labor and van use.
+      </div>
+      <div class="tools-grid" style="margin-bottom:0">
+        <div class="tool-tile" onclick="navigateTo('delivery-data.html')">
+          <div class="tile-accent" style="background:linear-gradient(90deg,#1e3a5f,#2563eb)"></div>
+          <div class="tile-icon">📈</div>
+          <div class="tile-title">Delivery Data</div>
+          <div class="tile-desc">Run log, cost per run, staff labor rates and van cost per mile.</div>
+          <div class="tile-meta">
+            <span class="tile-tag" style="background:#eff6ff;color:#1e3a5f">Back End</span>
+            <span class="tile-tag" style="background:#fef3c7;color:#92400e">Costs</span>
+          </div>
+        </div>
+        <div class="tool-tile" onclick="navigateTo('delivery.html')">
+          <div class="tile-accent" style="background:linear-gradient(90deg,#b45309,#d97706)"></div>
+          <div class="tile-icon">🚚</div>
+          <div class="tile-title">Driver Page</div>
+          <div class="tile-desc">What drivers see: tap each stop, enter the odometer. Open it to test a run.</div>
+          <div class="tile-meta">
+            <span class="tile-tag" style="background:#fff7ed;color:#b45309">Driver View</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // ==================== CATERINGS SECTION (owner-only) ====================
@@ -893,7 +939,7 @@ async function renderUserMgmt() {
     const lastLogin = u.lastLogin ? (u.lastLogin.toDate ? u.lastLogin.toDate().toLocaleDateString() : new Date(u.lastLogin).toLocaleDateString()) : 'Never';
 
     html += `<tr>
-      <td>${u.email}${isCurrentUser?' <span style="font-size:.7rem;color:var(--primary)">(you)</span>':''}</td>
+      <td>${isUsernameLogin(u.email) ? `<span title="${u.email}">👤 ${displayLogin(u.email)}</span> <span style="font-size:.7rem;color:var(--gray-400)">username</span>` : u.email}${isCurrentUser?' <span style="font-size:.7rem;color:var(--primary)">(you)</span>':''}</td>
       <td><input type="text" value="${u.displayName||''}" style="padding:4px 8px;border:1px solid var(--gray-300);border-radius:6px;font-size:.82rem;width:120px"
         onchange="onNameChange('${u.uid}',this.value)"></td>
       <td><select onchange="onRoleChange('${u.uid}',this.value)"${isCurrentUser&&currentUserProfile.role==='owner'?' disabled':''}>${roleOptions}</select></td>
@@ -908,8 +954,8 @@ async function renderUserMgmt() {
       <h4 style="margin-bottom:12px;font-size:.95rem">Invite New User</h4>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
         <div>
-          <label style="font-size:.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">Email</label>
-          <input type="email" id="inviteEmail" placeholder="staff@email.com" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;width:220px">
+          <label style="font-size:.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px" id="inviteEmailLabel">Email</label>
+          <input type="text" id="inviteEmail" placeholder="staff@email.com" autocapitalize="none" autocorrect="off" spellcheck="false" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem;width:220px">
         </div>
         <div>
           <label style="font-size:.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">Temp Password</label>
@@ -917,12 +963,13 @@ async function renderUserMgmt() {
         </div>
         <div>
           <label style="font-size:.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">Role</label>
-          <select id="inviteRole" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem">
+          <select id="inviteRole" onchange="onInviteRoleChange(this.value)" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:.85rem">
             ${Object.keys(ROLES).filter(r=>r!=='owner').map(r=>`<option value="${r}"${r==='staff'?' selected':''}>${ROLES[r].label}</option>`).join('')}
           </select>
         </div>
         <button onclick="inviteUser()" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer">Create Account</button>
       </div>
+      <div id="inviteDriverHint" style="display:none;font-size:.78rem;color:var(--gray-500);margin-top:8px">Drivers sign in with just a username (for example <strong>vitali</strong>) and the password you set. They land on the Delivery Log and can view the Kitchen Daily Order, nothing else.</div>
       <div id="inviteStatus" style="font-size:.82rem;margin-top:8px;display:none"></div>
     </div>
 
@@ -958,17 +1005,30 @@ async function renderUserMgmt() {
   container.innerHTML = html;
 }
 
+function onInviteRoleChange(role) {
+  const isDriver = role === 'driver';
+  document.getElementById('inviteEmailLabel').textContent = isDriver ? 'Username' : 'Email';
+  document.getElementById('inviteEmail').placeholder = isDriver ? 'e.g. vitali' : 'staff@email.com';
+  document.getElementById('inviteDriverHint').style.display = isDriver ? 'block' : 'none';
+}
+
 async function inviteUser() {
-  const email = document.getElementById('inviteEmail').value.trim().toLowerCase();
+  const rawLogin = document.getElementById('inviteEmail').value.trim().toLowerCase();
   const password = document.getElementById('invitePassword').value;
   const role = document.getElementById('inviteRole').value;
   const status = document.getElementById('inviteStatus');
 
-  if (!email || !password) {
+  if (!rawLogin || !password) {
     status.style.display = 'block'; status.style.color = 'var(--danger)';
-    status.textContent = 'Email and password are required.';
+    status.textContent = (role === 'driver' ? 'Username' : 'Email') + ' and password are required.';
     return;
   }
+  if (!rawLogin.includes('@') && !/^[a-z0-9._-]{2,30}$/.test(rawLogin)) {
+    status.style.display = 'block'; status.style.color = 'var(--danger)';
+    status.textContent = 'Usernames can use letters, numbers, dots, dashes and underscores (no spaces).';
+    return;
+  }
+  const email = toLoginEmail(rawLogin);
   if (password.length < 6) {
     status.style.display = 'block'; status.style.color = 'var(--danger)';
     status.textContent = 'Password must be at least 6 characters.';
@@ -997,9 +1057,10 @@ async function inviteUser() {
     const newUid = cred.user.uid;
 
     // Write their profile to Firestore with the selected role
+    const shortName = email.split('@')[0];
     await db.collection('users').doc(newUid).set({
       email: email,
-      displayName: email.split('@')[0],
+      displayName: isUsernameLogin(email) ? shortName.charAt(0).toUpperCase() + shortName.slice(1) : shortName,
       role: role,
       restaurants: ['nnc-iss'],
       createdAt: new Date(),
@@ -1011,7 +1072,7 @@ async function inviteUser() {
     await auth.signOut();
 
     status.style.color = 'var(--success)';
-    status.textContent = `Account created for ${email} (${ROLES[role]?.label}). You have been signed out — please sign back in.`;
+    status.textContent = `Account created for ${displayLogin(email)} (${ROLES[role]?.label}). You have been signed out — please sign back in.`;
 
     // Show login overlay after a brief delay
     setTimeout(() => {

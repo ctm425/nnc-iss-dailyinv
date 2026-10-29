@@ -200,6 +200,13 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 .autosave-status.err{color:#991b1b;background:#fee2e2}
 
 .hidden{display:none!important}
+/* View-only mode (Driver role): nothing on the order can be changed */
+body.read-only #inventoryView input:not(#datePicker):not(.search-input),
+body.read-only #inventoryView textarea,
+body.read-only #inventoryView select{pointer-events:none;background:#f1f5f9!important;color:#334155}
+body.read-only .ro-hide{display:none!important}
+.ro-banner{display:none;background:#eff6ff;border:2px solid #93c5fd;border-radius:8px;padding:10px 20px;margin:10px 24px 0;font-size:.9rem;color:#1e3a8a;font-weight:600;text-align:center}
+body.read-only .ro-banner{display:block}
 
 /* Login overlay */
 .login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);z-index:1000;align-items:center;justify-content:center;opacity:1;transition:opacity .3s}
@@ -256,7 +263,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <h2>NNC Inventory</h2>
     <p>Sign in to your account</p>
     <div class="login-form" id="loginFormContainer">
-      <input type="email" id="loginEmail" placeholder="Email address" onkeydown="if(event.key==='Enter')handleLogin()">
+      <input type="text" id="loginEmail" placeholder="Email or username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" onkeydown="if(event.key==='Enter')handleLogin()">
       <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
       <div class="login-error" id="loginError"></div>
       <button onclick="handleLogin()" id="loginBtn">Sign In</button>
@@ -271,11 +278,11 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   <div>
     <h1>NNC Issaquah — Kitchen Daily Order</h1>
     <div class="header-sub">Cooked Foods from Renton Main Kitchen</div>
-    <a onclick="window.location.href='index.html?open=nnc-iss'" style="display:inline-block;margin-top:6px;color:rgba(255,255,255,.85);font-size:.8rem;font-weight:600;cursor:pointer;text-decoration:none;background:rgba(255,255,255,.12);padding:4px 12px;border-radius:6px">← Back to Issaquah Dashboard</a>
+    <a id="backLink" onclick="window.location.href=isReadOnly()?'delivery.html':'index.html?open=nnc-iss'" style="display:inline-block;margin-top:6px;color:rgba(255,255,255,.85);font-size:.8rem;font-weight:600;cursor:pointer;text-decoration:none;background:rgba(255,255,255,.12);padding:4px 12px;border-radius:6px"><span id="backLinkText">← Back to Issaquah Dashboard</span></a>
   </div>
   <div class="header-right">
     <span id="userEmail" style="color:#fff;font-size:.85rem;margin-right:12px"></span>
-    <button class="btn btn-ghost" onclick="sendReport()" title="Email today's kitchen order" style="background:rgba(30,58,95,.4);border:1px solid rgba(255,255,255,.5)">Send Today's Order</button>
+    <button class="btn btn-ghost ro-hide" onclick="sendReport()" title="Email today's kitchen order" style="background:rgba(30,58,95,.4);border:1px solid rgba(255,255,255,.5)">Send Today's Order</button>
     <button class="btn btn-ghost" id="settingsBtn" onclick="promptSettings()" style="display:none">Settings</button>
     <button class="btn btn-ghost logout-btn" onclick="handleLogout()" title="Sign out">Logout</button>
   </div>
@@ -292,7 +299,8 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
     <button onclick="goToToday()" class="btn btn-sm btn-primary" style="background:#4338ca;color:#fff;font-weight:800;padding:8px 18px;font-size:.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(67,56,202,.3)">📅 Today</button>
   </div>
 
-  <div id="histLockBanner" style="display:none;background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px 20px;margin:0 24px;font-size:.88rem;color:#92400e;font-weight:600;text-align:center"></div>
+  <div class="ro-banner">👀 View only. You can see the order but can’t change it.</div>
+  <div id="histLockBanner" class="ro-hide" style="display:none;background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px 20px;margin:0 24px;font-size:.88rem;color:#92400e;font-weight:600;text-align:center"></div>
   <div id="lastEditedBar" style="display:none;margin:6px 24px 0;font-size:.78rem;color:#64748b;text-align:right">Last edited: <span id="lastEditedVal">—</span></div>
 
   <div class="inventory-person-bar">
@@ -315,7 +323,7 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 
   <div id="noDeliveryBanner" class="no-delivery-banner" style="display:none">
     <span>No Monday delivery. Sunday orders are set to 0.</span>
-    <button class="btn btn-sm btn-white" onclick="toggleSundayOrders()">Enable Orders</button>
+    <button class="btn btn-sm btn-white ro-hide" onclick="toggleSundayOrders()">Enable Orders</button>
   </div>
 
   <div class="stats-bar" id="statsBar"></div>
@@ -334,8 +342,8 @@ input.extra-field:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   <div class="table-wrap" id="mainContent"></div>
 
   <div style="text-align:center;padding:20px 0">
-    <button class="btn btn-success" onclick="_commitActiveField();saveData(loadData());showToast(_pendingDayWrites>0?'Saving… keep this page open a moment':'All changes are saved')" style="min-width:220px;font-size:1rem;padding:12px 24px">💾 Save Now</button>
-    <div><span id="autosaveStatus" class="autosave-status ok">✓ All changes saved automatically</span></div>
+    <button class="btn btn-success ro-hide" onclick="_commitActiveField();saveData(loadData());showToast(_pendingDayWrites>0?'Saving… keep this page open a moment':'All changes are saved')" style="min-width:220px;font-size:1rem;padding:12px 24px">💾 Save Now</button>
+    <div class="ro-hide"><span id="autosaveStatus" class="autosave-status ok">✓ All changes saved automatically</span></div>
   </div>
 </div>
 
@@ -582,6 +590,9 @@ function loadData(){
   return d;
 }
 function saveData(d){
+  // View-only: drop silently. The page also calls saveData on its own (auto-fill
+  // from Weekly Tasks etc.), so no toast or re-render here or it loops.
+  if(isReadOnly())return;
   if(isHistorical()&&!isOwner()){
     showToast('Historical data is locked. Submit an edit request instead.');
     return;
@@ -594,7 +605,7 @@ function saveData(d){
   }
 }
 async function syncDataToFirestore(d){
-  if(!currentUser)return;
+  if(!currentUser||isReadOnly())return;
   // Save config/settings — owner-only under firestore.rules. Wrap separately and
   // do NOT await so a permission-denied here cannot block the day writes below.
   // Non-owners skip the config write entirely; day writes still go through.
@@ -722,12 +733,23 @@ function isHistorical(){
 function isOwner(){
   return currentUserProfile&&currentUserProfile.role==='owner';
 }
+// Driver accounts get this page view-only. firestore.rules also blocks
+// their writes to days/ and config/, so this is the friendly layer.
+function isReadOnly(){
+  return !!(currentUserProfile&&currentUserProfile.role==='driver');
+}
+function _toLoginEmail(v){
+  v=String(v||'').trim().toLowerCase();
+  if(!v)return '';
+  return v.includes('@')?v:v+'@drivers.naanncurry.net';
+}
 function openEditRequest(){
   const ds=dk(currentDate);
   const page=document.title;
   window.location.href='edit-request.html?date='+ds+'&page='+encodeURIComponent(page);
 }
 function setField(key,itemId,field,value){
+  if(isReadOnly()){showToast('View only. This account can’t change the order.');return}
   if(isHistorical()&&!isOwner()){
     openHistoricalEditRequest({page:document.title,date:key,field:itemId+'.'+field});
     return;
@@ -743,6 +765,7 @@ function setField(key,itemId,field,value){
 // ==================== SEND-TO SECTIONS ====================
 let sendToDebounce=null;
 function saveSendToField(field,value){
+  if(isReadOnly()){loadSendToFields();return}
   if(isHistorical()&&!isOwner()){
     // Block edit + prompt popup (do not persist a stray keystroke)
     openHistoricalEditRequest({page:document.title,date:dk(currentDate),field:field});
@@ -884,13 +907,13 @@ async function fetchIssaquahTasksForNextDay(){
 
 // ==================== AUTHENTICATION ====================
 async function handleLogin(){
-  const email=document.getElementById('loginEmail').value.trim();
+  const email=_toLoginEmail(document.getElementById('loginEmail').value);
   const password=document.getElementById('loginPassword').value;
   const errorEl=document.getElementById('loginError');
   const btn=document.getElementById('loginBtn');
 
   if(!email||!password){
-    errorEl.textContent='Please enter email and password.';
+    errorEl.textContent='Please enter your email (or username) and password.';
     errorEl.style.display='block';
     return;
   }
@@ -1000,6 +1023,8 @@ auth.onAuthStateChanged(async(user)=>{
     if (currentUserProfile?.role === 'owner') {
       document.getElementById('settingsBtn').style.display = '';
     }
+    document.body.classList.toggle('read-only', isReadOnly());
+    document.getElementById('backLinkText').textContent = isReadOnly() ? '← Back to Delivery Log' : '← Back to Issaquah Dashboard';
 
     // Try to load data from Firestore
     const fsData=await loadDataFromFirestore();
@@ -1244,6 +1269,7 @@ function updateSundayBanner(){
   }
 }
 function toggleSundayOrders(){
+  if(isReadOnly())return;
   sundayOrdersEnabled=!sundayOrdersEnabled;
   // Remember the choice on the Sunday itself so Monday's AM includes Sunday orders when they were sent
   setField(dk(currentDate),'__meta','sundayOrders',sundayOrdersEnabled);
@@ -1489,6 +1515,7 @@ function onReasonChange(key,itemId,val){
 }
 
 async function onPMChange(key,itemId,val){
+  if(isReadOnly()){renderTable();renderStats();return}
   const item=items.find(i=>i.id===itemId);
   const numVal=val===''?undefined:Number(val);
 
@@ -3007,6 +3034,7 @@ function _updatePrecheckSendBtn(){
 // ==================== END PRE-SEND VALIDATION DIALOG ====================
 
 function sendReport(){
+  if(isReadOnly())return;
   // Person-name precheck stays out front so we don't open a validation dialog
   // only to bail on a missing field after the user resolves all the items.
   const person=loadInventoryPerson();

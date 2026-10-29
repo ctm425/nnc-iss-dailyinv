@@ -64,8 +64,27 @@ const RESTAURANTS = {
 const ROLES = {
   owner: { label: 'Owner', level: 100, description: 'Full access — settings, user management, all locations' },
   manager: { label: 'Manager', level: 80, description: 'View all assigned sheets, send orders/emails, analytics — no settings or user management' },
-  staff: { label: 'Staff', level: 20, description: 'View and fill in assigned sheets only' }
+  staff: { label: 'Staff', level: 20, description: 'View and fill in assigned sheets only' },
+  driver: { label: 'Driver', level: 10, description: 'Delivery log only, plus view-only Kitchen Daily Order. Signs in with a username.' }
 };
+
+// ==================== USERNAME LOGINS (drivers) ====================
+// Firebase needs an email address, so a plain username like "vitali" is
+// stored as "vitali@drivers.naanncurry.net". No mail is ever sent there.
+const USERNAME_DOMAIN = 'drivers.naanncurry.net';
+function toLoginEmail(input) {
+  const v = String(input || '').trim().toLowerCase();
+  if (!v) return '';
+  return v.includes('@') ? v : v + '@' + USERNAME_DOMAIN;
+}
+function displayLogin(email) {
+  const e = String(email || '');
+  const suffix = '@' + USERNAME_DOMAIN;
+  return e.toLowerCase().endsWith(suffix) ? e.slice(0, -suffix.length) : e;
+}
+function isUsernameLogin(email) {
+  return String(email || '').toLowerCase().endsWith('@' + USERNAME_DOMAIN);
+}
 
 // Map legacy roles to new ones (for migration)
 const LEGACY_ROLE_MAP = { kitchen: 'staff', boh: 'staff' };
@@ -79,7 +98,7 @@ const SHEET_TYPES = {
     frequency: 'daily',
     icon: '🍛',
     description: 'All cooked food coming from Renton Main Kitchen.\nToda la comida cocinada proveniente de la cocina principal de Renton.',
-    allowedRoles: ['owner', 'manager', 'staff'],
+    allowedRoles: ['owner', 'manager', 'staff', 'driver'],
     page: 'daily.html',
     restaurants: ['nnc-iss']
   },
@@ -286,6 +305,28 @@ const SHEET_TYPES = {
     restaurants: ['nnc-iss']
   },
 
+  // ---- DELIVERY DATA (Renton to Issaquah runs) ----
+  'nnc-delivery-log': {
+    name: 'Delivery Log (Driver)',
+    category: 'delivery',
+    frequency: 'daily',
+    icon: '🚚',
+    description: 'Driver page: tap times for each stop, start and end odometer.',
+    allowedRoles: ['owner', 'driver'],
+    page: 'delivery.html',
+    restaurants: ['nnc-iss']
+  },
+  'nnc-delivery-data': {
+    name: 'Delivery Data (Owner)',
+    category: 'reports',
+    frequency: 'daily',
+    icon: '📈',
+    description: 'Run times, miles and cost per delivery, labor rates and van costs. Owner only.',
+    allowedRoles: ['owner'],
+    page: 'delivery-data.html',
+    restaurants: ['nnc-iss']
+  },
+
   'nnc-variance-logs': {
     name: 'Variance Logs',
     category: 'reports',
@@ -454,7 +495,19 @@ async function loadRolePermissions() {
       Object.keys(rolePermissions).forEach(r => {
         if (!ROLES[r] && r !== '_migrated') { delete rolePermissions[r]; migrated = true; }
       });
-      if (migrated) await db.collection('config').doc('role-permissions').set(rolePermissions);
+      // Seed roles added after the saved doc was created (e.g. driver) from
+      // the hardcoded defaults, so the first toggle in Manage Users doesn't
+      // start that role from an empty list.
+      Object.keys(ROLES).forEach(role => {
+        if (role === 'owner' || rolePermissions[role]) return;
+        rolePermissions[role] = Object.keys(SHEET_TYPES).filter(sk =>
+          (SHEET_TYPES[sk].allowedRoles || []).includes(role));
+        migrated = true;
+      });
+      // Only the owner may write config; other roles just use the merged copy.
+      if (migrated && currentUserProfile && currentUserProfile.role === 'owner') {
+        await db.collection('config').doc('role-permissions').set(rolePermissions);
+      }
     } else {
       // First time: build from hardcoded defaults and save to Firestore
       rolePermissions = {};

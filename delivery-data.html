@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Delivery Data (Owner)</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --primary:#1e3a5f;--primary-light:#2563eb;--primary-bg:#eff6ff;--success:#16a34a;--danger:#dc2626;--amber:#92400e;--amber-bg:#fef3c7;
+  --gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-700:#374151;--gray-900:#111827;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+button,input,select{font-family:inherit}
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:36px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box p{color:var(--gray-500);margin-bottom:20px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:16px;margin-bottom:12px}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.header h1{font-size:1.5rem;font-weight:800}
+.header-sub{opacity:.75;font-size:.85rem;margin-top:2px}
+.header-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;min-height:38px}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-white{background:#fff;color:var(--gray-700);border:1px solid var(--gray-300)}
+.btn-danger-link{background:none;border:none;color:var(--danger);font-weight:600;cursor:pointer;font-size:.8rem;padding:4px}
+.owner-badge{background:#eef2ff;color:#4338ca;font-size:.72rem;padding:3px 10px;border-radius:12px;font-weight:700}
+
+.dashboard{padding:28px 32px;max-width:1300px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.panel{background:#fff;border-radius:14px;border:1px solid var(--gray-200);padding:22px}
+.panel h2{font-size:1.1rem;font-weight:700;color:var(--primary);margin-bottom:4px}
+.panel .desc{font-size:.85rem;color:var(--gray-500);margin-bottom:16px}
+.filter-bar{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+.ff{display:flex;flex-direction:column;gap:4px}
+.ff label{font-size:.7rem;font-weight:700;color:var(--gray-500);text-transform:uppercase}
+.ff select,.ff input{padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:.88rem;min-height:38px}
+
+.quick-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.quick-stat{background:#fff;border-radius:10px;padding:16px 20px;border:1px solid var(--gray-200)}
+.quick-stat .label{font-size:.72rem;text-transform:uppercase;color:var(--gray-500);font-weight:600;letter-spacing:.5px}
+.quick-stat .value{font-size:1.6rem;font-weight:800;margin-top:4px}
+.quick-stat .sub{font-size:.78rem;color:var(--gray-400);margin-top:2px}
+
+.table-box{overflow-x:auto;border:1px solid var(--gray-200);border-radius:10px}
+table.log{border-collapse:collapse;width:100%;min-width:1350px;font-size:.84rem}
+table.log th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--gray-500);padding:9px 10px;background:var(--gray-50);border-bottom:2px solid var(--gray-200);font-weight:700;letter-spacing:.3px;white-space:nowrap}
+table.log td{padding:9px 10px;border-bottom:1px solid var(--gray-100);white-space:nowrap}
+table.log tr:hover td{background:var(--gray-50)}
+.num{text-align:right}
+.tag{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px}
+.tag.open{background:#fff7ed;color:#9a3412}
+.tag.warn{background:var(--amber-bg);color:var(--amber);cursor:help}
+.muted{color:var(--gray-400)}
+.total-cell{font-weight:800;color:var(--primary)}
+
+.settings-grid{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.settings-grid > .panel{flex:1 1 480px;min-width:0}
+table.edit{border-collapse:collapse;width:100%;font-size:.86rem}
+table.edit th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--gray-500);padding:6px 6px 6px 0;font-weight:700}
+table.edit td{padding:6px 6px 6px 0;border-top:1px solid var(--gray-100)}
+table.edit input{width:100%;min-width:70px;padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:.9rem;min-height:38px}
+.hint{font-size:.78rem;color:var(--gray-500);margin-top:10px;line-height:1.5}
+.formula{background:var(--primary-bg);border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:.85rem;line-height:1.6;color:#1e3a8a}
+.save-bar{display:flex;justify-content:flex-end;align-items:center;gap:12px}
+.msg{padding:40px;text-align:center;color:var(--gray-500)}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
+@media(max-width:768px){.header{padding:14px 16px}.dashboard{padding:14px}.panel{padding:16px}}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Delivery Data</h2>
+    <p>Owner sign in</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="text" id="loginEmail" placeholder="Email" autocapitalize="none" autocomplete="username">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<div class="header">
+  <div>
+    <h1>🚚 Delivery Data <span class="owner-badge">Owner Only</span></h1>
+    <div class="header-sub">Run times, miles and cost per delivery. Drivers never see this page.</div>
+  </div>
+  <div class="header-right">
+    <a class="btn btn-ghost" href="delivery.html">Driver Page</a>
+    <a class="btn btn-ghost" href="index.html">← Central Command</a>
+    <button class="btn btn-ghost" onclick="auth.signOut()">Sign Out</button>
+  </div>
+</div>
+
+<div class="dashboard" id="content"><div class="msg">Loading…</div></div>
+<div id="toast"></div>
+
+<script src="shared.js?v=20261029"></script>
+<script>
+const DEFAULT_LISTS = {
+  drivers: ['Vitali', 'Tasha', 'Bilal'],
+  vehicles: ['Renton Sprinter', 'Issaquah Transit'],
+  locations: ['Renton', 'Issaquah', 'Bellevue']
+};
+const IRS_RATE = 0.76;          // IRS business mileage rate from July 1, 2026
+const CLOCK_FLAG_MIN = 10;      // flag a tap if phone time and server time differ by more than this
+const STEP_KEYS = ['shiftStart', 'leftOrigin', 'arrivedDest', 'leftDest', 'backOrigin', 'shiftEnd'];
+const STEP_NAMES = { shiftStart: 'Shift start', leftOrigin: 'Left origin', arrivedDest: 'Arrived', leftDest: 'Left destination', backOrigin: 'Back', shiftEnd: 'Shift end' };
+
+let lists = JSON.parse(JSON.stringify(DEFAULT_LISTS));
+let rates = { staff: {}, vehicles: {} };
+let staffRows = [];    // editable copy: [{name, wage, load}]
+let vehicleRows = [];  // [{name, base, addon}]
+let locationsText = '';
+let runs = [];
+let unsub = null;
+let range = { preset: 'week', from: '', to: '' };
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function dkey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function money(n) { return n == null || isNaN(n) ? '—' : '$' + n.toFixed(2); }
+function fmtT(ms) { return ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—'; }
+function fmtMin(m) { if (m == null || isNaN(m)) return '—'; m = Math.round(m); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' hr ' + (m % 60) + ' min'; }
+function n(v) { if (v === '' || v == null) return NaN; const x = Number(String(v).replace(/[$,%\s]/g, '')); return isFinite(x) ? x : NaN; }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = '1'; clearTimeout(toast._h); toast._h = setTimeout(() => t.style.opacity = '0', 3000); }
+function dayLabel(k) { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }); }
+
+// ==================== AUTH ====================
+async function handleLogin() {
+  const email = toLoginEmail(document.getElementById('loginEmail').value);
+  const pw = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  try { await auth.signInWithEmailAndPassword(email, pw); }
+  catch (e) { err.textContent = e.message; err.style.display = 'block'; }
+}
+
+auth.onAuthStateChanged(async user => {
+  if (unsub) { unsub(); unsub = null; }
+  if (!user) { document.getElementById('loginOverlay').classList.remove('hidden'); return; }
+  document.getElementById('loginOverlay').classList.add('hidden');
+  const profile = await loadUserProfile();
+  if (!profile || profile.role !== 'owner') {
+    if (profile && profile.role === 'driver') { window.location.replace('delivery.html'); return; }
+    document.getElementById('content').innerHTML = '<div class="panel msg">Delivery Data is owner only.</div>';
+    return;
+  }
+  await loadSettings();
+  setPreset('week', true);
+});
+
+// ==================== SETTINGS (rates + lists) ====================
+async function loadSettings() {
+  try {
+    const [lDoc, rDoc] = await Promise.all([
+      db.collection('delivery_config').doc('lists').get(),
+      db.collection('delivery_config').doc('rates').get()
+    ]);
+    if (lDoc.exists) {
+      const d = lDoc.data();
+      ['drivers', 'vehicles', 'locations'].forEach(k => { if (Array.isArray(d[k]) && d[k].length) lists[k] = d[k]; });
+    }
+    if (rDoc.exists) { const d = rDoc.data(); rates.staff = d.staff || {}; rates.vehicles = d.vehicles || {}; }
+  } catch (e) { console.error('load settings', e); toast('Could not load rates: ' + (e.code || e.message)); }
+  staffRows = lists.drivers.map(name => ({ name, wage: rates.staff[name] ? rates.staff[name].wage : '', load: rates.staff[name] ? rates.staff[name].load : '' }));
+  vehicleRows = lists.vehicles.map(name => ({ name, base: rates.vehicles[name] && rates.vehicles[name].base != null ? rates.vehicles[name].base : IRS_RATE, addon: rates.vehicles[name] ? rates.vehicles[name].addon : '' }));
+  locationsText = lists.locations.join(', ');
+}
+
+function loadedRate(name) {
+  const r = rates.staff[name]; if (!r) return null;
+  const w = n(r.wage); if (isNaN(w)) return null;
+  const l = n(r.load);
+  return w * (1 + (isNaN(l) ? 0 : l) / 100);
+}
+function perMile(vehicle) {
+  const v = rates.vehicles[vehicle];
+  const base = v && !isNaN(n(v.base)) ? n(v.base) : IRS_RATE;
+  const add = v && !isNaN(n(v.addon)) ? n(v.addon) : 0;
+  return base + add;
+}
+
+async function saveSettings() {
+  const staff = {}, vehicles = {};
+  const names = [], vnames = [];
+  for (const r of staffRows) {
+    const name = String(r.name || '').trim(); if (!name) continue;
+    if (names.includes(name)) { toast('Two people are named "' + name + '". Make names unique.'); return; }
+    names.push(name);
+    staff[name] = { wage: isNaN(n(r.wage)) ? null : n(r.wage), load: isNaN(n(r.load)) ? null : n(r.load) };
+  }
+  for (const r of vehicleRows) {
+    const name = String(r.name || '').trim(); if (!name) continue;
+    if (vnames.includes(name)) { toast('Two vans are named "' + name + '".'); return; }
+    vnames.push(name);
+    vehicles[name] = { base: isNaN(n(r.base)) ? IRS_RATE : n(r.base), addon: isNaN(n(r.addon)) ? 0 : n(r.addon) };
+  }
+  const locs = locationsText.split(',').map(s => s.trim()).filter(Boolean);
+  if (!names.length || !vnames.length || locs.length < 2) { toast('Keep at least one person, one van and two locations.'); return; }
+  try {
+    const batch = db.batch();
+    // Names only: drivers can read this doc to fill their dropdowns.
+    batch.set(db.collection('delivery_config').doc('lists'), { drivers: names, vehicles: vnames, locations: locs, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    // Wages and costs: owner-only doc (see firestore.rules).
+    batch.set(db.collection('delivery_config').doc('rates'), { staff, vehicles, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    await batch.commit();
+    lists = { drivers: names, vehicles: vnames, locations: locs };
+    rates = { staff, vehicles };
+    toast('Rates and lists saved');
+    render();
+  } catch (e) { console.error(e); toast('Save failed: ' + (e.code || e.message)); }
+}
+
+// ==================== DATA ====================
+function setPreset(p, initial) {
+  range.preset = p;
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  let from = new Date(t), to = new Date(t);
+  if (p === 'week') { const dow = (t.getDay() + 6) % 7; from.setDate(t.getDate() - dow); to = new Date(from); to.setDate(from.getDate() + 6); }
+  else if (p === '7') { from.setDate(t.getDate() - 6); }
+  else if (p === '30') { from.setDate(t.getDate() - 29); }
+  else if (p === 'month') { from = new Date(t.getFullYear(), t.getMonth(), 1); to = new Date(t.getFullYear(), t.getMonth() + 1, 0); }
+  else if (p === 'custom') { from = range.from ? new Date(range.from + 'T00:00') : from; to = range.to ? new Date(range.to + 'T00:00') : to; }
+  range.from = dkey(from); range.to = dkey(to);
+  subscribe();
+}
+function setCustom(which, val) { range[which] = val; range.preset = 'custom'; subscribe(); }
+
+function subscribe() {
+  if (unsub) unsub();
+  unsub = db.collection('deliveries')
+    .where('date', '>=', range.from).where('date', '<=', range.to)
+    .orderBy('date', 'desc')
+    .onSnapshot(snap => {
+      runs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => a.date === b.date ? (a.runNumber || 0) - (b.runNumber || 0) : (a.date < b.date ? 1 : -1));
+      render();
+    }, err => {
+      console.error(err);
+      document.getElementById('content').innerHTML = '<div class="panel msg">Couldn’t load deliveries: ' + esc(err.code || err.message) + '. If this says permission-denied, the new firestore.rules haven’t been published yet.</div>';
+    });
+}
+
+function calc(run) {
+  const s = run.stamps || {};
+  const t = k => (s[k] && s[k].t) || null;
+  const start = t('shiftStart'), end = t('shiftEnd');
+  const minutes = start && end ? (end - start) / 60000 : null;
+  const miles = run.odoStart != null && run.odoEnd != null ? Math.round((run.odoEnd - run.odoStart) * 10) / 10 : null;
+  const dr = loadedRate(run.driverName);
+  const hr = run.helperName ? loadedRate(run.helperName) : 0;
+  const labor = minutes != null && dr != null && hr != null ? (minutes / 60) * (dr + hr) : null;
+  const vehicle = miles != null ? miles * perMile(run.vehicle) : null;
+  const total = labor != null && vehicle != null ? labor + vehicle : null;
+  // Phone time vs server time on each tap
+  const flags = [];
+  STEP_KEYS.forEach(k => {
+    if (!s[k] || !s[k].t || !s[k].server || !s[k].server.toMillis) return;
+    const diff = Math.round((s[k].server.toMillis() - s[k].t) / 60000);
+    if (Math.abs(diff) > CLOCK_FLAG_MIN) flags.push(STEP_NAMES[k] + ': reached the system ' + (diff > 0 ? diff + ' min after' : -diff + ' min before') + ' the phone time');
+  });
+  const missingRate = (dr == null ? [run.driverName || 'driver'] : []).concat(run.helperName && hr == null ? [run.helperName] : []);
+  return { t, minutes, miles, labor, vehicle, total, flags, missingRate };
+}
+
+async function deleteRun(id) {
+  const r = runs.find(x => x.id === id);
+  if (!r || !confirm('Delete Delivery ' + r.runNumber + ' on ' + dayLabel(r.date) + ' (' + (r.driverName || 'no driver') + ')? This can’t be undone.')) return;
+  try { await db.collection('deliveries').doc(id).delete(); toast('Deleted'); }
+  catch (e) { toast('Delete failed: ' + (e.code || e.message)); }
+}
+
+function exportCsv() {
+  const head = ['Date', 'Run', 'Status', 'Driver', 'Helper', 'Vehicle', 'From', 'To', 'Shift start', 'Left origin', 'Arrived', 'Left destination', 'Back', 'Shift end', 'Shift minutes', 'Odometer start', 'Odometer end', 'Miles', 'Labor $', 'Vehicle $', 'Total $', 'Time flags'];
+  const rows = runs.map(r => {
+    const c = calc(r);
+    return [r.date, r.runNumber, r.status, r.driverName, r.helperName || '', r.vehicle, r.origin, r.dest]
+      .concat(STEP_KEYS.map(k => c.t(k) ? new Date(c.t(k)).toLocaleTimeString() : ''))
+      .concat([c.minutes != null ? Math.round(c.minutes) : '', r.odoStart ?? '', r.odoEnd ?? '', c.miles ?? '',
+        c.labor != null ? c.labor.toFixed(2) : '', c.vehicle != null ? c.vehicle.toFixed(2) : '', c.total != null ? c.total.toFixed(2) : '', c.flags.join('; ')]);
+  });
+  const csv = [head].concat(rows).map(row => row.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'deliveries_' + range.from + '_to_' + range.to + '.csv';
+  a.click();
+}
+
+// ==================== RENDER ====================
+function render() {
+  const done = runs.filter(r => r.status === 'done').map(r => ({ r, c: calc(r) }));
+  const mins = done.map(x => x.c.minutes).filter(v => v != null);
+  const costs = done.map(x => x.c.total).filter(v => v != null);
+  const miles = done.reduce((s, x) => s + (x.c.miles || 0), 0);
+  const avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+  const openCount = runs.length - done.length;
+
+  const rowsHtml = runs.length ? runs.map(r => {
+    const c = calc(r);
+    const status = r.status === 'done' ? '' : '<span class="tag open">Not saved</span> ';
+    const flag = c.flags.length ? ` <span class="tag warn" title="${esc(c.flags.join('\n'))}">⚠ time check</span>` : '';
+    const costNote = c.missingRate.length && r.status === 'done' ? `<span class="muted" title="Set a wage for ${esc(c.missingRate.join(', '))}">Set rate</span>` : money(c.labor);
+    return `<tr>
+      <td><strong>${dayLabel(r.date)}</strong>${r.runNumber > 1 ? ' <span class="muted">#' + r.runNumber + '</span>' : ''}<br>${status}${flag}</td>
+      <td>${esc(r.driverName || '—')}</td>
+      <td class="${r.helperName ? '' : 'muted'}">${esc(r.helperName || 'None')}</td>
+      <td>${esc(r.vehicle || '—')}</td>
+      <td>${esc(r.origin)} → ${esc(r.dest)}</td>
+      ${STEP_KEYS.map(k => `<td>${fmtT(c.t(k))}</td>`).join('')}
+      <td><strong>${fmtMin(c.minutes)}</strong></td>
+      <td class="num">${c.miles != null ? c.miles : '—'}<div class="muted" style="font-size:.7rem">${r.odoStart != null ? Number(r.odoStart).toLocaleString() : ''}${r.odoEnd != null ? ' → ' + Number(r.odoEnd).toLocaleString() : ''}</div></td>
+      <td class="num">${costNote}</td>
+      <td class="num">${money(c.vehicle)}</td>
+      <td class="num total-cell">${money(c.total)}</td>
+      <td><button class="btn-danger-link" onclick="deleteRun('${r.id}')">Delete</button></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="17" class="muted" style="padding:28px;text-align:center">No deliveries logged ${range.from === range.to ? 'on ' + dayLabel(range.from) : 'between ' + dayLabel(range.from) + ' and ' + dayLabel(range.to)}.</td></tr>`;
+
+  const staffHtml = staffRows.map((r, i) => {
+    const w = n(r.wage), l = n(r.load);
+    const loaded = isNaN(w) ? '—' : money(w * (1 + (isNaN(l) ? 0 : l) / 100)) + '/hr';
+    return `<tr>
+      <td><input value="${esc(r.name)}" aria-label="Name" onchange="staffRows[${i}].name=this.value"></td>
+      <td><input value="${r.wage ?? ''}" inputmode="decimal" placeholder="$/hr" aria-label="Hourly wage" onchange="staffRows[${i}].wage=this.value;render()"></td>
+      <td><input value="${r.load ?? ''}" inputmode="decimal" placeholder="%" aria-label="Payroll load percent" onchange="staffRows[${i}].load=this.value;render()"></td>
+      <td class="num" style="font-weight:700">${loaded}</td>
+      <td><button class="btn-danger-link" onclick="staffRows.splice(${i},1);render()">Remove</button></td>
+    </tr>`;
+  }).join('');
+
+  const vanHtml = vehicleRows.map((r, i) => {
+    const total = (isNaN(n(r.base)) ? IRS_RATE : n(r.base)) + (isNaN(n(r.addon)) ? 0 : n(r.addon));
+    return `<tr>
+      <td><input value="${esc(r.name)}" aria-label="Van name" onchange="vehicleRows[${i}].name=this.value"></td>
+      <td><input value="${r.base ?? ''}" inputmode="decimal" aria-label="Base per mile" onchange="vehicleRows[${i}].base=this.value;render()"></td>
+      <td><input value="${r.addon ?? ''}" inputmode="decimal" placeholder="0.00" aria-label="Add-on per mile" onchange="vehicleRows[${i}].addon=this.value;render()"></td>
+      <td class="num" style="font-weight:700">${money(total)}</td>
+      <td><button class="btn-danger-link" onclick="vehicleRows.splice(${i},1);render()">Remove</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('content').innerHTML = `
+    <div class="panel">
+      <div class="filter-bar">
+        <div class="ff"><label for="preset">Show</label>
+          <select id="preset" onchange="setPreset(this.value)">
+            ${[['week', 'This week'], ['7', 'Last 7 days'], ['30', 'Last 30 days'], ['month', 'This month'], ['custom', 'Custom']].map(([v, l]) => `<option value="${v}"${range.preset === v ? ' selected' : ''}>${l}</option>`).join('')}
+          </select></div>
+        <div class="ff"><label for="from">From</label><input type="date" id="from" value="${range.from}" onchange="setCustom('from',this.value)"></div>
+        <div class="ff"><label for="to">To</label><input type="date" id="to" value="${range.to}" onchange="setCustom('to',this.value)"></div>
+        <div style="flex:1"></div>
+        <button class="btn btn-white" onclick="exportCsv()" ${runs.length ? '' : 'disabled'}>Export CSV</button>
+      </div>
+    </div>
+
+    <div class="quick-stats">
+      <div class="quick-stat"><div class="label">Average shift</div><div class="value">${fmtMin(avg(mins))}</div><div class="sub">Shift start to shift end</div></div>
+      <div class="quick-stat"><div class="label">Average cost per run</div><div class="value" style="color:var(--primary)">${money(avg(costs))}</div><div class="sub">${costs.length < done.length ? (done.length - costs.length) + ' run(s) missing a wage' : 'Labor plus van'}</div></div>
+      <div class="quick-stat"><div class="label">Total cost</div><div class="value">${money(costs.length ? costs.reduce((s, v) => s + v, 0) : null)}</div><div class="sub">Saved runs with rates set</div></div>
+      <div class="quick-stat"><div class="label">Miles</div><div class="value">${Math.round(miles * 10) / 10}</div><div class="sub">From odometer readings</div></div>
+      <div class="quick-stat"><div class="label">Runs</div><div class="value">${done.length}</div><div class="sub">${openCount ? openCount + ' not saved by driver yet' : 'All saved'}</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Delivery log</h2>
+      <div class="desc">Times are what the driver tapped. ⚠ means a tap reached the system more than ${CLOCK_FLAG_MIN} minutes off the phone’s time (no signal, or the phone clock was changed). Hover it for details.</div>
+      <div class="table-box">
+        <table class="log">
+          <thead><tr>
+            <th>Date</th><th>Driver</th><th>Helper</th><th>Van</th><th>Route</th>
+            <th>Shift start</th><th>Left origin</th><th>Arrived</th><th>Left dest.</th><th>Back</th><th>Shift end</th>
+            <th>Shift time</th><th class="num">Miles</th><th class="num">Labor</th><th class="num">Van</th><th class="num">Total</th><th></th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="settings-grid">
+      <div class="panel">
+        <h2>Staff labor rates</h2>
+        <div class="desc">Names here fill the driver and helper dropdowns. Wages stay on this page only.</div>
+        <table class="edit">
+          <thead><tr><th>Name</th><th>Hourly wage</th><th>Payroll load %</th><th class="num">Loaded rate</th><th></th></tr></thead>
+          <tbody>${staffHtml}</tbody>
+        </table>
+        <button class="btn btn-white" style="margin-top:10px" onclick="staffRows.push({name:'',wage:'',load:''});render()">+ Add person</button>
+        <div class="hint">Payroll load is what you pay on top of the wage: employer taxes, workers’ comp, benefits. Renaming someone means older runs under the old name lose their rate.</div>
+      </div>
+
+      <div class="panel">
+        <h2>Van cost per mile</h2>
+        <div class="desc">Base defaults to the IRS business rate ($${IRS_RATE.toFixed(2)}/mile from July 1, 2026). Put your extra real cost per mile in Add-on.</div>
+        <table class="edit">
+          <thead><tr><th>Van</th><th>Base $/mi</th><th>Add-on $/mi</th><th class="num">Per mile</th><th></th></tr></thead>
+          <tbody>${vanHtml}</tbody>
+        </table>
+        <button class="btn btn-white" style="margin-top:10px" onclick="vehicleRows.push({name:'',base:${IRS_RATE},addon:''});render()">+ Add van</button>
+        <div class="ff" style="margin-top:18px"><label for="locs">Locations (comma separated, first two are the default From and To)</label>
+          <input id="locs" value="${esc(locationsText)}" onchange="locationsText=this.value"></div>
+        <div class="formula" style="margin-top:18px">
+          <strong>Labor</strong> = shift time × driver’s loaded rate, plus shift time × helper’s loaded rate if there was one.<br>
+          <strong>Van</strong> = miles × that van’s per mile cost.<br>
+          Costs use today’s rates, so changing a wage updates past runs too.
+        </div>
+      </div>
+    </div>
+    <div class="save-bar"><span class="muted" style="font-size:.82rem">Changes to rates, people, vans and locations apply when you save.</span><button class="btn btn-primary" onclick="saveSettings()">Save rates &amp; lists</button></div>
+  `;
+}
+</script>
+</body>
+</html>
