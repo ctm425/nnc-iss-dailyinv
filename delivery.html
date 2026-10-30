@@ -210,6 +210,7 @@ async function loadLists() {
       ['drivers', 'vehicles', 'locations'].forEach(k => {
         if (Array.isArray(d[k]) && d[k].length) lists[k] = d[k];
       });
+      lists.helpers = Array.isArray(d.helpers) ? d.helpers : [];
     }
   } catch (e) { console.warn('Could not load delivery lists, using defaults', e); }
 }
@@ -267,8 +268,10 @@ function odoState(run, f) {
   return { ok: v > 0 && v > s, v, start: s, tooLow: raw !== '' && !(v > s) };
 }
 
+function titleName(s) { return String(s || '').trim().replace(/\s+/g, ' ').split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' '); }
 function setDetail(id, field, value) {
   const run = getRun(id); if (!run || run.data.status === 'done') return;
+  if (field === 'helperName') value = titleName(value);
   run.data[field] = value;
   if (field === 'driverName' && run.data.helperName === value) run.data.helperName = '';
   if (run.exists) {
@@ -440,7 +443,9 @@ function runHtml(run) {
       ${selectHtml(id, 'dest', 'To', lists.locations, r.dest, lockRoute)}
     </div>
     ${selectHtml(id, 'driverName', 'Driver', lists.drivers, r.driverName, done, 'Pick a driver')}
-    ${selectHtml(id, 'helperName', 'Helper on this run', lists.drivers.filter(x => x !== r.driverName), r.helperName, done, 'No helper')}
+    <label class="field">Helper on this run (leave blank if none)
+      <input type="text" id="helper-${id}" list="helperNames" autocomplete="off" autocapitalize="words" placeholder="Type the helper’s name" value="${esc(r.helperName || '')}" ${done ? 'disabled' : ''} oninput="getRun('${id}').data.helperName=this.value" onchange="setDetail('${id}','helperName',this.value)">
+    </label>
     ${selectHtml(id, 'vehicle', 'Vehicle', lists.vehicles, r.vehicle, lockRoute)}
     <div class="sec-label">Tap as it happens</div>
     ${steps}
@@ -465,6 +470,7 @@ function render() {
   const hasDraft = runs.some(r => !r.exists);
   app.innerHTML = runs.map(runHtml).join('') +
     (hasDraft ? '' : `<button class="addrun" type="button" onclick="addRun()">+ Add another delivery today</button>`) +
+    `<datalist id="helperNames">${(lists.helpers || []).map(h => `<option value="${esc(h)}">`).join('')}</datalist>` +
     '<div class="note">Times are saved the moment you tap. If you lose signal, keep tapping; it syncs when you’re back online.</div>';
   if (active) {
     const el = document.getElementById(active);

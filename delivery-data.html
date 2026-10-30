@@ -72,6 +72,28 @@ table.edit input{width:100%;min-width:70px;padding:8px 10px;border:1px solid var
 .formula{background:var(--primary-bg);border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:.85rem;line-height:1.6;color:#1e3a8a}
 .save-bar{display:flex;justify-content:flex-end;align-items:center;gap:12px}
 .msg{padding:40px;text-align:center;color:var(--gray-500)}
+.assume{background:#eff6ff;border:2px solid #93c5fd;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.assume h2{font-size:1.2rem;color:#1e3a8a}
+.as-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.as-box{background:#fff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px}
+.as-k{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#1e40af;margin-bottom:4px}
+.as-v{font-size:.92rem;line-height:1.45;color:#1e293b}
+.as-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.as-label{font-size:.78rem;font-weight:800;color:#1e3a8a;min-width:96px}
+.as-chip{background:#fff;border:1px solid #bfdbfe;border-radius:999px;padding:5px 12px;font-size:.85rem;color:#334155}
+.as-chip b{color:#0f172a}
+.as-note{font-size:.82rem;color:#1e3a8a}
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:640px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.modal h3{font-size:1.15rem;color:var(--primary)}
+.mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.mgrid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.modal .ff input,.modal .ff select{width:100%}
+.mwarn{color:var(--danger);font-weight:700;font-size:.85rem}
+.mhist{font-size:.8rem;color:var(--gray-700);background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:10px 12px}
+.mhist li{margin:0 0 4px 16px}
+.tag.edited{background:#dbeafe;color:#1e3a8a}
+@media(max-width:560px){.mgrid,.mgrid3{grid-template-columns:1fr 1fr}}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
 @media(max-width:768px){.header{padding:14px 16px}.dashboard{padding:14px}.panel{padding:16px}}
 </style>
@@ -103,6 +125,7 @@ table.edit input{width:100%;min-width:70px;padding:8px 10px;border:1px solid var
 
 <div class="dashboard" id="content"><div class="msg">Loading…</div></div>
 <div id="toast"></div>
+<div id="editModal"></div>
 
 <script src="shared.js?v=20261029"></script>
 <script>
@@ -118,18 +141,20 @@ const STEP_NAMES = { shiftStart: 'Shift start', leftOrigin: 'Left origin', arriv
 
 let lists = JSON.parse(JSON.stringify(DEFAULT_LISTS));
 let rates = { staff: {}, vehicles: {} };
-let staffRows = [];    // editable copy: [{name, wage, load}]
+let staffRows = [];    // editable copy: [{name, wage, load, driver}]
 let vehicleRows = [];  // [{name, base, addon}]
 let locationsText = '';
 let runs = [];
 let unsub = null;
 let range = { preset: 'week', from: '', to: '' };
+let filt = { driver: '', helper: '', van: '', route: '', status: '' };
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function dkey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function money(n) { return n == null || isNaN(n) ? '—' : '$' + n.toFixed(2); }
 function fmtT(ms) { return ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—'; }
 function fmtMin(m) { if (m == null || isNaN(m)) return '—'; m = Math.round(m); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' hr ' + (m % 60) + ' min'; }
+function titleName(s) { return String(s || '').trim().replace(/\s+/g, ' ').split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' '); }
 function n(v) { if (v === '' || v == null) return NaN; const x = Number(String(v).replace(/[$,%\s]/g, '')); return isFinite(x) ? x : NaN; }
 function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = '1'; clearTimeout(toast._h); toast._h = setTimeout(() => t.style.opacity = '0', 3000); }
 function dayLabel(k) { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }); }
@@ -167,10 +192,19 @@ async function loadSettings() {
     if (lDoc.exists) {
       const d = lDoc.data();
       ['drivers', 'vehicles', 'locations'].forEach(k => { if (Array.isArray(d[k]) && d[k].length) lists[k] = d[k]; });
+      lists.helpers = Array.isArray(d.helpers) ? d.helpers : [];
     }
     if (rDoc.exists) { const d = rDoc.data(); rates.staff = d.staff || {}; rates.vehicles = d.vehicles || {}; }
   } catch (e) { console.error('load settings', e); toast('Could not load rates: ' + (e.code || e.message)); }
-  staffRows = lists.drivers.map(name => ({ name, wage: rates.staff[name] ? rates.staff[name].wage : '', load: rates.staff[name] ? rates.staff[name].load : '' }));
+  if (!lists.helpers) lists.helpers = [];
+  // Everyone with a rate, drivers first. People saved before Oct 30 had no driver flag: they were drivers.
+  const names = [];
+  lists.drivers.concat(lists.helpers, Object.keys(rates.staff)).forEach(x => { if (x && !names.includes(x)) names.push(x); });
+  staffRows = names.map(name => {
+    const r = rates.staff[name] || {};
+    const driver = r.driver != null ? !!r.driver : lists.drivers.includes(name);
+    return { name, wage: r.wage ?? '', load: r.load ?? '', driver };
+  });
   vehicleRows = lists.vehicles.map(name => ({ name, base: rates.vehicles[name] && rates.vehicles[name].base != null ? rates.vehicles[name].base : IRS_RATE, addon: rates.vehicles[name] ? rates.vehicles[name].addon : '' }));
   locationsText = lists.locations.join(', ');
 }
@@ -195,7 +229,7 @@ async function saveSettings() {
     const name = String(r.name || '').trim(); if (!name) continue;
     if (names.includes(name)) { toast('Two people are named "' + name + '". Make names unique.'); return; }
     names.push(name);
-    staff[name] = { wage: isNaN(n(r.wage)) ? null : n(r.wage), load: isNaN(n(r.load)) ? null : n(r.load) };
+    staff[name] = { wage: isNaN(n(r.wage)) ? null : n(r.wage), load: isNaN(n(r.load)) ? null : n(r.load), driver: !!r.driver };
   }
   for (const r of vehicleRows) {
     const name = String(r.name || '').trim(); if (!name) continue;
@@ -204,15 +238,16 @@ async function saveSettings() {
     vehicles[name] = { base: isNaN(n(r.base)) ? IRS_RATE : n(r.base), addon: isNaN(n(r.addon)) ? 0 : n(r.addon) };
   }
   const locs = locationsText.split(',').map(s => s.trim()).filter(Boolean);
-  if (!names.length || !vnames.length || locs.length < 2) { toast('Keep at least one person, one van and two locations.'); return; }
+  const driverNames = names.filter(x => staff[x].driver), helperNames = names.filter(x => !staff[x].driver);
+  if (!driverNames.length || !vnames.length || locs.length < 2) { toast('Keep at least one driver, one van and two locations.'); return; }
   try {
     const batch = db.batch();
     // Names only: drivers can read this doc to fill their dropdowns.
-    batch.set(db.collection('delivery_config').doc('lists'), { drivers: names, vehicles: vnames, locations: locs, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    batch.set(db.collection('delivery_config').doc('lists'), { drivers: driverNames, helpers: helperNames, vehicles: vnames, locations: locs, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
     // Wages and costs: owner-only doc (see firestore.rules).
     batch.set(db.collection('delivery_config').doc('rates'), { staff, vehicles, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
     await batch.commit();
-    lists = { drivers: names, vehicles: vnames, locations: locs };
+    lists = { drivers: driverNames, helpers: helperNames, vehicles: vnames, locations: locs };
     rates = { staff, vehicles };
     toast('Rates and lists saved');
     render();
@@ -263,12 +298,135 @@ function calc(run) {
   // Phone time vs server time on each tap
   const flags = [];
   STEP_KEYS.forEach(k => {
-    if (!s[k] || !s[k].t || !s[k].server || !s[k].server.toMillis) return;
+    if (!s[k] || !s[k].t || !s[k].server || !s[k].server.toMillis || s[k].ownerSet) return;
     const diff = Math.round((s[k].server.toMillis() - s[k].t) / 60000);
     if (Math.abs(diff) > CLOCK_FLAG_MIN) flags.push(STEP_NAMES[k] + ': reached the system ' + (diff > 0 ? diff + ' min after' : -diff + ' min before') + ' the phone time');
   });
   const missingRate = (dr == null ? [run.driverName || 'driver'] : []).concat(run.helperName && hr == null ? [run.helperName] : []);
   return { t, minutes, miles, labor, vehicle, total, flags, missingRate };
+}
+
+// ==================== OWNER EDIT ====================
+// Fix a driver's mistake. Every save keeps what the trip said before in
+// run.history [{at, by, byName, before}], shown at the bottom of the edit box.
+const EDIT_FIELDS = ['date', 'driverName', 'helperName', 'vehicle', 'origin', 'dest', 'odoStart', 'odoEnd', 'status'];
+let editing = null;   // { id, draft }
+function hhmm(ms) { if (!ms) return ''; const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function snapshot(r) {
+  const o = {}; EDIT_FIELDS.forEach(k => { o[k] = r[k] == null ? '' : r[k]; });
+  o.times = {}; STEP_KEYS.forEach(k => { o.times[k] = hhmm(r.stamps && r.stamps[k] && r.stamps[k].t); });
+  return o;
+}
+function openEdit(id) {
+  const r = runs.find(x => x.id === id); if (!r) return;
+  editing = { id, draft: snapshot(r) };
+  renderEdit();
+}
+function closeEdit() { editing = null; document.getElementById('editModal').innerHTML = ''; }
+// Update only the warning + Save button, never redraw the box while someone is typing
+function refreshEditState() {
+  if (!editing) return;
+  const why = editProblem(editing.draft);
+  const w = document.getElementById('editWarn'), b = document.getElementById('editSave');
+  if (w) { w.textContent = why; w.style.display = why ? '' : 'none'; }
+  if (b) { b.disabled = !!why; b.style.opacity = why ? '.5' : ''; b.style.cursor = why ? 'not-allowed' : ''; }
+}
+function setDraft(k, v) { editing.draft[k] = v; refreshEditState(); }
+function setTime(k, v) { editing.draft.times[k] = v; refreshEditState(); }
+function editProblem(d) {
+  const mins = STEP_KEYS.map(k => { const t = d.times[k]; if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; });
+  let last = -1;
+  for (let i = 0; i < mins.length; i++) {
+    if (mins[i] == null) continue;
+    if (mins[i] < last) return STEP_NAMES[STEP_KEYS[i]] + ' is earlier than the step before it.';
+    last = mins[i];
+  }
+  const a = n(d.odoStart), b = n(d.odoEnd);
+  if (String(d.odoEnd) !== '' && String(d.odoStart) !== '' && !(b > a)) return 'End odometer has to be higher than the start.';
+  if (!d.driverName) return 'Pick a driver.';
+  if (d.helperName && d.helperName === d.driverName) return 'Helper can’t be the same person as the driver.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return 'Pick a date.';
+  return '';
+}
+function describeChange(before, after) {
+  const out = [];
+  const label = { date: 'Date', driverName: 'Driver', helperName: 'Helper', vehicle: 'Van', origin: 'From', dest: 'To', odoStart: 'Odometer start', odoEnd: 'Odometer end', status: 'Status' };
+  EDIT_FIELDS.forEach(k => { if (String(before[k] ?? '') !== String(after[k] ?? '')) out.push(`${label[k]} ${before[k] === '' ? '—' : before[k]} → ${after[k] === '' ? '—' : after[k]}`); });
+  STEP_KEYS.forEach(k => { const x = (before.times || {})[k] || '', y = (after.times || {})[k] || ''; if (x !== y) out.push(`${STEP_NAMES[k]} ${x || '—'} → ${y || '—'}`); });
+  return out.join('; ') || 'no changes';
+}
+async function saveEdit() {
+  if (!editing) return;
+  const r = runs.find(x => x.id === editing.id); if (!r) { closeEdit(); return; }
+  const d = editing.draft, why = editProblem(d);
+  if (why) { toast(why); return; }
+  const before = snapshot(r);
+  if (describeChange(before, d) === 'no changes') { closeEdit(); return; }
+  const [Y, M, D] = d.date.split('-').map(Number);
+  const stamps = Object.assign({}, r.stamps || {});
+  STEP_KEYS.forEach(k => {
+    const t = d.times[k];
+    if (!t) { delete stamps[k]; return; }
+    if (before.times[k] === t && d.date === r.date && stamps[k]) return; // unchanged
+    const [h, m] = t.split(':').map(Number);
+    stamps[k] = Object.assign({}, stamps[k] || {}, { t: new Date(Y, M - 1, D, h, m).getTime(), ownerSet: true });
+  });
+  const odoS = String(d.odoStart) === '' ? null : n(d.odoStart);
+  const odoE = String(d.odoEnd) === '' ? null : n(d.odoEnd);
+  const u = auth.currentUser;
+  const name = (currentUserProfile && currentUserProfile.displayName) || (u && u.email) || 'owner';
+  const upd = {
+    date: d.date, driverName: d.driverName, helperName: d.helperName || '', vehicle: d.vehicle,
+    origin: d.origin, dest: d.dest, odoStart: odoS, odoEnd: odoE, status: d.status || 'done',
+    miles: odoS != null && odoE != null ? Math.round((odoE - odoS) * 10) / 10 : null,
+    stamps,
+    editedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    editedBy: u ? u.email : 'owner', editedByName: name,
+    history: firebase.firestore.FieldValue.arrayUnion({ at: new Date().toISOString(), by: u ? u.email : 'owner', byName: name, before }),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  upd.helperName = titleName(upd.helperName);
+  try { await db.collection('deliveries').doc(editing.id).update(upd); toast('Trip updated'); closeEdit(); }
+  catch (e) { console.error(e); toast('Save failed: ' + (e.code || e.message)); }
+}
+function renderEdit() {
+  const box = document.getElementById('editModal');
+  if (!editing) { box.innerHTML = ''; return; }
+  const r = runs.find(x => x.id === editing.id); if (!r) { closeEdit(); return; }
+  const d = editing.draft;
+  const opt = (list, v, blank) => (blank != null ? `<option value=""${!v ? ' selected' : ''}>${esc(blank)}</option>` : '')
+    + list.concat(v && !list.includes(v) ? [v] : []).map(o => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('');
+  const sel = (k, label, list, blank) => `<div class="ff"><label>${label}</label><select onchange="setDraft('${k}',this.value)">${opt(list, d[k], blank)}</select></div>`;
+  const why = editProblem(d);
+  const hist = (r.history || []).slice().reverse();
+  box.innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeEdit()"><div class="modal" role="dialog" aria-modal="true" aria-label="Edit trip">
+    <h3>Edit trip · Delivery ${r.runNumber || 1}</h3>
+    <div class="mgrid">
+      <div class="ff"><label>Date</label><input type="date" value="${esc(d.date)}" onchange="setDraft('date',this.value)"></div>
+      <div class="ff"><label>Status</label><select onchange="setDraft('status',this.value)"><option value="done"${d.status === 'done' ? ' selected' : ''}>Saved</option><option value="open"${d.status !== 'done' ? ' selected' : ''}>Not saved (driver can still change)</option></select></div>
+      ${sel('driverName', 'Driver', lists.drivers, 'Pick a driver')}
+      <div class="ff"><label>Helper (blank = none)</label><input list="ddPeople" value="${esc(d.helperName)}" onchange="setDraft('helperName',titleName(this.value))"></div>
+      ${sel('vehicle', 'Van', lists.vehicles)}
+      <div class="mgrid" style="gap:8px">${sel('origin', 'From', lists.locations)}${sel('dest', 'To', lists.locations)}</div>
+    </div>
+    <div class="mgrid3">
+      ${STEP_KEYS.map(k => `<div class="ff"><label>${STEP_NAMES[k]}</label><input type="time" value="${esc(d.times[k])}" onchange="setTime('${k}',this.value)"></div>`).join('')}
+    </div>
+    <div class="mgrid">
+      <div class="ff"><label>Odometer start</label><input inputmode="decimal" value="${esc(d.odoStart)}" onchange="setDraft('odoStart',this.value)"></div>
+      <div class="ff"><label>Odometer end</label><input inputmode="decimal" value="${esc(d.odoEnd)}" onchange="setDraft('odoEnd',this.value)"></div>
+    </div>
+    <div class="mwarn" id="editWarn" style="${why ? '' : 'display:none'}">${esc(why)}</div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-white" onclick="closeEdit()">Cancel</button>
+      <button class="btn btn-primary" id="editSave" onclick="saveEdit()" ${why ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''}>Save changes</button>
+    </div>
+    ${hist.length ? `<div class="mhist"><strong>Changes</strong><ul>${hist.map((h, i) => {
+      const afterState = i === 0 ? snapshot(r) : hist[i - 1].before;
+      const when = new Date(h.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      return `<li>${esc(when)} by ${esc(h.byName || h.by)}: ${esc(describeChange(h.before, afterState))}</li>`;
+    }).join('')}</ul></div>` : ''}
+  </div></div>`;
 }
 
 async function deleteRun(id) {
@@ -280,7 +438,7 @@ async function deleteRun(id) {
 
 function exportCsv() {
   const head = ['Date', 'Run', 'Status', 'Driver', 'Helper', 'Vehicle', 'From', 'To', 'Shift start', 'Left origin', 'Arrived', 'Left destination', 'Back', 'Shift end', 'Shift minutes', 'Odometer start', 'Odometer end', 'Miles', 'Labor $', 'Vehicle $', 'Total $', 'Time flags'];
-  const rows = runs.map(r => {
+  const rows = filteredRuns().map(r => {
     const c = calc(r);
     return [r.date, r.runNumber, r.status, r.driverName, r.helperName || '', r.vehicle, r.origin, r.dest]
       .concat(STEP_KEYS.map(k => c.t(k) ? new Date(c.t(k)).toLocaleTimeString() : ''))
@@ -294,19 +452,43 @@ function exportCsv() {
   a.click();
 }
 
+// ==================== FILTERS ====================
+function setFilt(k, v) { filt[k] = v; render(); }
+function clearFilt() { filt = { driver: '', helper: '', van: '', route: '', status: '' }; render(); }
+function filteredRuns() {
+  return runs.filter(r => {
+    if (filt.driver && r.driverName !== filt.driver) return false;
+    if (filt.helper === '__none' && r.helperName) return false;
+    if (filt.helper === '__any' && !r.helperName) return false;
+    if (filt.helper && filt.helper[0] !== '_' && r.helperName !== filt.helper) return false;
+    if (filt.van && r.vehicle !== filt.van) return false;
+    if (filt.route && (r.origin + ' → ' + r.dest) !== filt.route) return false;
+    if (filt.status === 'done' && r.status !== 'done') return false;
+    if (filt.status === 'open' && r.status === 'done') return false;
+    if (filt.status === 'edited' && !r.editedAt) return false;
+    if (filt.status === 'flag' && !calc(r).flags.length) return false;
+    if (filt.status === 'norate' && !(r.status === 'done' && calc(r).missingRate.length)) return false;
+    return true;
+  });
+}
+
 // ==================== RENDER ====================
 function render() {
-  const done = runs.filter(r => r.status === 'done').map(r => ({ r, c: calc(r) }));
+  const allRuns = runs;
+  const shown = filteredRuns();
+  const done = shown.filter(r => r.status === 'done').map(r => ({ r, c: calc(r) }));
   const mins = done.map(x => x.c.minutes).filter(v => v != null);
   const costs = done.map(x => x.c.total).filter(v => v != null);
   const miles = done.reduce((s, x) => s + (x.c.miles || 0), 0);
   const avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
-  const openCount = runs.length - done.length;
+  const openCount = shown.length - done.length;
+  const anyFilter = Object.values(filt).some(Boolean);
 
-  const rowsHtml = runs.length ? runs.map(r => {
+  const rowsHtml = shown.length ? shown.map(r => {
     const c = calc(r);
     const status = r.status === 'done' ? '' : '<span class="tag open">Not saved</span> ';
-    const flag = c.flags.length ? ` <span class="tag warn" title="${esc(c.flags.join('\n'))}">⚠ time check</span>` : '';
+    const flag = (c.flags.length ? ` <span class="tag warn" title="${esc(c.flags.join('\n'))}">⚠ time check</span>` : '')
+      + (r.editedAt ? ` <span class="tag edited" title="Edited by ${esc(r.editedByName || r.editedBy || 'owner')}">Edited</span>` : '');
     const costNote = c.missingRate.length && r.status === 'done' ? `<span class="muted" title="Set a wage for ${esc(c.missingRate.join(', '))}">Set rate</span>` : money(c.labor);
     return `<tr>
       <td><strong>${dayLabel(r.date)}</strong>${r.runNumber > 1 ? ' <span class="muted">#' + r.runNumber + '</span>' : ''}<br>${status}${flag}</td>
@@ -320,9 +502,35 @@ function render() {
       <td class="num">${costNote}</td>
       <td class="num">${money(c.vehicle)}</td>
       <td class="num total-cell">${money(c.total)}</td>
-      <td><button class="btn-danger-link" onclick="deleteRun('${r.id}')">Delete</button></td>
+      <td><button class="btn btn-white" style="min-height:32px;padding:4px 12px" onclick="openEdit('${r.id}')">Edit</button> <button class="btn-danger-link" onclick="deleteRun('${r.id}')">Delete</button></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="17" class="muted" style="padding:28px;text-align:center">No deliveries logged ${range.from === range.to ? 'on ' + dayLabel(range.from) : 'between ' + dayLabel(range.from) + ' and ' + dayLabel(range.to)}.</td></tr>`;
+  }).join('') : `<tr><td colspan="17" class="muted" style="padding:28px;text-align:center">${allRuns.length && anyFilter ? 'No trips match these filters.' : 'No deliveries logged ' + (range.from === range.to ? 'on ' + dayLabel(range.from) : 'between ' + dayLabel(range.from) + ' and ' + dayLabel(range.to)) + '.'}</td></tr>`;
+
+  // Filter choices come from what's actually in this date range
+  const uniq = arr => [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const fsel = (k, label, opts, allLabel) => `<div class="ff"><label>${label}</label><select onchange="setFilt('${k}',this.value)"><option value="">${allLabel}</option>${opts.map(([v, l]) => `<option value="${esc(v)}"${filt[k] === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
+  const filterBar = `<div class="filter-bar" style="margin-top:12px">
+      ${fsel('driver', 'Driver', uniq(allRuns.map(r => r.driverName)).map(x => [x, x]), 'All drivers')}
+      ${fsel('helper', 'Helper', [['__any', 'Any helper'], ['__none', 'No helper']].concat(uniq(allRuns.map(r => r.helperName)).map(x => [x, x])), 'All')}
+      ${fsel('van', 'Van', uniq(allRuns.map(r => r.vehicle)).map(x => [x, x]), 'All vans')}
+      ${fsel('route', 'Route', uniq(allRuns.map(r => r.origin + ' → ' + r.dest)).map(x => [x, x]), 'All routes')}
+      ${fsel('status', 'Show', [['done', 'Saved by driver'], ['open', 'Not saved yet'], ['edited', 'Edited by you'], ['flag', 'Time check flags'], ['norate', 'Missing a wage']], 'All trips')}
+      ${anyFilter ? '<button class="btn btn-white" onclick="clearFilt()">Clear filters</button>' : ''}
+    </div>`;
+
+  // Helpers typed on the driver page who have no rate yet
+  const known = new Set(staffRows.map(r => r.name));
+  const unknownHelpers = uniq(allRuns.map(r => r.helperName)).filter(x => !known.has(x));
+
+  // Current assumptions, in plain numbers
+  const rateChips = staffRows.filter(r => r.name).map(r => {
+    const w = n(r.wage), l = n(r.load);
+    return `<span class="as-chip">${esc(r.name)}${r.driver ? '' : ' (helper)'}: <b>${isNaN(w) ? 'no wage set' : money(w * (1 + (isNaN(l) ? 0 : l) / 100)) + '/hr'}</b></span>`;
+  }).join('');
+  const vanChips = vehicleRows.filter(r => r.name).map(r => {
+    const total = (isNaN(n(r.base)) ? IRS_RATE : n(r.base)) + (isNaN(n(r.addon)) ? 0 : n(r.addon));
+    return `<span class="as-chip">${esc(r.name)}: <b>${money(total)}/mi</b></span>`;
+  }).join('');
 
   const staffHtml = staffRows.map((r, i) => {
     const w = n(r.wage), l = n(r.load);
@@ -331,6 +539,7 @@ function render() {
       <td><input value="${esc(r.name)}" aria-label="Name" onchange="staffRows[${i}].name=this.value"></td>
       <td><input value="${r.wage ?? ''}" inputmode="decimal" placeholder="$/hr" aria-label="Hourly wage" onchange="staffRows[${i}].wage=this.value;render()"></td>
       <td><input value="${r.load ?? ''}" inputmode="decimal" placeholder="%" aria-label="Payroll load percent" onchange="staffRows[${i}].load=this.value;render()"></td>
+      <td style="text-align:center"><input type="checkbox" style="width:22px;height:22px;min-height:0" aria-label="Drives" ${r.driver ? 'checked' : ''} onchange="staffRows[${i}].driver=this.checked;render()"></td>
       <td class="num" style="font-weight:700">${loaded}</td>
       <td><button class="btn-danger-link" onclick="staffRows.splice(${i},1);render()">Remove</button></td>
     </tr>`;
@@ -348,30 +557,76 @@ function render() {
   }).join('');
 
   document.getElementById('content').innerHTML = `
+    <div class="assume">
+      <h2>How trip costs are worked out</h2>
+      <div class="as-grid">
+        <div class="as-box"><div class="as-k">Labor</div><div class="as-v">Shift time × driver’s loaded rate, plus shift time × helper’s loaded rate if there was one</div></div>
+        <div class="as-box"><div class="as-k">Shift time</div><div class="as-v">From <b>Shift start</b> to <b>Shift end</b>, so loading and wrap-up count</div></div>
+        <div class="as-box"><div class="as-k">Loaded rate</div><div class="as-v">Hourly wage + payroll load % (taxes, workers’ comp, benefits)</div></div>
+        <div class="as-box"><div class="as-k">Van</div><div class="as-v">Miles (end odometer − start) × that van’s cost per mile. Base is the IRS rate, $${IRS_RATE.toFixed(2)}/mi from July 1, 2026, plus your add-on</div></div>
+      </div>
+      <div class="as-row"><span class="as-label">Rates in use</span>${rateChips || '<span class="muted">No people yet</span>'}</div>
+      <div class="as-row"><span class="as-label">Vans</span>${vanChips}</div>
+      <div class="as-note">Costs use today’s rates, so changing a wage also changes past trips. ⚠ time check = a tap reached the system more than ${CLOCK_FLAG_MIN} minutes off the phone’s clock.</div>
+    </div>
+
+    ${unknownHelpers.length ? `<div class="panel" style="border-color:#fcd34d;background:#fffbeb">
+      <h2 style="color:#92400e">Helpers without a rate</h2>
+      <div class="desc" style="margin-bottom:10px">Drivers typed these helper names. Add them below with a wage so their time is costed. If one is a misspelling, fix the trip with Edit instead.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${unknownHelpers.map(h => `<button class="btn btn-white" onclick="staffRows.push({name:${esc(JSON.stringify(h))},wage:'',load:'',driver:false});render()">+ Add ${esc(h)}</button>`).join('')}</div>
+    </div>` : ''}
+
+    <div class="settings-grid">
+      <div class="panel">
+        <h2>Staff labor rates</h2>
+        <div class="desc">Tick <b>Drives</b> for people who appear in the driver list. Everyone else is suggested as a helper. Wages stay on this page only.</div>
+        <table class="edit">
+          <thead><tr><th>Name</th><th>Hourly wage</th><th>Payroll load %</th><th style="text-align:center">Drives</th><th class="num">Loaded rate</th><th></th></tr></thead>
+          <tbody>${staffHtml}</tbody>
+        </table>
+        <button class="btn btn-white" style="margin-top:10px" onclick="staffRows.push({name:'',wage:'',load:'',driver:false});render()">+ Add person</button>
+        <div class="hint">Renaming someone means older trips under the old name lose their rate.</div>
+      </div>
+
+      <div class="panel">
+        <h2>Van cost per mile</h2>
+        <div class="desc">Put your extra real cost per mile (fuel, repairs, insurance above the IRS average) in Add-on.</div>
+        <table class="edit">
+          <thead><tr><th>Van</th><th>Base $/mi</th><th>Add-on $/mi</th><th class="num">Per mile</th><th></th></tr></thead>
+          <tbody>${vanHtml}</tbody>
+        </table>
+        <button class="btn btn-white" style="margin-top:10px" onclick="vehicleRows.push({name:'',base:${IRS_RATE},addon:''});render()">+ Add van</button>
+        <div class="ff" style="margin-top:18px"><label for="locs">Locations (comma separated, first two are the default From and To)</label>
+          <input id="locs" value="${esc(locationsText)}" onchange="locationsText=this.value"></div>
+      </div>
+    </div>
+    <div class="save-bar"><span class="muted" style="font-size:.82rem">Changes to rates, people, vans and locations apply when you save.</span><button class="btn btn-primary" onclick="saveSettings()">Save rates &amp; lists</button></div>
+
     <div class="panel">
+      <h2>Saved trips</h2>
       <div class="filter-bar">
-        <div class="ff"><label for="preset">Show</label>
+        <div class="ff"><label for="preset">Dates</label>
           <select id="preset" onchange="setPreset(this.value)">
             ${[['week', 'This week'], ['7', 'Last 7 days'], ['30', 'Last 30 days'], ['month', 'This month'], ['custom', 'Custom']].map(([v, l]) => `<option value="${v}"${range.preset === v ? ' selected' : ''}>${l}</option>`).join('')}
           </select></div>
         <div class="ff"><label for="from">From</label><input type="date" id="from" value="${range.from}" onchange="setCustom('from',this.value)"></div>
         <div class="ff"><label for="to">To</label><input type="date" id="to" value="${range.to}" onchange="setCustom('to',this.value)"></div>
         <div style="flex:1"></div>
-        <button class="btn btn-white" onclick="exportCsv()" ${runs.length ? '' : 'disabled'}>Export CSV</button>
+        <button class="btn btn-white" onclick="exportCsv()" ${shown.length ? '' : 'disabled'}>Export CSV${anyFilter ? ' (filtered)' : ''}</button>
       </div>
+      ${filterBar}
     </div>
 
     <div class="quick-stats">
       <div class="quick-stat"><div class="label">Average shift</div><div class="value">${fmtMin(avg(mins))}</div><div class="sub">Shift start to shift end</div></div>
-      <div class="quick-stat"><div class="label">Average cost per run</div><div class="value" style="color:var(--primary)">${money(avg(costs))}</div><div class="sub">${costs.length < done.length ? (done.length - costs.length) + ' run(s) missing a wage' : 'Labor plus van'}</div></div>
-      <div class="quick-stat"><div class="label">Total cost</div><div class="value">${money(costs.length ? costs.reduce((s, v) => s + v, 0) : null)}</div><div class="sub">Saved runs with rates set</div></div>
+      <div class="quick-stat"><div class="label">Average cost per trip</div><div class="value" style="color:var(--primary)">${money(avg(costs))}</div><div class="sub">${costs.length < done.length ? (done.length - costs.length) + ' trip(s) missing a wage' : 'Labor plus van'}</div></div>
+      <div class="quick-stat"><div class="label">Total cost</div><div class="value">${money(costs.length ? costs.reduce((s, v) => s + v, 0) : null)}</div><div class="sub">Saved trips with rates set</div></div>
       <div class="quick-stat"><div class="label">Miles</div><div class="value">${Math.round(miles * 10) / 10}</div><div class="sub">From odometer readings</div></div>
-      <div class="quick-stat"><div class="label">Runs</div><div class="value">${done.length}</div><div class="sub">${openCount ? openCount + ' not saved by driver yet' : 'All saved'}</div></div>
+      <div class="quick-stat"><div class="label">Trips</div><div class="value">${done.length}</div><div class="sub">${anyFilter ? shown.length + ' of ' + allRuns.length + ' match filters' : (openCount ? openCount + ' not saved by driver yet' : 'All saved')}</div></div>
     </div>
 
     <div class="panel">
-      <h2>Delivery log</h2>
-      <div class="desc">Times are what the driver tapped. ⚠ means a tap reached the system more than ${CLOCK_FLAG_MIN} minutes off the phone’s time (no signal, or the phone clock was changed). Hover it for details.</div>
+      <h2>Trip log</h2>
       <div class="table-box">
         <table class="log">
           <thead><tr>
@@ -383,37 +638,7 @@ function render() {
         </table>
       </div>
     </div>
-
-    <div class="settings-grid">
-      <div class="panel">
-        <h2>Staff labor rates</h2>
-        <div class="desc">Names here fill the driver and helper dropdowns. Wages stay on this page only.</div>
-        <table class="edit">
-          <thead><tr><th>Name</th><th>Hourly wage</th><th>Payroll load %</th><th class="num">Loaded rate</th><th></th></tr></thead>
-          <tbody>${staffHtml}</tbody>
-        </table>
-        <button class="btn btn-white" style="margin-top:10px" onclick="staffRows.push({name:'',wage:'',load:''});render()">+ Add person</button>
-        <div class="hint">Payroll load is what you pay on top of the wage: employer taxes, workers’ comp, benefits. Renaming someone means older runs under the old name lose their rate.</div>
-      </div>
-
-      <div class="panel">
-        <h2>Van cost per mile</h2>
-        <div class="desc">Base defaults to the IRS business rate ($${IRS_RATE.toFixed(2)}/mile from July 1, 2026). Put your extra real cost per mile in Add-on.</div>
-        <table class="edit">
-          <thead><tr><th>Van</th><th>Base $/mi</th><th>Add-on $/mi</th><th class="num">Per mile</th><th></th></tr></thead>
-          <tbody>${vanHtml}</tbody>
-        </table>
-        <button class="btn btn-white" style="margin-top:10px" onclick="vehicleRows.push({name:'',base:${IRS_RATE},addon:''});render()">+ Add van</button>
-        <div class="ff" style="margin-top:18px"><label for="locs">Locations (comma separated, first two are the default From and To)</label>
-          <input id="locs" value="${esc(locationsText)}" onchange="locationsText=this.value"></div>
-        <div class="formula" style="margin-top:18px">
-          <strong>Labor</strong> = shift time × driver’s loaded rate, plus shift time × helper’s loaded rate if there was one.<br>
-          <strong>Van</strong> = miles × that van’s per mile cost.<br>
-          Costs use today’s rates, so changing a wage updates past runs too.
-        </div>
-      </div>
-    </div>
-    <div class="save-bar"><span class="muted" style="font-size:.82rem">Changes to rates, people, vans and locations apply when you save.</span><button class="btn btn-primary" onclick="saveSettings()">Save rates &amp; lists</button></div>
+    <datalist id="ddPeople">${staffRows.filter(r => r.name).map(r => `<option value="${esc(r.name)}">`).join('')}</datalist>
   `;
 }
 </script>
