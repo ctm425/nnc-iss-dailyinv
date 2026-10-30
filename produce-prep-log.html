@@ -357,6 +357,8 @@ let trendChart = null;
 let analyticsData = { dates: [], dataMap: {} };
 let sortCol = null;
 let sortAsc = true;
+// Analytics rounding: nearest 0.1
+const r1 = v => Math.round((Number(v) || 0) * 10) / 10;
 
 // ==================== ANALYTICS FIELD DEFINITIONS ====================
 const FIELD_DEFS = [
@@ -639,7 +641,7 @@ function renderStatsCards(dates, dataMap) {
     <div class="stat-card">
       <div class="stat-label">Avg Paneer Blocks / Day</div>
       <div class="stat-value">${avg(paneerBlocks).toFixed(1)}</div>
-      <div class="stat-sub">Min: ${min(paneerBlocks).toFixed(0)} / Max: ${max(paneerBlocks).toFixed(0)}</div>
+      <div class="stat-sub">Min: ${r1(min(paneerBlocks))} / Max: ${r1(max(paneerBlocks))}</div>
     </div>
   `;
 }
@@ -666,7 +668,7 @@ function renderTrendChart() {
 
   const datasets = fields.map(f => ({
     label: f.label,
-    data: dates.map(d => { const v = dataMap[formatDate(d)]; return v ? (v[f.key] || 0) : null; }),
+    data: dates.map(d => { const v = dataMap[formatDate(d)]; return v ? r1(v[f.key]) : null; }),
     borderColor: f.color,
     backgroundColor: f.color + '1a',
     borderWidth: 2, tension: .3, spanGaps: true,
@@ -738,7 +740,7 @@ function renderRawDataTable() {
   let rows = dates.map(d => {
     const ds = formatDate(d);
     const v = dataMap[ds];
-    return { date: ds, ...FIELD_DEFS.reduce((o, f) => { o[f.key] = v ? (v[f.key] || 0) : 0; return o; }, {}) };
+    return { date: ds, ...FIELD_DEFS.reduce((o, f) => { o[f.key] = v ? r1(v[f.key]) : 0; return o; }, {}) };
   }).filter(r => FIELD_DEFS.some(f => r[f.key] !== 0));
 
   if (sortCol !== null) {
@@ -777,7 +779,7 @@ function getExportRows() {
     const ds = formatDate(d);
     const v = dataMap[ds];
     const row = { Date: ds };
-    FIELD_DEFS.forEach(f => { row[f.label] = v ? (v[f.key] || 0) : 0; });
+    FIELD_DEFS.forEach(f => { row[f.label] = v ? r1(v[f.key]) : 0; });
     return row;
   }).filter(r => FIELD_DEFS.some(f => r[f.label] !== 0));
 }
