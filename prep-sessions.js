@@ -29,6 +29,16 @@
 //   PrepSessions.reapply()        call after the page finishes loading a day
 //   PrepSessions.loadAll()        call after the date changes
 //   PrepSessions.fieldsAll(path)  fields to merge into the page's own save
+//
+// Logged sessions (Oct 30 2026):
+//   Each session has status 'open' or 'logged'. Staff fill in an open session and
+//   tap "Log session" (needs start, end after start, at least one person). A logged
+//   session shows as a locked summary card. Only the owner sees Edit on it
+//   (opts.canEditLogged, default: the page's isOwner()). Edits are made on a copy;
+//   Save changes keeps the previous values in s.history [{at, by, byName, before}].
+//   Totals, labor fields and the day fields count LOGGED sessions only.
+//   Sessions saved before this change load as logged, except today's sessions with
+//   no end time, which stay open so staff can finish them.
 // ============================================================================
 (function () {
   const NAMES_KEY = 'nnc.prepStaffNames';
@@ -109,6 +119,28 @@
 .ps-status.err{color:#b91c1c}
 .ps-locked .ps-ro{font-size:.9rem;color:#334155}
 .ps-empty{font-size:.85rem;color:#64748b;margin-bottom:10px}
+.ps-card.ps-logged{padding:0;border-color:#cbd5e1}
+.ps-card.ps-editing{border:2px solid #2563eb;background:#eff6ff}
+.ps-lhead{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;background:#f1f5f9;border-bottom:1px solid #e2e8f0}
+.ps-lhead .ps-title{display:flex;align-items:center;gap:6px}
+.ps-lbody{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.ps-ltime{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ps-ltime b{font-size:1.05rem}
+.ps-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ps-chip{background:#dbeafe;color:#1e3a8a;border-radius:999px;padding:3px 10px;font-size:.8rem;font-weight:600}
+.ps-lqty{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:.82rem}
+.ps-lqty div{display:flex;justify-content:space-between;gap:8px}.ps-lqty span{color:#475569}
+.ps-lfoot{font-size:.74rem;color:#64748b}
+.ps-edit{background:#fff;color:#1e3a5f;border:1.5px solid #94a3b8;min-height:36px}
+.ps-log{width:100%;padding:13px;font-size:1rem;background:#16a34a;color:#fff;margin-top:8px}
+.ps-log:disabled{background:#e2e8f0;color:#64748b;cursor:not-allowed}
+.ps-editbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.ps-cancel{background:#fff;color:#334155;border:1.5px solid #94a3b8;padding:12px}
+.ps-save{background:#2563eb;color:#fff;padding:12px}
+.ps-badge{font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:999px}
+.ps-badge.open{background:#fef3c7;color:#92400e}.ps-badge.edit{background:#dbeafe;color:#1e3a8a}
+.ps-hist{font-size:.76rem;color:#475569}.ps-hist summary{cursor:pointer;color:#1e3a5f;font-weight:700}
+.ps-hist ul{margin:6px 0 0 16px;padding:0}.ps-hist li{margin-bottom:4px}
 .ps-qty{grid-column:1/-1;border-top:1px dashed #cbd5e1;padding-top:10px;margin-top:2px}
 .ps-qty-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:#0f766e;margin-bottom:8px}
 .ps-qty-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;align-items:end}
@@ -136,7 +168,10 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       const a = toMin(s.start), b = toMin(s.end);
       const minutes = (a != null && b != null && b > a) ? b - a : null;
       const staff = (s.staff || []).map(cleanName).filter(Boolean);
-      const out = { id: s.id || newId(), task: s.task || '', start: s.start || '', end: s.end || '', staff, notes: s.notes || '' };
+      const out = { id: s.id || newId(), task: s.task || '', start: s.start || '', end: s.end || '', staff, notes: s.notes || '',
+        status: s.status === 'open' ? 'open' : 'logged' };
+      ['loggedAt', 'loggedBy', 'loggedByName', 'editedAt', 'editedBy', 'editedByName'].forEach(k => { if (s[k]) out[k] = s[k]; });
+      if (Array.isArray(s.history) && s.history.length) out.history = s.history;
       const qf = qtyFor ? qtyFor(out.task) : [];
       if (qf.length) {
         out.qty = {};
@@ -145,6 +180,8 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       if (minutes != null) {
         out.minutes = minutes;
         out.labor_minutes = minutes * Math.max(staff.length, 1);
+      }
+      if (minutes != null && out.status === 'logged') {
         clock += minutes; labor += out.labor_minutes;
         byTask[out.task || 'other'] = (byTask[out.task || 'other'] || 0) + out.labor_minutes;
         staff.forEach(n => { byStaff[n] = (byStaff[n] || 0) + minutes; });
@@ -156,7 +193,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
     f[prefix.p + 'labor_minutes'] = labor;
     f[prefix.p + 'labor_hours'] = Math.round(labor / 60 * 100) / 100;
     f[prefix.p + 'clock_minutes'] = clock;
-    f[prefix.p + 'session_count'] = clean.length;
+    f[prefix.p + 'session_count'] = clean.filter(s => s.status === 'logged').length;
     f[prefix.p + 'labor_by_task'] = byTask;
     f[prefix.p + 'staff_minutes'] = byStaff;
     return f;
@@ -167,6 +204,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
     const inst = {
       opts, sessions: [], loadedFor: null, timer: null, pendingKey: null,
       inflight: 0, failed: false, confirmRemove: null, lastSaved: null,
+      editing: null, draft: null,
       tasks: opts.tasks && opts.tasks.length ? opts.tasks : [{ key: 'prep', label: 'Prep' }],
     };
     const P = { field: opts.field || 'sessions', p: opts.prefix || '' };
@@ -186,11 +224,35 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       return out;
     };
     inst.fields = () => computeFields(inst.sessions, P, inst.tasks, inst.qtyFor);
+    inst.canEditLogged = () => {
+      if (opts.canEditLogged) return !!opts.canEditLogged();
+      try { return typeof isOwner === 'function' && !!isOwner(); } catch (e) { return false; }
+    };
+    inst.who = () => {
+      const u = (typeof auth !== 'undefined' && auth.currentUser) || null;
+      const prof = (typeof currentUserProfile !== 'undefined' && currentUserProfile) || null;
+      return { email: (u && u.email) || 'unknown', name: (prof && prof.displayName) || (u && u.email ? u.email.split('@')[0] : 'unknown') };
+    };
+    // Sessions saved before Oct 30 2026 have no status. Treat them as logged, except
+    // today's sessions with no end yet, which stay open so staff can finish them.
+    inst.normalize = (list, key) => list.map(s => {
+      if (s.status === 'open' || s.status === 'logged') return s;
+      const open = key === todayKey() && !s.end;
+      return Object.assign({}, s, { status: open ? 'open' : 'logged' });
+    });
+    inst.readyToLog = s => {
+      const a = toMin(s.start), b = toMin(s.end);
+      if (a == null) return 'Add a start time.';
+      if (b == null) return 'Add an end time (or tap Now) to log it.';
+      if (b <= a) return 'End time has to be after start time.';
+      if (!(s.staff || []).length) return 'Tap at least one name.';
+      return '';
+    };
     inst.totals = () => {
       const list = inst.fields()[P.field];
       const sums = {}; let hasQty = false;
       inst.allQtyFields().forEach(f => { sums[f.key] = 0; });
-      list.forEach(s => Object.keys(s.qty || {}).forEach(k => { hasQty = true; sums[k] = Math.round(((sums[k] || 0) + s.qty[k]) * 1000) / 1000; }));
+      list.filter(s => s.status === 'logged').forEach(s => Object.keys(s.qty || {}).forEach(k => { hasQty = true; sums[k] = Math.round(((sums[k] || 0) + s.qty[k]) * 1000) / 1000; }));
       // Round day totals (opts.decimals, default 2; chicken uses 1 = nearest 0.1)
       const f = Math.pow(10, opts.decimals == null ? 2 : opts.decimals);
       Object.keys(sums).forEach(k => { sums[k] = Math.round(sums[k] * f) / f; });
@@ -207,6 +269,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       inst.flush();
       const key = opts.getDate();
       inst.loadedFor = key; inst.sessions = []; inst.failed = false; inst.lastSaved = null; inst.loaded = false;
+      inst.editing = null; inst.draft = null;
       if (!inst.namesLearned && typeof auth !== 'undefined' && auth.currentUser) { inst.namesLearned = true; inst.learnNames(); }
       inst.render();
       if (typeof auth === 'undefined' || !auth.currentUser) return;
@@ -214,7 +277,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
         const doc = await db.doc(`${opts.collectionPath}/${key}`).get();
         if (inst.loadedFor !== key) return; // date changed while loading
         const d = doc.exists ? doc.data() : {};
-        inst.sessions = Array.isArray(d[P.field]) ? d[P.field].map(s => ({ ...s, staff: [...(s.staff || [])], qty: { ...(s.qty || {}) } })) : [];
+        inst.sessions = inst.normalize(Array.isArray(d[P.field]) ? d[P.field].map(s => ({ ...s, staff: [...(s.staff || [])], qty: { ...(s.qty || {}) } })) : [], key);
         addKnownNames(inst.sessions.flatMap(s => s.staff || []));
         inst.loaded = true;
         inst.render();
@@ -286,45 +349,90 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
     };
 
     // ---------- actions (called from inline handlers) ----------
-    const find = id => inst.sessions.find(s => s.id === id);
+    const find = id => (inst.editing === id && inst.draft) ? inst.draft : inst.sessions.find(s => s.id === id);
+    // Edits to the owner's draft only re-render; nothing saves until Save changes.
+    const touched = (id, rerender) => {
+      if (inst.editing === id) { inst.render(); return; }
+      inst.changed(rerender);
+    };
     inst.add = function () {
       const viewingToday = inst.loadedFor === todayKey();
       const last = inst.sessions[inst.sessions.length - 1];
+      if (inst.editing) return;
       inst.sessions.push({
         id: newId(), task: last ? last.task : inst.tasks[0].key,
         start: viewingToday ? nowHHMM() : '', end: '',
-        staff: last ? [...last.staff] : [], notes: '', qty: {}
+        staff: last ? [...last.staff] : [], notes: '', qty: {}, status: 'open'
       });
       inst.changed();
     };
-    inst.set = function (id, field, value) { const s = find(id); if (!s) return; s[field] = value; inst.changed(field !== 'notes'); };
+    inst.set = function (id, field, value) {
+      const s = find(id); if (!s) return; s[field] = value;
+      if (inst.editing === id) { if (field !== 'notes') inst.render(); return; }
+      inst.changed(field !== 'notes');
+    };
     inst.setQty = function (id, key, value) {
       const s = find(id); if (!s) return;
       if (!s.qty) s.qty = {};
       if (value === '' || value == null) delete s.qty[key]; else s.qty[key] = Number(value);
+      if (inst.editing === id) return; // keep focus while typing in the draft
       inst.changed(false);
     };
-    inst.now = function (id, field) { const s = find(id); if (!s) return; s[field] = nowHHMM(); inst.changed(); };
+    inst.now = function (id, field) { const s = find(id); if (!s) return; s[field] = nowHHMM(); touched(id); };
     inst.addPerson = function (id, inputId, refocus) {
       const s = find(id); const input = document.getElementById(inputId); if (!s || !input) return;
       const parts = input.value.split(',').map(cleanName).filter(Boolean);
       if (!parts.length) return;
       parts.forEach(n => { if (!s.staff.some(x => x.toLowerCase() === n.toLowerCase())) s.staff.push(n); });
       addKnownNames(parts); input.value = '';
-      inst.changed();
+      touched(id);
       if (refocus) { const again = document.getElementById(inputId); if (again) again.focus(); }
     };
     inst.togglePerson = function (id, rosterIdx) {
       const s = find(id); const name = STAFF_ROSTER[rosterIdx]; if (!s || !name) return;
       const i = s.staff.findIndex(x => x.toLowerCase() === name.toLowerCase());
       if (i >= 0) s.staff.splice(i, 1); else s.staff.push(name);
-      inst.changed();
+      touched(id);
     };
-    inst.removePerson = function (id, idx) { const s = find(id); if (!s) return; s.staff.splice(idx, 1); inst.changed(); };
+    inst.removePerson = function (id, idx) { const s = find(id); if (!s) return; s.staff.splice(idx, 1); touched(id); };
     inst.remove = function (id) {
       if (inst.confirmRemove !== id) { inst.confirmRemove = id; inst.render(); setTimeout(() => { if (inst.confirmRemove === id) { inst.confirmRemove = null; inst.render(); } }, 4000); return; }
       inst.confirmRemove = null;
+      const target = inst.sessions.find(s => s.id === id);
+      if (target && target.status === 'logged' && !inst.canEditLogged()) return;
+      if (inst.editing === id) { inst.editing = null; inst.draft = null; }
       inst.sessions = inst.sessions.filter(s => s.id !== id);
+      inst.changed();
+    };
+    inst.log = function (id) {
+      const s = inst.sessions.find(x => x.id === id); if (!s || s.status === 'logged') return;
+      if (inst.readyToLog(s)) { inst.render(); return; }
+      const w = inst.who();
+      s.status = 'logged'; s.loggedAt = new Date().toISOString(); s.loggedBy = w.email; s.loggedByName = w.name;
+      inst.changed();
+    };
+    inst.edit = function (id) {
+      if (!inst.canEditLogged() || inst.editing) return;
+      const s = inst.sessions.find(x => x.id === id); if (!s) return;
+      inst.editing = id; inst.draft = JSON.parse(JSON.stringify(s));
+      inst.draft.staff = inst.draft.staff || []; inst.draft.qty = inst.draft.qty || {};
+      inst.render();
+    };
+    inst.cancelEdit = function () { inst.editing = null; inst.draft = null; inst.render(); };
+    const SNAP_KEYS = ['task', 'start', 'end', 'staff', 'qty', 'notes'];
+    inst.saveEdit = function () {
+      const id = inst.editing; const d = inst.draft; if (!id || !d) return;
+      if (inst.readyToLog(d)) { inst.render(); return; }
+      const i = inst.sessions.findIndex(x => x.id === id); if (i < 0) { inst.cancelEdit(); return; }
+      const orig = inst.sessions[i];
+      const snap = o => { const r = {}; SNAP_KEYS.forEach(k => { r[k] = o[k] == null ? (k === 'staff' ? [] : k === 'qty' ? {} : '') : JSON.parse(JSON.stringify(o[k])); }); return r; };
+      const before = snap(orig), after = snap(d);
+      if (JSON.stringify(before) === JSON.stringify(after)) { inst.cancelEdit(); return; }
+      const w = inst.who(), at = new Date().toISOString();
+      const next = Object.assign({}, orig, after, { editedAt: at, editedBy: w.email, editedByName: w.name });
+      next.history = (orig.history || []).concat([{ at, by: w.email, byName: w.name, before }]);
+      inst.sessions[i] = next;
+      inst.editing = null; inst.draft = null;
       inst.changed();
     };
 
@@ -339,17 +447,57 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       const people = Object.keys(f[P.p + 'staff_minutes']);
       let h = `<div class="ps-wrap${locked ? ' ps-locked' : ''}"><div id="${opts.mountId}_sum">${inst.summaryHTML()}</div>`;
       if (!list.length) h += `<div class="ps-empty">${locked ? 'No sessions recorded for this day.' : 'No sessions yet. Tap the button when you start working.'}</div>`;
-      list.forEach((s, i) => {
+      const canEdit = !locked && inst.canEditLogged();
+      const when = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(' ', '').toLowerCase(); };
+      const whenDay = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + when(iso); };
+      const qtyLine = (task, qty) => inst.qtyFor(task).map(q => `${esc(q.label)} ${qty && qty[q.key] != null ? qty[q.key] : '—'}`).join(', ');
+      const diffText = (b, a) => {
+        const out = [];
+        if (b.task !== a.task) out.push(`task ${esc(inst.taskLabel(b.task))} → ${esc(inst.taskLabel(a.task))}`);
+        if (b.start !== a.start) out.push(`start ${fmtTime(b.start) || '—'} → ${fmtTime(a.start) || '—'}`);
+        if (b.end !== a.end) out.push(`end ${fmtTime(b.end) || '—'} → ${fmtTime(a.end) || '—'}`);
+        if ((b.staff || []).join(', ') !== (a.staff || []).join(', ')) out.push(`staff ${esc((b.staff || []).join(', ') || 'none')} → ${esc((a.staff || []).join(', ') || 'none')}`);
+        inst.qtyFor(a.task).concat(b.task !== a.task ? inst.qtyFor(b.task) : []).forEach(q => {
+          const x = b.qty ? b.qty[q.key] : undefined, y = a.qty ? a.qty[q.key] : undefined;
+          if ((x == null ? '' : x) !== (y == null ? '' : y)) out.push(`${esc(q.label)} ${x == null ? '—' : x} → ${y == null ? '—' : y}`);
+        });
+        if ((b.notes || '') !== (a.notes || '')) out.push('notes changed');
+        return out.join('; ') || 'no field changes';
+      };
+      list.forEach((s0, i) => {
+        const editingThis = inst.editing === s0.id && inst.draft;
+        // ----- Logged (or past-day) session: locked summary card -----
+        if ((s0.status === 'logged' || locked) && !editingThis) {
+          const s = s0;
+          const durTxt = s.minutes != null ? fmtDur(s.minutes) : (s.start && s.end ? 'End is before start' : '');
+          const labor = s.minutes != null && s.staff.length > 1 ? `${fmtDur(s.labor_minutes)} staff time` : '';
+          const qf = inst.qtyFor(s.task);
+          const isOpenPast = s.status !== 'logged';
+          let foot = isOpenPast ? 'Never logged' : (s.loggedAt ? `Logged ${when(s.loggedAt)}${s.loggedByName ? ' by ' + esc(s.loggedByName) : ''}` : 'Logged');
+          if (s.editedAt) foot += ` · Edited ${when(s.editedAt)}${s.editedByName ? ' by ' + esc(s.editedByName) : ''}`;
+          h += `<div class="ps-card ps-logged">
+            <div class="ps-lhead"><span class="ps-title"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Session ${i + 1} · ${esc(inst.taskLabel(s.task))}</span>
+            ${canEdit && !inst.editing ? `<button type="button" class="ps-btn ps-edit" onclick="${me}.edit('${s.id}')">Edit</button>` : ''}</div>
+            <div class="ps-lbody">
+              <div class="ps-ltime"><b>${fmtTime(s.start) || '?'} – ${fmtTime(s.end) || '?'}</b><span class="ps-dur">${durTxt}</span></div>
+              <div class="ps-chips">${s.staff.length ? s.staff.map(n => `<span class="ps-chip">${esc(n)}</span>`).join('') : '<span class="ps-lfoot">No name</span>'}${labor ? `<span class="ps-lfoot">${labor}</span>` : ''}</div>
+              ${qf.length ? `<div class="ps-lqty">${qf.map(q => `<div><span>${esc(q.label)}</span><b>${s.qty && s.qty[q.key] != null ? esc(s.qty[q.key]) : 0}</b></div>`).join('')}</div>` : ''}
+              ${s.notes ? `<div class="ps-lfoot">Note: ${esc(s.notes)}</div>` : ''}
+              <div class="ps-lfoot">${foot}</div>
+              ${s.history && s.history.length && inst.canEditLogged() ? `<details class="ps-hist"><summary>Changes (${s.history.length})</summary><ul>${s.history.slice().reverse().map((hh, k, arr) => {
+                const afterState = k === 0 ? s : arr[k - 1].before;
+                return `<li>${whenDay(hh.at)} by ${esc(hh.byName || hh.by)}: ${diffText(hh.before, afterState)}</li>`;
+              }).join('')}</ul></details>` : ''}
+            </div></div>`;
+          return;
+        }
+        const s = editingThis ? Object.assign({}, inst.draft, (() => { const a = toMin(inst.draft.start), b = toMin(inst.draft.end); const m = a != null && b != null && b > a ? b - a : null; return { minutes: m, labor_minutes: m != null ? m * Math.max((inst.draft.staff || []).length, 1) : null }; })()) : s0;
+        s.staff = s.staff || [];
         const isLive = s.start && !s.end, isBad = s.start && s.end && s.minutes == null;
         const durTxt = s.minutes != null ? fmtDur(s.minutes) + (s.staff.length > 1 ? ` × ${s.staff.length} people = ${fmtDur(s.labor_minutes)}` : '')
           : isBad ? 'End is before start' : isLive ? 'Running…' : '';
-        h += `<div class="ps-card${isLive ? ' ps-live' : ''}${isBad ? ' ps-bad' : ''}">`;
-        h += `<div class="ps-head"><span class="ps-title">Session ${i + 1}${inst.tasks.length > 1 || locked ? ' · ' + esc(inst.taskLabel(s.task)) : ''}</span><span class="ps-dur">${durTxt}</span></div>`;
-        if (locked) {
-          const qtxt = inst.qtyFor(s.task).filter(q => s.qty && s.qty[q.key] != null).map(q => `${esc(q.label)}: ${s.qty[q.key]}`).join(' · ');
-          h += `<div class="ps-ro">${fmtTime(s.start) || '?'} to ${fmtTime(s.end) || '?'} · ${esc(s.staff.join(', ') || 'No name')}${s.notes ? ' · ' + esc(s.notes) : ''}${qtxt ? '<br>' + qtxt : ''}</div></div>`;
-          return;
-        }
+        h += `<div class="ps-card${editingThis ? ' ps-editing' : (isLive ? ' ps-live' : '')}${isBad ? ' ps-bad' : ''}">`;
+        h += `<div class="ps-head"><span class="ps-title">Session ${i + 1}${inst.tasks.length > 1 ? ' · ' + esc(inst.taskLabel(s.task)) : ''}</span><span class="ps-dur">${durTxt}</span>${editingThis ? '<span class="ps-badge edit">Editing</span>' : '<span class="ps-badge open">Not logged yet</span>'}</div>`;
         h += `<div class="ps-grid">`;
         if (inst.tasks.length > 1) {
           h += `<div class="ps-field ps-full"><label>What was done</label><select onchange="${me}.set('${s.id}','task',this.value)">` +
@@ -376,10 +524,18 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
             `</div></div>`;
         }
         h += `<div class="ps-field ps-full"><label>Notes (optional)</label><input type="text" value="${esc(s.notes)}" oninput="${me}.set('${s.id}','notes',this.value)"></div>`;
-        h += `</div><div style="text-align:right;margin-top:6px"><button type="button" class="ps-btn ps-remove${inst.confirmRemove === s.id ? ' ps-confirm' : ''}" onclick="${me}.remove('${s.id}')">${inst.confirmRemove === s.id ? 'Tap again to delete' : 'Delete session'}</button></div>`;
+        h += `</div>`;
+        const why = inst.readyToLog(s);
+        if (why) h += `<div class="ps-warn" style="margin-top:6px">${esc(why)}</div>`;
+        if (editingThis) {
+          h += `<div class="ps-editbar"><button type="button" class="ps-btn ps-cancel" onclick="${me}.cancelEdit()">Cancel</button><button type="button" class="ps-btn ps-save" onclick="${me}.saveEdit()" ${why ? 'disabled' : ''}>Save changes</button></div>`;
+        } else {
+          h += `<button type="button" class="ps-btn ps-log" onclick="${me}.log('${s.id}')" ${why ? 'disabled' : ''}>Log session</button>`;
+        }
+        h += `<div style="text-align:right;margin-top:6px"><button type="button" class="ps-btn ps-remove${inst.confirmRemove === s.id ? ' ps-confirm' : ''}" onclick="${me}.remove('${s.id}')">${inst.confirmRemove === s.id ? 'Tap again to delete' : 'Delete session'}</button></div>`;
         h += `</div>`;
       });
-      if (!locked) h += `<button type="button" class="ps-btn ps-add" onclick="${me}.add()">+ ${list.length ? 'Add another session' : 'Start a session'}</button>`;
+      if (!locked && !inst.editing) h += `<button type="button" class="ps-btn ps-add" onclick="${me}.add()">+ ${list.length ? 'Add another session' : 'Start a session'}</button>`;
       h += `<div class="ps-status" id="${opts.mountId}_status"></div></div>`;
       el.innerHTML = h;
       inst.updateStatus();
@@ -389,7 +545,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       const fieldsList = inst.allQtyFields();
       if (!fieldsList.length) return '';
       const t = inst.totals();
-      if (!t.hasQty) return `<div class="ps-note">Enter what was done in each session and the day totals above fill in automatically.</div>`;
+      if (!t.hasQty) return `<div class="ps-note">Enter what was done in each session. Once a session is logged, the day totals above fill in automatically.</div>`;
       const chips = list => list.filter(f => t.sums[f.key] && !f.noTotal).map(f => `<span class="ps-total">${esc(f.label)}: <b>${Math.round(t.sums[f.key] * 100) / 100}</b></span>`).join('');
       let out = `<div class="ps-note">Day totals above are added up from these sessions.</div>`;
       // Per-task quantities: one row of totals per task (e.g. Cut Korma / Only Clean)
@@ -405,15 +561,15 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
     inst.summaryHTML = function () {
       const f = inst.fields();
       const list = f[P.field];
-      const live = list.filter(s => s.start && !s.end).length;
+      const live = list.filter(s => s.status === 'open').length;
       const people = Object.keys(f[P.p + 'staff_minutes']);
       let h = '';
       h += `<div class="ps-summary">
-        <span class="ps-chipstat">Sessions: <b>${list.length}</b></span>
+        <span class="ps-chipstat">Logged: <b>${f[P.p + 'session_count']}</b></span>
         <span class="ps-chipstat">On the clock: <b>${fmtDur(f[P.p + 'clock_minutes']) || '0m'}</b></span>
         <span class="ps-chipstat">Staff time: <b>${fmtDur(f[P.p + 'labor_minutes']) || '0m'}</b></span>
         ${people.length ? `<span class="ps-chipstat">Staff: <b>${esc(people.join(', '))}</b></span>` : ''}
-        ${live ? `<span class="ps-chipstat" style="background:#fef3c7;color:#92400e">${live} still running</span>` : ''}
+        ${live ? `<span class="ps-chipstat" style="background:#fef3c7;color:#92400e">${live} not logged yet</span>` : ''}
       </div>`;
       h += inst.totalsHTML();
       return h;

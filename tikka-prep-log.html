@@ -411,7 +411,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="toast" id="toast"></div>
 
 <script src="shared.js?v=20261029"></script>
-<script src="prep-sessions.js?v=20261029"></script>
+<script src="prep-sessions.js?v=20261030"></script>
 <script>
 // ==================== STATE ====================
 let currentDate = new Date();
@@ -1052,6 +1052,15 @@ PrepSessions.create({
     renderWeekly();
   }
 });
+
+// Sign in (was missing on this page: the Sign In button did nothing). Oct 30 2026
+function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const pw = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  if (errEl) errEl.style.display = 'none';
+  auth.signInWithEmailAndPassword(email, pw).catch(err => { if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; } else alert(err.message); });
+}
 
 auth.onAuthStateChanged(user => {
   if (user) {
