@@ -163,6 +163,8 @@ let runs = [];
 let unsub = null;
 let range = { preset: 'week', from: '', to: '' };
 let filt = { driver: '', helper: '', van: '', route: '', status: '' };
+// Central Command links here with ?show=notes (or any Show filter value)
+try { const sh = new URLSearchParams(location.search).get('show'); if (sh) filt.status = sh; } catch (e) {}
 // Collapsible sections (closed by default, remembered on this device)
 let openSec = { assume: false, staff: false, vans: false };
 try { Object.assign(openSec, JSON.parse(localStorage.getItem('nnc.deliveryData.open') || '{}')); } catch (e) {}

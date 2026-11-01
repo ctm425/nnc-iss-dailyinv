@@ -153,7 +153,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .prep-loc-card .prep-info .name{font-weight:700;font-size:.9rem}
 .prep-loc-card .prep-info .status{font-size:.78rem;color:var(--gray-400);margin-top:2px}
 
+.cc-section{margin-bottom:30px}
+.cc-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cc-h h2{font-size:.95rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700)}
+.cc-tag{font-size:.7rem;font-weight:700;background:#eef2ff;color:#3730a3;padding:3px 9px;border-radius:999px}
+.cc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.cc-loc{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--gray-200);border-top:4px solid var(--c,#1e3a5f);border-radius:12px;padding:18px 20px;cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%;transition:box-shadow .15s,transform .15s}
+.cc-loc:hover{box-shadow:0 8px 24px rgba(0,0,0,.08);transform:translateY(-1px)}
+.cc-loc .t{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.cc-loc .n{font-size:1.1rem;font-weight:800}
+.cc-loc .d{font-size:.82rem;color:var(--gray-500)}
+.cc-loc .go{font-size:.85rem;font-weight:700;color:var(--primary);white-space:nowrap}
+.cc-loc.soon{background:var(--gray-100);border-top-color:var(--gray-300);cursor:default}
+.cc-loc.soon:hover{box-shadow:none;transform:none}
+.cc-loc.soon .go{color:var(--gray-500)}
+.cc-item{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid var(--gray-200);border-radius:12px;padding:16px 18px;min-height:72px;cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%;transition:box-shadow .15s,transform .15s}
+.cc-item:hover{box-shadow:0 8px 24px rgba(0,0,0,.08);transform:translateY(-1px)}
+.cc-item .n{font-size:1rem;font-weight:700}
+.cc-item .d{font-size:.82rem;color:var(--gray-500);margin-top:2px}
+.cc-item .arr{color:var(--gray-400);font-size:1.2rem}
+.cc-alerts{display:flex;flex-wrap:wrap;gap:10px}
+.cc-alert{display:flex;align-items:center;gap:10px;background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;padding:10px 14px;border-radius:10px;font-size:.9rem;font-weight:600;min-height:44px;cursor:pointer;font-family:inherit}
+.cc-alert b{background:#ea580c;color:#fff;font-size:.75rem;font-weight:800;min-width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
 @media(max-width:768px){
+  .cc-grid{grid-template-columns:1fr}
   .header{padding:12px 16px}
   .header h1{font-size:1.1rem}
   .header-right{gap:4px}
@@ -215,27 +238,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="dashboard" id="dashboardContent">
   <div id="quickStats" class="quick-stats"></div>
 
-  <!-- LOCATIONS VIEW (main landing) -->
+  <!-- LOCATIONS VIEW (main landing). Layout Nov 1 2026: attention, locations,
+       warehouse, tools & reports, delivery data, caterings. No sheet lists. -->
   <div id="locationsView">
-    <div style="margin-bottom:20px">
-      <div class="section-title" style="font-size:1.15rem">Your Locations</div>
+    <div id="attentionSection"></div>
+    <div id="locationsGrid"></div>
+    <div class="cc-section">
+      <div class="cc-h"><h2>Tools &amp; Reports</h2></div>
+      <div class="cc-grid" id="toolsGrid"></div>
     </div>
-    <div class="locations-grid" id="locationsGrid"></div>
-
-    <!-- TOOL TILES -->
-    <div style="margin-bottom:20px;margin-top:12px">
-      <div class="section-title" style="font-size:1.15rem">Tools & Reports</div>
-    </div>
-    <div class="tools-grid" id="toolsGrid"></div>
-
-    <!-- PREP DATA SECTION -->
-    <div id="prepDataSection" style="margin-top:12px"></div>
-
-    <!-- DELIVERY DATA SECTION (owner-only) -->
-    <div id="deliverySection" style="margin-top:12px"></div>
-
-    <!-- CATERINGS SECTION (owner-only) -->
-    <div id="cateringsSection" style="margin-top:12px"></div>
+    <div id="prepDataSection"></div>
+    <div id="deliverySection"></div>
+    <div id="cateringsSection"></div>
   </div>
 
   <!-- LOCATION DETAIL VIEW (sheets for a specific location) -->
@@ -337,40 +351,54 @@ function renderMain() {
 }
 
 function renderQuickStats() {
-  const profile = getEffectiveProfile();
-  const today = new Date();
-  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const activeLocations = Object.keys(RESTAURANTS).filter(k => {
-    const r = RESTAURANTS[k];
-    return r.status !== 'placeholder' && canAccessRestaurant(k, profile);
-  }).length;
-  const totalSheets = Object.keys(SHEET_TYPES).filter(k => {
-    const s = SHEET_TYPES[k];
-    return !s.comingSoon && canAccessSheet(k, profile);
-  }).length;
+  // The old stat tiles (date, locations, sheet count, role) are gone; the date
+  // sits in the header and the role badge is already there.
+  const qs = document.getElementById('quickStats');
+  if (qs) { qs.innerHTML = ''; qs.style.display = 'none'; }
+  const sub = document.querySelector('.header-sub');
+  if (sub) sub.textContent = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }) + ' · NNC Inventory';
+  renderAttention();
+}
 
-  document.getElementById('quickStats').innerHTML = `
-    <div class="quick-stat">
-      <div class="label">Today</div>
-      <div class="value" style="font-size:1.1rem">${(today.getMonth()+1)}/${today.getDate()}/${today.getFullYear()}</div>
-      <div class="sub">${dayNames[today.getDay()]}</div>
-    </div>
-    <div class="quick-stat">
-      <div class="label">Active Locations</div>
-      <div class="value">${activeLocations}</div>
-      <div class="sub">${Object.keys(RESTAURANTS).length} total</div>
-    </div>
-    <div class="quick-stat">
-      <div class="label">Inventory Sheets</div>
-      <div class="value">${totalSheets}</div>
-      <div class="sub">across all locations</div>
-    </div>
-    <div class="quick-stat">
-      <div class="label">${viewAsRole ? 'Viewing as' : 'Your Role'}</div>
-      <div class="value" style="font-size:1.1rem">${ROLES[profile?.role]?.label||'Staff'}</div>
-      <div class="sub">${ROLES[profile?.role]?.description||''}</div>
-    </div>
-  `;
+// ==================== NEEDS YOUR ATTENTION ====================
+// Owner only. Shows only when something is waiting. Each count is a button
+// to the page where it gets handled.
+let _attnUnsub = null, _attn = { edits: 0, notes: 0, helpers: 0 };
+function renderAttentionBox() {
+  const box = document.getElementById('attentionSection'); if (!box) return;
+  const profile = getEffectiveProfile();
+  if (!profile || profile.role !== 'owner') { box.innerHTML = ''; return; }
+  const items = [];
+  if (_attn.edits) items.push(`<button type="button" class="cc-alert" onclick="navigateTo('edit-requests.html')"><b>${_attn.edits}</b>Edit request${_attn.edits === 1 ? '' : 's'} to review</button>`);
+  if (_attn.notes) items.push(`<button type="button" class="cc-alert" onclick="navigateTo('delivery-data.html',{show:'notes'})"><b>${_attn.notes}</b>Trip${_attn.notes === 1 ? '' : 's'} with a new driver note</button>`);
+  if (_attn.helpers) items.push(`<button type="button" class="cc-alert" onclick="navigateTo('delivery-data.html')"><b>${_attn.helpers}</b>Helper${_attn.helpers === 1 ? '' : 's'} without a rate</button>`);
+  box.innerHTML = items.length ? `<div class="cc-section"><div class="cc-h"><h2>Needs your attention</h2></div><div class="cc-alerts">${items.join('')}</div></div>` : '';
+}
+async function renderAttention() {
+  renderAttentionBox();
+  if (!currentUserProfile || currentUserProfile.role !== 'owner') return;
+  if (!_attnUnsub) _attnUnsub = watchPendingEditRequests(n => { _attn.edits = n; renderAttentionBox(); });
+  try {
+    // Trips from the last 14 days: a driver note newer than the owner's last edit still needs a look
+    const since = new Date(); since.setDate(since.getDate() - 14);
+    const ds = since.getFullYear() + '-' + String(since.getMonth() + 1).padStart(2, '0') + '-' + String(since.getDate()).padStart(2, '0');
+    const [snap, rates] = await Promise.all([
+      db.collection('deliveries').where('date', '>=', ds).get(),
+      db.collection('delivery_config').doc('rates').get()
+    ]);
+    const staff = rates.exists ? (rates.data().staff || {}) : {};
+    let notes = 0; const missing = new Set();
+    snap.forEach(doc => {
+      const r = doc.data();
+      const list = Array.isArray(r.driverNotes) ? r.driverNotes : [];
+      const lastNote = list.reduce((m, x) => Math.max(m, Date.parse(x.at) || 0), 0);
+      const edited = r.editedAt && r.editedAt.toMillis ? r.editedAt.toMillis() : 0;
+      if (lastNote && lastNote > edited) notes++;
+      if (r.helperName && !staff[r.helperName]) missing.add(r.helperName);
+    });
+    _attn.notes = notes; _attn.helpers = missing.size;
+    renderAttentionBox();
+  } catch (e) { console.warn('attention lookup skipped:', e && e.code); }
 }
 
 // ==================== LOCATIONS VIEW ====================
@@ -381,82 +409,50 @@ function showLocationsView() {
   renderLocationCards();
 }
 
+// Short line under each location name (index page only)
+const LOC_SUB = {
+  'nnc-iss': 'Daily orders, prep logs, inventory, vendors',
+  'nnc-renton': 'Inventory setup in progress',
+  'babas-bel': 'New location',
+  'renton-wh': 'Frozen, packaging, supplies, catering',
+  'ondemand-renton': 'Quick-access buffer stock'
+};
 function buildLocationCard(key, profile) {
   const loc = RESTAURANTS[key];
+  const soon = loc.status === 'placeholder';
   const hasAccess = canAccessRestaurant(key, profile);
-  const isPlaceholder = loc.status === 'placeholder';
-  const cardClass = (isPlaceholder || !hasAccess) ? 'placeholder' : '';
-  const sheets = Object.keys(SHEET_TYPES).filter(sk => {
-    const s = SHEET_TYPES[sk];
-    return s.restaurants && s.restaurants.includes(key) && !s.comingSoon;
-  });
-  const comingSoonSheets = Object.keys(SHEET_TYPES).filter(sk => {
-    const s = SHEET_TYPES[sk];
-    return s.restaurants && s.restaurants.includes(key) && s.comingSoon;
-  });
-  const allSheets = [...sheets, ...comingSoonSheets].map(sk => SHEET_TYPES[sk]);
-  const onclick = (!isPlaceholder && hasAccess) ? `onclick="openLocation('${key}')"` : '';
-
-  return `<div class="location-card ${cardClass}" ${onclick}>
-    <div class="location-accent" style="background:${loc.color}"></div>
-    <div class="location-header">
-      <div class="location-icon" style="background:${loc.color}15">${loc.icon}</div>
-      <div class="location-info">
-        <h3>${loc.shortName}</h3>
-        <div class="loc-desc">${loc.description}</div>
-      </div>
-    </div>
-    <div class="location-body">
-      <div class="location-sheets">
-        ${allSheets.map(s => `<span class="location-sheet-tag">${s.icon} ${s.name}</span>`).join('')}
-      </div>
-    </div>
-    <div class="location-footer">
-      ${isPlaceholder
-        ? '<span class="status coming">Coming Soon</span><span></span>'
-        : hasAccess
-          ? `<span class="status active">${sheets.length} active sheet${sheets.length!==1?'s':''}</span><span class="arrow">→</span>`
-          : '<span class="status coming">No Access</span><span></span>'
-      }
-    </div>
-  </div>`;
+  if (soon || !hasAccess) {
+    return `<div class="cc-loc soon"><span class="t"><span class="n">${loc.shortName}</span><span class="d">${LOC_SUB[key] || ''}</span></span><span class="go">${soon ? 'Coming soon' : 'No access'}</span></div>`;
+  }
+  return `<button type="button" class="cc-loc" style="--c:${loc.color}" onclick="openLocation('${key}')"><span class="t"><span class="n">${loc.shortName}</span><span class="d">${LOC_SUB[key] || ''}</span></span><span class="go">Open →</span></button>`;
 }
 
 function renderLocationCards() {
   const container = document.getElementById('locationsGrid');
   const profile = getEffectiveProfile();
   const isOwner = profile?.role === 'owner';
-
-  const restaurantKeys = ['nnc-iss', 'nnc-renton', 'babas-bel'];
-  const warehouseKeys = ['renton-wh', 'ondemand-renton'];
-
-  // Filter: show locations user has access to, plus placeholders for owners
   const canSee = (key) => {
     if (!RESTAURANTS[key]) return false;
     if (RESTAURANTS[key].status === 'placeholder') return isOwner; // only owners see coming-soon
     return canAccessRestaurant(key, profile);
   };
-
-  let html = '';
-
-  // Restaurants section — only show header if there are visible cards
-  const visibleRestaurants = restaurantKeys.filter(canSee);
-  if (visibleRestaurants.length) {
-    html += `<div style="grid-column:1/-1;margin-bottom:-8px"><div class="section-title" style="font-size:1rem;margin-bottom:0">🍛 Restaurants</div></div>`;
-    visibleRestaurants.forEach(key => { html += buildLocationCard(key, profile); });
-  }
-
-  // Warehouse & Distribution section
-  const visibleWarehouses = warehouseKeys.filter(canSee);
-  if (visibleWarehouses.length) {
-    html += `<div style="grid-column:1/-1;margin-top:12px;margin-bottom:-8px"><div class="section-title" style="font-size:1rem;margin-bottom:0">🏭 Warehouse & Distribution</div></div>`;
-    visibleWarehouses.forEach(key => { html += buildLocationCard(key, profile); });
-  }
-
-  container.innerHTML = html;
+  const block = (title, keys) => {
+    const vis = keys.filter(canSee);
+    if (!vis.length) return '';
+    return `<div class="cc-section"><div class="cc-h"><h2>${title}</h2></div><div class="cc-grid">${vis.map(k => buildLocationCard(k, profile)).join('')}</div></div>`;
+  };
+  container.innerHTML = block('Locations', ['nnc-iss', 'nnc-renton', 'babas-bel'])
+    + block('Warehouse &amp; Distribution', ['renton-wh', 'ondemand-renton']);
   renderPrepSection();
   renderDeliverySection();
   renderCateringsSection();
+  renderAttentionBox();
+}
+
+// One row of link cards under a heading (index page sections)
+function ccSection(title, ownerOnly, items) {
+  return `<div class="cc-section"><div class="cc-h"><h2>${title}</h2>${ownerOnly ? '<span class="cc-tag">Owner only</span>' : ''}</div>
+    <div class="cc-grid">${items.map(it => `<button type="button" class="cc-item" onclick="${it.go}"><span><div class="n">${it.name}</div><div class="d">${it.sub}</div></span><span class="arr" aria-hidden="true">›</span></button>`).join('')}</div></div>`;
 }
 
 // ==================== DELIVERY DATA SECTION (owner-only) ====================
@@ -464,39 +460,12 @@ function renderDeliverySection() {
   const profile = getEffectiveProfile();
   const container = document.getElementById('deliverySection');
   if (!container) return;
-  // Owner-only. View-as-manager/staff hides it too. The data itself is also
-  // locked to the owner in firestore.rules, so hiding here is not the guard.
+  // Owner-only. The data itself is also locked to the owner in firestore.rules.
   if (!profile || profile.role !== 'owner') { container.innerHTML = ''; return; }
-
-  container.innerHTML = `
-    <div class="prep-section">
-      <h3>🚚 Delivery Data <span class="badge" style="background:#eef2ff;color:#4338ca;font-size:.72rem;padding:3px 10px;border-radius:12px;font-weight:600">Owner Only</span></h3>
-      <div class="prep-desc">
-        Renton to Issaquah runs: how long each stop takes, miles from the odometer, and what each run costs in labor and van use.
-      </div>
-      <div class="tools-grid" style="margin-bottom:0">
-        <div class="tool-tile" onclick="navigateTo('delivery-data.html')">
-          <div class="tile-accent" style="background:linear-gradient(90deg,#1e3a5f,#2563eb)"></div>
-          <div class="tile-icon">📈</div>
-          <div class="tile-title">Delivery Data</div>
-          <div class="tile-desc">Run log, cost per run, staff labor rates and van cost per mile.</div>
-          <div class="tile-meta">
-            <span class="tile-tag" style="background:#eff6ff;color:#1e3a5f">Back End</span>
-            <span class="tile-tag" style="background:#fef3c7;color:#92400e">Costs</span>
-          </div>
-        </div>
-        <div class="tool-tile" onclick="navigateTo('delivery.html')">
-          <div class="tile-accent" style="background:linear-gradient(90deg,#b45309,#d97706)"></div>
-          <div class="tile-icon">🚚</div>
-          <div class="tile-title">Driver Page</div>
-          <div class="tile-desc">What drivers see: tap each stop, enter the odometer. Open it to test a run.</div>
-          <div class="tile-meta">
-            <span class="tile-tag" style="background:#fff7ed;color:#b45309">Driver View</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+  container.innerHTML = ccSection('Delivery Data', true, [
+    { name: 'Delivery Data', sub: 'Trip times, miles, cost per run', go: "navigateTo('delivery-data.html')" },
+    { name: 'Driver Page', sub: 'What drivers see; open it to test a run', go: "navigateTo('delivery.html')" }
+  ]);
 }
 
 // ==================== CATERINGS SECTION (owner-only) ====================
@@ -504,87 +473,16 @@ function renderCateringsSection() {
   const profile = getEffectiveProfile();
   const container = document.getElementById('cateringsSection');
   if (!container) return;
-  // Owner-only: managers and staff never see this. View-as-manager/staff hides it too.
   if (!profile || profile.role !== 'owner') { container.innerHTML = ''; return; }
-
-  container.innerHTML = `
-    <div class="prep-section">
-      <h3>🍽️ Caterings <span class="badge" style="background:#eef2ff;color:#4338ca;font-size:.72rem;padding:3px 10px;border-radius:12px;font-weight:600">Owner Only</span></h3>
-      <div class="prep-desc">
-        Track catering bookings end to end — customer &amp; event details, guest counts, a priced menu,
-        delivery or pickup, deposits and payment terms, a timestamped call log, and printable kitchen orders.
-      </div>
-      <div class="tools-grid" style="margin-bottom:0">
-        <div class="tool-tile" onclick="navigateTo('caterings.html')">
-          <div class="tile-accent" style="background:linear-gradient(90deg,#4338ca,#7c3aed)"></div>
-          <div class="tile-icon">📅</div>
-          <div class="tile-title">Catering Bookings</div>
-          <div class="tile-desc">View, sort and open all caterings, add a new booking, and generate kitchen orders.</div>
-          <div class="tile-meta">
-            <span class="tile-tag" style="background:#eef2ff;color:#4338ca">Master List</span>
-            <span class="tile-tag" style="background:#f0fdf4;color:#16a34a">Add &amp; Manage</span>
-          </div>
-        </div>
-        <div class="tool-tile" onclick="navigateTo('catering-menu.html')">
-          <div class="tile-accent" style="background:linear-gradient(90deg,#059669,#0891b2)"></div>
-          <div class="tile-icon">📖</div>
-          <div class="tile-title">Catering Menu</div>
-          <div class="tile-desc">Upload and edit menu items, descriptions and pricing used across all bookings.</div>
-          <div class="tile-meta">
-            <span class="tile-tag" style="background:#ecfdf5;color:#059669">Editable</span>
-            <span class="tile-tag" style="background:#ecfeff;color:#0891b2">Upload</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+  container.innerHTML = ccSection('Caterings', true, [
+    { name: 'Catering Bookings', sub: 'All events, add a booking, kitchen orders', go: "navigateTo('caterings.html')" },
+    { name: 'Catering Menu', sub: 'Menu items, descriptions and pricing', go: "navigateTo('catering-menu.html')" }
+  ]);
 }
 
 function renderPrepSection() {
-  const profile = getEffectiveProfile();
-  const container = document.getElementById('prepDataSection');
-
-  // Only show for roles that have prep access
-  const prepSheets = Object.keys(SHEET_TYPES).filter(sk => {
-    const s = SHEET_TYPES[sk];
-    return s.category === 'prep';
-  });
-
-  if (prepSheets.length === 0) { container.innerHTML = ''; return; }
-
-  // Get unique locations that have prep sheets
-  const prepLocations = [];
-  const seen = new Set();
-  prepSheets.forEach(sk => {
-    const s = SHEET_TYPES[sk];
-    (s.restaurants || []).forEach(rk => {
-      if (!seen.has(rk) && RESTAURANTS[rk]) {
-        seen.add(rk);
-        prepLocations.push({ key: rk, sheetKey: sk, ...RESTAURANTS[rk], sheet: s });
-      }
-    });
-  });
-
-  container.innerHTML = `
-    <div class="prep-section">
-      <h3>🥩 Prep Data <span class="badge" style="background:#fef3c7;color:#92400e;font-size:.72rem;padding:3px 10px;border-radius:12px;font-weight:600">Cost Optimization</span></h3>
-      <div class="prep-desc">
-        Track meat cutting and prep across all locations — weight, fat content, water content, and wastage to optimize costs and reduce loss.<br>
-        <span style="color:var(--gray-400)">Seguimiento del corte y preparación de carne — peso, grasa, agua y desperdicio para optimizar costos.</span>
-      </div>
-      <div class="prep-locations">
-        ${prepLocations.map(loc => `
-          <div class="prep-loc-card">
-            <div class="prep-icon" style="background:${loc.color}15">${loc.icon}</div>
-            <div class="prep-info">
-              <div class="name">${loc.shortName}</div>
-              <div class="status">${loc.sheet.comingSoon ? 'Coming Soon — Setup in Progress' : 'Active'}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
+  // Removed from Central Command Nov 1 2026: every item in it was "coming soon".
+  const c = document.getElementById('prepDataSection'); if (c) c.innerHTML = '';
 }
 
 function openLocation(key) {
@@ -1128,38 +1026,11 @@ const COST_CENTERS = {
 };
 
 function renderToolTiles() {
-  document.getElementById('toolsGrid').innerHTML = `
-    <div class="tool-tile" onclick="navigateTo('transfer-request.html')">
-      <div class="tile-accent" style="background:linear-gradient(90deg,#4338ca,#7c3aed)"></div>
-      <div class="tile-icon">📋</div>
-      <div class="tile-title">Inventory Transfer Request</div>
-      <div class="tile-desc">Log inter-cost-center transfers, track balances owed, and manage returns across all locations.</div>
-      <div class="tile-meta">
-        <span class="tile-tag" style="background:#eff6ff;color:#2563eb">Live Ledger</span>
-        <span class="tile-tag" style="background:#f0fdf4;color:#16a34a">All Locations</span>
-      </div>
-    </div>
-    <div class="tool-tile" onclick="navigateTo('master-transfers.html')">
-      <div class="tile-accent" style="background:linear-gradient(90deg,#1e3a5f,#2563eb)"></div>
-      <div class="tile-icon">📦</div>
-      <div class="tile-title">Master Transfers</div>
-      <div class="tile-desc">View, approve, reject, and create transfers across all locations — warehouse, storage, and inter-location — in one place.</div>
-      <div class="tile-meta">
-        <span class="tile-tag" style="background:#eff6ff;color:#1e3a5f">All Sources</span>
-        <span class="tile-tag" style="background:var(--amber-bg);color:var(--amber)">Approve/Reject</span>
-      </div>
-    </div>
-    <div class="tool-tile" onclick="navigateTo('total-inventory.html')">
-      <div class="tile-accent" style="background:linear-gradient(90deg,#059669,#0891b2)"></div>
-      <div class="tile-icon">📊</div>
-      <div class="tile-title">Total Operational Inventory</div>
-      <div class="tile-desc">See exactly how much of each item exists across all cost centers. Filterable and sortable.</div>
-      <div class="tile-meta">
-        <span class="tile-tag" style="background:#ecfdf5;color:#059669">Cross-Location</span>
-        <span class="tile-tag" style="background:#ecfeff;color:#0891b2">Real-Time</span>
-      </div>
-    </div>
-  `;
+  document.getElementById('toolsGrid').innerHTML = [
+    { name: 'Inventory Transfer Request', sub: 'Log a transfer between locations, track balances', go: "navigateTo('transfer-request.html')" },
+    { name: 'Master Transfers', sub: 'Approve, reject and create transfers everywhere', go: "navigateTo('master-transfers.html')" },
+    { name: 'Total Operational Inventory', sub: 'Every item across all locations', go: "navigateTo('total-inventory.html')" }
+  ].map(it => `<button type="button" class="cc-item" onclick="${it.go}"><span><div class="n">${it.name}</div><div class="d">${it.sub}</div></span><span class="arr" aria-hidden="true">›</span></button>`).join('');
 }
 
 // Transfer/inventory features moved to standalone pages (transfer-request.html, total-inventory.html)
