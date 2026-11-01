@@ -75,6 +75,11 @@ button,input,select{font-family:inherit}
 .finish:disabled{background:var(--gray-200);color:var(--gray-500);cursor:not-allowed}
 .addrun{min-height:52px;border:2px dashed var(--primary-light);border-radius:12px;background:transparent;color:var(--primary-light);font-size:1rem;font-weight:800;cursor:pointer}
 .note{font-size:.82rem;color:var(--gray-500);text-align:center}
+.dnotes{border-top:1px solid var(--gray-200);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.dnotes textarea{width:100%;min-height:72px;border:1px solid var(--gray-300);border-radius:10px;padding:10px 12px;font-size:16px;font-family:inherit;resize:vertical}
+.dnotes .sendn{min-height:44px;border:0;border-radius:10px;background:var(--primary);color:#fff;font-size:.95rem;font-weight:800;cursor:pointer}
+.dnote{background:#f8fafc;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px;font-size:.88rem}
+.dnote .when{font-size:.72rem;color:var(--gray-500);margin-top:2px}
 .msg{padding:40px 20px;text-align:center;color:var(--gray-500)}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 20px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center}
 </style>
@@ -269,6 +274,27 @@ function odoState(run, f) {
 }
 
 function titleName(s) { return String(s || '').trim().replace(/\s+/g, ' ').split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' '); }
+// Notes for the owner: appended to the trip (driverNotes), allowed even after
+// Save. The owner reads them in the Notes column on Delivery Data and fixes
+// the trip there.
+let noteDraft = {};
+function sendNote(id) {
+  const run = getRun(id); if (!run) return;
+  const text = String(noteDraft[id] || '').trim();
+  if (!text) { toast('Type what needs fixing first.'); return; }
+  if (!run.exists) { toast('Tap Shift start first, then add your note.'); return; }
+  const u = auth.currentUser;
+  const note = { at: new Date().toISOString(), by: u.email, byName: (profile && profile.displayName) || displayLogin(u.email), text: text.slice(0, 900) };
+  run.data.driverNotes = (Array.isArray(run.data.driverNotes) ? run.data.driverNotes : []).concat([note]);
+  noteDraft[id] = '';
+  render();
+  db.collection('deliveries').doc(id).update({
+    driverNotes: firebase.firestore.FieldValue.arrayUnion(note),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => toast('Note sent to the owner'))
+    .catch(e => { console.error(e); toast('Note didn’t send (' + (e.code || 'error') + '). Try again.'); run.data.driverNotes = run.data.driverNotes.filter(x => x !== note); noteDraft[id] = text; render(); });
+}
+
 function setDetail(id, field, value) {
   const run = getRun(id); if (!run || run.data.status === 'done') return;
   if (field === 'helperName') value = titleName(value);
@@ -458,8 +484,14 @@ function runHtml(run) {
       <div class="dur"><div class="k">Miles this run</div><div class="v">${miles}</div></div>
       <div class="total"><strong>Total shift</strong><span class="v">${fmtDur(T('shiftStart'), T('shiftEnd'))}</span></div>
     </div>
-    ${done ? '<div class="note">Saved. Ask the owner if something needs fixing.</div>'
+    ${done ? '<div class="note">Saved. If something is wrong, write it below and the owner will fix it.</div>'
       : `<button class="finish" type="button" onclick="finishRun('${id}')" ${canFinish ? '' : 'disabled'}>${ni === -1 ? 'Save delivery' : 'Save delivery (finish all 6 taps first)'}</button>`}
+    <div class="dnotes">
+      <div class="sec-label">Notes for the owner</div>
+      ${(Array.isArray(r.driverNotes) ? r.driverNotes : []).map(nn => `<div class="dnote">${esc(nn.text)}<div class="when">${esc(nn.byName || '')} · ${new Date(nn.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</div></div>`).join('')}
+      <textarea id="note-${id}" maxlength="900" placeholder="Made a mistake? e.g. I tapped Arrived late, it was really 8:15." oninput="noteDraft['${id}']=this.value">${esc(noteDraft[id] || '')}</textarea>
+      <button class="sendn" type="button" onclick="sendNote('${id}')">Send note</button>
+    </div>
   </div>`;
 }
 
@@ -474,7 +506,7 @@ function render() {
     '<div class="note">Times are saved the moment you tap. If you lose signal, keep tapping; it syncs when you’re back online.</div>';
   if (active) {
     const el = document.getElementById(active);
-    if (el && el.tagName === 'INPUT') { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} }
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} }
   }
 }
 </script>

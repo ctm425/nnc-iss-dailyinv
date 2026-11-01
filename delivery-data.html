@@ -51,12 +51,15 @@ button,input,select{font-family:inherit}
 .quick-stat .sub{font-size:.78rem;color:var(--gray-400);margin-top:2px}
 
 .table-box{overflow-x:auto;border:1px solid var(--gray-200);border-radius:10px}
-table.log{border-collapse:collapse;width:100%;min-width:1440px;font-size:.84rem}
+table.log{border-collapse:collapse;width:100%;min-width:1640px;font-size:.84rem}
 table.log th{text-align:center;font-size:.68rem;text-transform:uppercase;color:var(--gray-700);padding:10px;background:var(--gray-200);border-bottom:2px solid var(--gray-300);font-weight:700;letter-spacing:.3px;white-space:nowrap}
 table.log td{text-align:center;padding:9px 10px;border-bottom:1px solid var(--gray-200);white-space:nowrap;background:#fff}
 table.log tbody tr:nth-child(even) td{background:var(--gray-100)}
 table.log tbody tr:hover td{background:#e0e7ff}
 table.log .num,table.log th.num{text-align:center}
+table.log td.notes-cell{white-space:normal;min-width:220px;max-width:300px;text-align:center}
+.dn{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:6px 8px;font-size:.8rem;margin:2px 0}
+.dn span{display:block;font-size:.68rem;color:var(--gray-500);margin-top:2px}
 .num{text-align:right}
 .tag{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px}
 .tag.open{background:#fff7ed;color:#9a3412}
@@ -75,6 +78,16 @@ table.edit input{width:100%;min-width:70px;padding:8px 10px;border:1px solid var
 .save-bar{display:flex;justify-content:flex-end;align-items:center;gap:12px}
 .msg{padding:40px;text-align:center;color:var(--gray-500)}
 .assume{background:#eff6ff;border:2px solid #93c5fd;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px}
+details.sec{border-radius:14px}
+details.sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:44px}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary .chev{width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:rgba(30,58,95,.08);flex-shrink:0;transition:transform .15s}
+details.sec[open]>summary .chev{transform:rotate(90deg)}
+details.sec>summary h2{margin:0}
+details.sec>summary .peek{flex:1 1 300px;min-width:0;font-size:.85rem;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+details.sec[open]>summary .peek{display:none}
+details.sec>.sec-body{margin-top:14px;display:flex;flex-direction:column;gap:14px}
+details.panel.sec>.sec-body{display:block}
 .assume h2{font-size:1.2rem;color:#1e3a8a}
 .as-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .as-box{background:#fff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px}
@@ -150,6 +163,15 @@ let runs = [];
 let unsub = null;
 let range = { preset: 'week', from: '', to: '' };
 let filt = { driver: '', helper: '', van: '', route: '', status: '' };
+// Collapsible sections (closed by default, remembered on this device)
+let openSec = { assume: false, staff: false, vans: false };
+try { Object.assign(openSec, JSON.parse(localStorage.getItem('nnc.deliveryData.open') || '{}')); } catch (e) {}
+function toggleSec(k, el) {
+  openSec[k] = el.open;
+  try { localStorage.setItem('nnc.deliveryData.open', JSON.stringify(openSec)); } catch (e) {}
+  const bar = document.getElementById('saveBar');
+  if (bar) bar.style.display = (openSec.staff || openSec.vans) ? '' : 'none';
+}
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function dkey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -408,6 +430,7 @@ function renderEdit() {
   const hist = (r.history || []).slice().reverse();
   box.innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeEdit()"><div class="modal" role="dialog" aria-modal="true" aria-label="Edit trip">
     <h3>Edit trip · Delivery ${r.runNumber || 1}</h3>
+    ${(Array.isArray(r.driverNotes) ? r.driverNotes : []).map(nn => `<div class="dn" style="font-size:.88rem"><strong>${esc(nn.byName || 'Driver')} wrote:</strong> ${esc(nn.text)}</div>`).join('')}
     <div class="mgrid">
       <div class="ff"><label>Date</label><input type="date" value="${esc(d.date)}" onchange="setDraft('date',this.value)"></div>
       <div class="ff"><label>Status</label><select onchange="setDraft('status',this.value)"><option value="done"${d.status === 'done' ? ' selected' : ''}>Saved</option><option value="open"${d.status !== 'done' ? ' selected' : ''}>Not saved (driver can still change)</option></select></div>
@@ -448,13 +471,13 @@ async function deleteRun(id) {
 }
 
 function exportCsv() {
-  const head = ['Date', 'Run', 'Status', 'Driver', 'Helper', 'Vehicle', 'From', 'To', 'Shift start', 'Left origin', 'Arrived', 'Left destination', 'Back', 'Shift end', 'Minutes at destination', 'Shift minutes', 'Odometer start', 'Odometer end', 'Miles', 'Labor $', 'Vehicle $', 'Total $', 'Time flags'];
+  const head = ['Date', 'Run', 'Status', 'Driver', 'Helper', 'Vehicle', 'From', 'To', 'Shift start', 'Left origin', 'Arrived', 'Left destination', 'Back', 'Shift end', 'Minutes at destination', 'Shift minutes', 'Odometer start', 'Odometer end', 'Miles', 'Labor $', 'Vehicle $', 'Total $', 'Time flags', 'Driver notes'];
   const rows = filteredRuns().map(r => {
     const c = calc(r);
     return [r.date, r.runNumber, r.status, r.driverName, r.helperName || '', r.vehicle, r.origin, r.dest]
       .concat(STEP_KEYS.map(k => c.t(k) ? new Date(c.t(k)).toLocaleTimeString() : ''))
       .concat([c.destMin ?? '', c.minutes != null ? Math.round(c.minutes) : '', r.odoStart ?? '', r.odoEnd ?? '', c.miles ?? '',
-        c.labor != null ? c.labor.toFixed(2) : '', c.vehicle != null ? c.vehicle.toFixed(2) : '', c.total != null ? c.total.toFixed(2) : '', c.flags.join('; ')]);
+        c.labor != null ? c.labor.toFixed(2) : '', c.vehicle != null ? c.vehicle.toFixed(2) : '', c.total != null ? c.total.toFixed(2) : '', c.flags.join('; '), (Array.isArray(r.driverNotes) ? r.driverNotes : []).map(x => x.text).join(' | ')]);
   });
   const csv = [head].concat(rows).map(row => row.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
   const a = document.createElement('a');
@@ -479,6 +502,7 @@ function filteredRuns() {
     if (filt.status === 'edited' && !r.editedAt) return false;
     if (filt.status === 'flag' && !calc(r).flags.length) return false;
     if (filt.status === 'norate' && !(r.status === 'done' && calc(r).missingRate.length)) return false;
+    if (filt.status === 'notes' && !(Array.isArray(r.driverNotes) ? r.driverNotes : []).length) return false;
     return true;
   });
 }
@@ -514,9 +538,10 @@ function render() {
       <td class="num">${costNote}</td>
       <td class="num">${money(c.vehicle)}</td>
       <td class="num total-cell">${money(c.total)}</td>
+      <td class="notes-cell">${(Array.isArray(r.driverNotes) ? r.driverNotes : []).length ? (Array.isArray(r.driverNotes) ? r.driverNotes : []).map(nn => `<div class="dn">${esc(nn.text)}<span>${esc(nn.byName || '')}, ${new Date(nn.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></div>`).join('') : '<span class="muted">—</span>'}</td>
       <td><button class="btn btn-white" style="min-height:32px;padding:4px 12px" onclick="openEdit('${r.id}')">Edit</button> <button class="btn-danger-link" onclick="deleteRun('${r.id}')">Delete</button></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="18" class="muted" style="padding:28px;text-align:center">${allRuns.length && anyFilter ? 'No trips match these filters.' : 'No deliveries logged ' + (range.from === range.to ? 'on ' + dayLabel(range.from) : 'between ' + dayLabel(range.from) + ' and ' + dayLabel(range.to)) + '.'}</td></tr>`;
+  }).join('') : `<tr><td colspan="19" class="muted" style="padding:28px;text-align:center">${allRuns.length && anyFilter ? 'No trips match these filters.' : 'No deliveries logged ' + (range.from === range.to ? 'on ' + dayLabel(range.from) : 'between ' + dayLabel(range.from) + ' and ' + dayLabel(range.to)) + '.'}</td></tr>`;
 
   // Filter choices come from what's actually in this date range
   const uniq = arr => [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -526,7 +551,7 @@ function render() {
       ${fsel('helper', 'Helper', [['__any', 'Any helper'], ['__none', 'No helper']].concat(uniq(allRuns.map(r => r.helperName)).map(x => [x, x])), 'All')}
       ${fsel('van', 'Van', uniq(allRuns.map(r => r.vehicle)).map(x => [x, x]), 'All vans')}
       ${fsel('route', 'Route', uniq(allRuns.map(r => r.origin + ' → ' + r.dest)).map(x => [x, x]), 'All routes')}
-      ${fsel('status', 'Show', [['done', 'Saved by driver'], ['open', 'Not saved yet'], ['edited', 'Edited by you'], ['flag', 'Time check flags'], ['norate', 'Missing a wage']], 'All trips')}
+      ${fsel('status', 'Show', [['done', 'Saved by driver'], ['open', 'Not saved yet'], ['edited', 'Edited by you'], ['flag', 'Time check flags'], ['norate', 'Missing a wage'], ['notes', 'Has driver notes']], 'All trips')}
       ${anyFilter ? '<button class="btn btn-white" onclick="clearFilt()">Clear filters</button>' : ''}
     </div>`;
 
@@ -534,6 +559,8 @@ function render() {
   const known = new Set(staffRows.map(r => r.name));
   const unknownHelpers = uniq(allRuns.map(r => r.helperName)).filter(x => !known.has(x));
 
+  const staffPeek = esc(staffRows.filter(r => r.name).map(r => { const w = n(r.wage), l = n(r.load); return r.name + ' ' + (isNaN(w) ? 'no wage' : money(w * (1 + (isNaN(l) ? 0 : l) / 100)) + '/hr'); }).join(' · ') || 'No people yet');
+  const vanPeek = esc(vehicleRows.filter(r => r.name).map(r => r.name + ' ' + money((isNaN(n(r.base)) ? IRS_RATE : n(r.base)) + (isNaN(n(r.addon)) ? 0 : n(r.addon))) + '/mi').join(' · '));
   // Current assumptions, in plain numbers
   const rateChips = staffRows.filter(r => r.name).map(r => {
     const w = n(r.wage), l = n(r.load);
@@ -569,8 +596,9 @@ function render() {
   }).join('');
 
   document.getElementById('content').innerHTML = `
-    <div class="assume">
-      <h2>How trip costs are worked out</h2>
+    <details class="assume sec" ${openSec.assume ? 'open' : ''} ontoggle="toggleSec('assume',this)">
+      <summary><span class="chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></span><h2>How trip costs are worked out</h2><span class="peek">Labor = shift time × loaded rate · Van = miles × per-mile cost · Tap to see the rates in use</span></summary>
+      <div class="sec-body">
       <div class="as-grid">
         <div class="as-box"><div class="as-k">Labor</div><div class="as-v">Shift time × driver’s loaded rate, plus shift time × helper’s loaded rate if there was one</div></div>
         <div class="as-box"><div class="as-k">Shift time</div><div class="as-v">From <b>Shift start</b> to <b>Shift end</b>, so loading and wrap-up count</div></div>
@@ -580,7 +608,8 @@ function render() {
       <div class="as-row"><span class="as-label">Rates in use</span>${rateChips || '<span class="muted">No people yet</span>'}</div>
       <div class="as-row"><span class="as-label">Vans</span>${vanChips}</div>
       <div class="as-note">Costs use today’s rates, so changing a wage also changes past trips. ⚠ time check = a tap reached the system more than ${CLOCK_FLAG_MIN} minutes off the phone’s clock.</div>
-    </div>
+      </div>
+    </details>
 
     ${unknownHelpers.length ? `<div class="panel" style="border-color:#fcd34d;background:#fffbeb">
       <h2 style="color:#92400e">Helpers without a rate</h2>
@@ -589,8 +618,9 @@ function render() {
     </div>` : ''}
 
     <div class="settings-grid">
-      <div class="panel">
-        <h2>Staff labor rates</h2>
+      <details class="panel sec" ${openSec.staff ? 'open' : ''} ontoggle="toggleSec('staff',this)">
+        <summary><span class="chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></span><h2>Staff labor rates</h2><span class="peek">${staffPeek}</span></summary>
+        <div class="sec-body">
         <div class="desc">Tick <b>Drives</b> for people who appear in the driver list. Everyone else is suggested as a helper. Wages stay on this page only.</div>
         <table class="edit">
           <thead><tr><th>Name</th><th>Hourly wage</th><th>Payroll load %</th><th style="text-align:center">Drives</th><th class="num">Loaded rate</th><th></th></tr></thead>
@@ -598,10 +628,12 @@ function render() {
         </table>
         <button class="btn btn-white" style="margin-top:10px" onclick="staffRows.push({name:'',wage:'',load:'',driver:false});render()">+ Add person</button>
         <div class="hint">Renaming someone means older trips under the old name lose their rate.</div>
-      </div>
+        </div>
+      </details>
 
-      <div class="panel">
-        <h2>Van cost per mile</h2>
+      <details class="panel sec" ${openSec.vans ? 'open' : ''} ontoggle="toggleSec('vans',this)">
+        <summary><span class="chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></span><h2>Van cost per mile</h2><span class="peek">${vanPeek}</span></summary>
+        <div class="sec-body">
         <div class="desc">Put your extra real cost per mile (fuel, repairs, insurance above the IRS average) in Add-on.</div>
         <table class="edit">
           <thead><tr><th>Van</th><th>Base $/mi</th><th>Add-on $/mi</th><th class="num">Per mile</th><th></th></tr></thead>
@@ -610,9 +642,10 @@ function render() {
         <button class="btn btn-white" style="margin-top:10px" onclick="vehicleRows.push({name:'',base:${IRS_RATE},addon:''});render()">+ Add van</button>
         <div class="ff" style="margin-top:18px"><label for="locs">Locations (comma separated, first two are the default From and To)</label>
           <input id="locs" value="${esc(locationsText)}" onchange="locationsText=this.value"></div>
-      </div>
+        </div>
+      </details>
     </div>
-    <div class="save-bar"><span class="muted" style="font-size:.82rem">Changes to rates, people, vans and locations apply when you save.</span><button class="btn btn-primary" onclick="saveSettings()">Save rates &amp; lists</button></div>
+    <div class="save-bar" id="saveBar" style="${(openSec.staff || openSec.vans) ? '' : 'display:none'}"><span class="muted" style="font-size:.82rem">Changes to rates, people, vans and locations apply when you save.</span><button class="btn btn-primary" onclick="saveSettings()">Save rates &amp; lists</button></div>
 
     <div class="panel">
       <h2>Saved trips</h2>
@@ -645,7 +678,7 @@ function render() {
           <thead><tr>
             <th>Date</th><th>Driver</th><th>Helper</th><th>Van</th><th>Route</th>
             <th>Shift start</th><th>Left origin</th><th>Arrived</th><th>Left dest.</th><th title="Left destination minus Arrived">At dest. (min)</th><th>Back</th><th>Shift end</th>
-            <th>Shift time</th><th class="num">Miles</th><th class="num">Labor</th><th class="num">Van</th><th class="num">Total</th><th></th>
+            <th>Shift time</th><th class="num">Miles</th><th class="num">Labor</th><th class="num">Van</th><th class="num">Total</th><th>Notes</th><th></th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
