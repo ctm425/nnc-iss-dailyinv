@@ -465,6 +465,8 @@ function renderDeliverySection() {
   container.innerHTML = ccSection('Delivery Data', true, [
     { name: 'Delivery Data', sub: 'Trip times, miles, cost per run', go: "navigateTo('delivery-data.html')" },
     { name: 'Driver Page', sub: 'What drivers see; open it to test a run', go: "navigateTo('delivery.html')" }
+  ]) + ccSection('Food Cost', true, [
+    { name: 'Food Cost', sub: 'Ingredient prices, bulk and line recipe costs', go: "navigateTo('food-cost.html')" }
   ]);
 }
 

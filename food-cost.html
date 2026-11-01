@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Food Cost (Owner)</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --primary:#1e3a5f;--primary-light:#2563eb;--primary-bg:#eff6ff;--success:#16a34a;--danger:#dc2626;--amber:#92400e;--amber-bg:#fef3c7;
+  --gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-700:#374151;--gray-900:#111827;
+  --bulk:#9a3412;--bulk-bg:#fff7ed;--line:#0f766e;--line-bg:#f0fdfa;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+button,input,select,textarea{font-family:inherit}
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f2440);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:36px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{color:var(--primary);margin-bottom:6px;font-size:1.4rem}
+.login-box p{color:var(--gray-500);margin-bottom:20px;font-size:.9rem}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--gray-300);border-radius:8px;font-size:16px;margin-bottom:12px}
+.login-box button{width:100%;padding:12px;background:var(--primary-light);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer}
+.login-error{background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.85rem;margin-bottom:12px;display:none}
+
+.header{background:linear-gradient(135deg,#1e3a5f,#0f2440);color:#fff;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.header h1{font-size:1.5rem;font-weight:800}
+.header-sub{opacity:.75;font-size:.85rem;margin-top:2px}
+.header-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;min-height:38px}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-primary{background:var(--primary-light);color:#fff}
+.btn-white{background:#fff;color:var(--gray-700);border:1px solid var(--gray-300)}
+.btn-sm{padding:5px 10px;min-height:32px;font-size:.8rem}
+.btn-link{background:none;border:none;color:var(--primary-light);font-weight:600;cursor:pointer;font-size:.82rem;padding:4px}
+.btn-x{background:none;border:none;color:var(--gray-400);font-size:1.1rem;cursor:pointer;padding:4px 8px;border-radius:6px}
+.btn-x:hover{color:var(--danger);background:#fef2f2}
+.owner-badge{background:#eef2ff;color:#4338ca;font-size:.72rem;padding:3px 10px;border-radius:12px;font-weight:700}
+.pill{font-size:.75rem;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3)}
+.pill.err{background:#fecaca;color:#7f1d1d;border-color:#fca5a5}
+
+.tabs{display:flex;gap:4px;padding:0 32px;background:#fff;border-bottom:1px solid var(--gray-200);overflow-x:auto;position:sticky;top:0;z-index:20}
+.tab{padding:14px 16px;border:none;background:none;font-size:.92rem;font-weight:700;color:var(--gray-500);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tab.on{color:var(--primary);border-bottom-color:var(--primary-light)}
+.tab .sub{display:block;font-size:.68rem;font-weight:600;color:var(--gray-400)}
+
+.dashboard{padding:24px 32px;max-width:1300px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.panel{background:#fff;border-radius:14px;border:1px solid var(--gray-200);padding:20px}
+.panel h2{font-size:1.1rem;font-weight:700;color:var(--primary);margin-bottom:4px}
+.panel h3{font-size:.95rem;font-weight:700;color:var(--gray-700);margin:14px 0 8px}
+.desc{font-size:.85rem;color:var(--gray-500);margin-bottom:14px;line-height:1.5}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar input[type=search]{padding:8px 12px;border:1px solid var(--gray-300);border-radius:8px;font-size:.9rem;min-height:38px;min-width:220px}
+.banner{background:#fef2f2;border:1px solid #fecaca;color:#7f1d1d;border-radius:10px;padding:12px 16px;font-size:.88rem}
+.banner.info{background:var(--primary-bg);border-color:#bfdbfe;color:#1e3a8a}
+.banner.warn{background:var(--amber-bg);border-color:#fcd34d;color:var(--amber)}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.82rem}
+.flow .st{background:#fff;border:1px solid var(--gray-300);border-radius:8px;padding:6px 10px;font-weight:600}
+.flow .st.b{border-color:#fdba74;background:var(--bulk-bg);color:var(--bulk)}
+.flow .st.l{border-color:#5eead4;background:var(--line-bg);color:var(--line)}
+.flow .ar{color:var(--gray-400)}
+
+.table-box{overflow-x:auto;border:1px solid var(--gray-200);border-radius:10px}
+table.t{border-collapse:collapse;width:100%;font-size:.85rem;min-width:560px}
+table.t th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--gray-700);padding:8px;background:var(--gray-100);border-bottom:1px solid var(--gray-300);font-weight:700;letter-spacing:.3px;white-space:nowrap}
+table.t td{padding:6px 8px;border-bottom:1px solid var(--gray-100);vertical-align:middle}
+table.t td.num,table.t th.num{text-align:right;white-space:nowrap}
+table.t tfoot td{font-weight:800;border-top:2px solid var(--gray-300);background:var(--gray-50)}
+table.t input,table.t select{width:100%;padding:7px 8px;border:1px solid var(--gray-300);border-radius:7px;font-size:.88rem;min-height:36px;background:#fff}
+table.t input[type=number]{text-align:right}
+table.t input:focus,table.t select:focus{outline:2px solid #93c5fd;border-color:#60a5fa}
+.w-xs{width:70px}.w-s{width:95px}.w-m{width:140px}
+.muted{color:var(--gray-400)}
+.small{font-size:.78rem}
+.warn-t{color:var(--amber);font-size:.75rem;font-weight:600}
+.err-t{color:var(--danger);font-size:.75rem;font-weight:600}
+.tag{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--gray-100);color:var(--gray-700)}
+.tag.stale{background:var(--amber-bg);color:var(--amber)}
+.tag.b{background:var(--bulk-bg);color:var(--bulk)}
+.tag.l{background:var(--line-bg);color:var(--line)}
+
+.sec-h{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.sec-h h2{display:flex;align-items:center;gap:8px}
+.card{border:1px solid var(--gray-200);border-radius:12px;margin-bottom:10px;background:#fff;overflow:hidden}
+.card.b{border-left:4px solid #fb923c}
+.card.p{border-left:4px solid #a78bfa}
+.card.l{border-left:4px solid #2dd4bf}
+.card-h{display:flex;align-items:center;gap:14px;padding:12px 14px;cursor:pointer;flex-wrap:wrap}
+.card-h:hover{background:var(--gray-50)}
+.card-h .nm{font-weight:700;font-size:.95rem;flex:1 1 200px;min-width:0}
+.card-h .nm .s{display:block;font-weight:500;font-size:.78rem;color:var(--gray-500);margin-top:2px}
+.kv{display:flex;flex-direction:column;align-items:flex-end;min-width:90px}
+.kv .k{font-size:.65rem;text-transform:uppercase;color:var(--gray-500);font-weight:700}
+.kv .v{font-weight:800;font-size:.95rem}
+.chev{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:var(--gray-100);transition:transform .15s;flex-shrink:0}
+.card.open .chev{transform:rotate(90deg)}
+.card-b{padding:4px 14px 16px;border-top:1px solid var(--gray-100)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px}
+.ff{display:flex;flex-direction:column;gap:4px}
+.ff label{font-size:.68rem;font-weight:700;color:var(--gray-500);text-transform:uppercase}
+.ff input,.ff select,.ff textarea{padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:.9rem;min-height:38px;width:100%;background:#fff}
+.eq{display:flex;align-items:center;gap:6px;font-size:.85rem}
+.eq input{width:80px}.eq select,.eq .u{min-width:70px}
+.totals{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.tot{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:10px;padding:10px 14px;min-width:130px}
+.tot .k{font-size:.66rem;text-transform:uppercase;color:var(--gray-500);font-weight:700}
+.tot .v{font-size:1.1rem;font-weight:800;margin-top:2px}
+.tot.hi{background:var(--primary-bg);border-color:#bfdbfe}
+.tot.hi .v{color:var(--primary)}
+.card-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px dashed var(--gray-300);background:#fff;border-radius:999px;padding:5px 12px;font-size:.8rem;cursor:pointer;color:var(--gray-700)}
+.chip:hover{border-color:var(--primary-light);color:var(--primary-light)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.stat{background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:14px 16px}
+.stat .k{font-size:.7rem;text-transform:uppercase;color:var(--gray-500);font-weight:700}
+.stat .v{font-size:1.5rem;font-weight:800;margin-top:4px}
+.stat .s{font-size:.78rem;color:var(--gray-500);margin-top:2px}
+.seg{display:inline-flex;border:1px solid var(--gray-300);border-radius:8px;overflow:hidden}
+.seg button{border:none;background:#fff;padding:7px 12px;font-size:.82rem;font-weight:600;cursor:pointer;color:var(--gray-700)}
+.seg button.on{background:var(--primary);color:#fff}
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:720px;padding:22px;display:flex;flex-direction:column;gap:12px}
+.modal h3{color:var(--primary)}
+.modal textarea{width:100%;min-height:200px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-family:ui-monospace,Menlo,monospace;font-size:.82rem}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
+#printArea{display:none}
+@media(max-width:768px){.header{padding:14px 16px}.dashboard{padding:14px}.panel{padding:14px}.tabs{padding:0 8px}.kv{min-width:70px}}
+@media print{
+  body.printing>*:not(#printArea){display:none!important}
+  body.printing #printArea{display:block!important}
+  body{background:#fff}
+}
+.inv{font-size:12pt;color:#000;padding:10px}
+.inv h1{font-size:20pt;margin-bottom:4px}
+.inv .row{display:flex;justify-content:space-between;gap:20px;margin:14px 0}
+.inv table{width:100%;border-collapse:collapse;margin-top:10px}
+.inv th,.inv td{border-bottom:1px solid #ccc;padding:6px;text-align:left}
+.inv td.num,.inv th.num{text-align:right}
+.inv tfoot td{font-weight:800;border-top:2px solid #000}
+.inv .note{font-size:9pt;color:#444;margin-top:14px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Food Cost</h2>
+    <p>Owner sign in</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="text" id="loginEmail" placeholder="Email" autocapitalize="none" autocomplete="username">
+    <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleLogin()">
+    <button onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<div class="header">
+  <div>
+    <h1>🧮 Food Cost <span class="owner-badge">Owner Only</span></h1>
+    <div class="header-sub">What every batch and dish costs, and the monthly bills between locations.</div>
+  </div>
+  <div class="header-right">
+    <span class="pill" id="savePill">Loading…</span>
+    <a class="btn btn-ghost" href="index.html">← Central Command</a>
+    <button class="btn btn-ghost" onclick="auth.signOut()">Sign Out</button>
+  </div>
+</div>
+
+<nav class="tabs" id="tabs"></nav>
+<main class="dashboard" id="content"><div class="panel desc">Loading…</div></main>
+<div id="modalRoot"></div>
+<div id="printArea"></div>
+<div id="toast"></div>
+
+<script src="shared.js?v=20261029"></script>
+<script>
+// ============================================================================
+// food-cost.html — Food Cost (owner only). Added Nov 1 2026.
+//
+// Cost chain:  Ingredients -> Prep (any location) -> Bulk batch (Renton) -> per tray
+//              -> Line dish (bulk portion + extra ingredients + line labor)
+// Monthly billing:
+//   Renton -> Issaquah: trays (daily.html units) delivered or used x bulk cost per unit
+//   Issaquah -> Renton: chicken prep from chicken-prep-log (raw chicken + logged labor)
+//
+// Firestore (OWNER ONLY in firestore.rules):
+//   food_cost/catalog            { rev, ingredients[], prep[], bulk[], menu[], settings{} }
+//   food_cost_invoices/{YYYY-MM} { opts, manual{}, snapshots[] }
+// Reads (already allowed for owner): config/settings (daily items + pars), days/*,
+//   chicken-prep/nnc-iss/records/*, delivery_config/rates (staff wages).
+// The catalog is saved with a revision check so two open tabs can't silently
+// overwrite each other.
+// ============================================================================
+
+const LOCS = { 'nnc-iss': 'Issaquah', 'nnc-renton': 'Renton', 'babas-bel': 'Bellevue' };
+const UNITS = {
+  lb: ['w', 1], oz: ['w', 1 / 16], kg: ['w', 2.20462262], g: ['w', 0.00220462262],
+  gal: ['v', 128], qt: ['v', 32], pt: ['v', 16], cup: ['v', 8], 'fl oz': ['v', 1], tbsp: ['v', 0.5], tsp: ['v', 1 / 6], l: ['v', 33.8140227], ml: ['v', 0.0338140227]
+};
+const UNIT_ALIASES = { lbs: 'lb', pound: 'lb', pounds: 'lb', ounce: 'oz', ounces: 'oz', gallon: 'gal', gallons: 'gal', quart: 'qt', quarts: 'qt', pint: 'pt', pints: 'pt', cups: 'cup', floz: 'fl oz', 'fl. oz': 'fl oz', tablespoon: 'tbsp', tablespoons: 'tbsp', teaspoon: 'tsp', teaspoons: 'tsp', liter: 'l', litre: 'l', liters: 'l', gram: 'g', grams: 'g', kilogram: 'kg', kgs: 'kg', trays: 'tray', containers: 'container', cases: 'case', ea: 'each', pcs: 'each', pc: 'each', piece: 'each', pieces: 'each', bags: 'bag', bottles: 'bottle', bunches: 'bunch', batches: 'batch' };
+const UNIT_SUGGEST = ['lb', 'oz', 'kg', 'g', 'gal', 'qt', 'cup', 'fl oz', 'tbsp', 'tsp', 'l', 'ml', 'each', 'case', 'bag', 'bunch', 'bottle', 'tray', 'container', 'batch'];
+const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const STALE_DAYS = 90;
+// Phase 1 (Nov 1 2026): ingredients, bulk cooking and line cooking only.
+// Prep items and monthly billing are built but hidden until time tracking is in place.
+const FEATURES = { prep: false, billing: false };
+
+let C = null;            // catalog
+let loadedRev = 0;
+let INV = null;          // invoice draft for the selected month
+let dailyItems = [];     // kitchen items from config/settings
+let staffRates = {};     // delivery_config/rates.staff
+let tab = 'ing';
+let openIds = new Set();
+let ingSearch = '';
+let billMonth = '';
+const BILL = {};         // month -> {days, chicken, loadedAt}
+
+// ---------- small helpers ----------
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function n(v) { if (v === '' || v == null) return NaN; return Number(v); }
+function money(v, d = 2) { if (v == null || isNaN(v)) return '—'; return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+function money4(v) { if (v == null || isNaN(v)) return '—'; return Math.abs(v) < 1 ? money(v, 4) : money(v, 2); }
+function fmt(v, d = 2) { if (v == null || isNaN(v)) return '—'; return (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d }); }
+function pct(v) { return v == null || isNaN(v) || !isFinite(v) ? '—' : (v * 100).toFixed(1) + '%'; }
+function r2(v) { return Math.round(v * 100) / 100; }
+function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function dk(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function parseDk(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function addDays(d, k) { const x = new Date(d); x.setDate(x.getDate() + k); return x; }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = '1'; clearTimeout(toast._h); toast._h = setTimeout(() => t.style.opacity = '0', 3200); }
+function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+// ---------- units ----------
+function nu(u) { u = String(u || '').trim().toLowerCase(); return UNIT_ALIASES[u] || u; }
+function convert(qty, from, to) {
+  from = nu(from); to = nu(to);
+  if (from === to) return qty;
+  const a = UNITS[from], b = UNITS[to];
+  if (a && b && a[0] === b[0]) return qty * a[1] / b[1];
+  return null;
+}
+// qty in `unit` -> qty in base unit. alt = {qty, unit}: "1 base = qty unit"
+function toBase(qty, unit, base, alt) {
+  const v = convert(qty, unit, base); if (v !== null) return v;
+  if (alt && alt.qty > 0 && alt.unit) { const a = convert(qty, unit, alt.unit); if (a !== null) return a / alt.qty; }
+  return null;
+}
+function altOf(x) { return x && n(x.altQty) > 0 && x.altUnit ? { qty: n(x.altQty), unit: x.altUnit } : null; }
+
+// ---------- catalog ----------
+function emptyCatalog() {
+  return {
+    ingredients: [], prep: [], bulk: [], menu: [],
+    settings: {
+      laborRates: { 'nnc-iss': '', 'nnc-renton': '', 'babas-bel': '' },
+      markupPct: 0,
+      rawChickenIng: '',
+      entities: { 'nnc-renton': 'Naan N Curry Renton', 'nnc-iss': 'Naan N Curry Issaquah', 'babas-bel': "Baba's Kabab Shop LLC" }
+    }
+  };
+}
+function normalizeCatalog(d) {
+  const e = emptyCatalog();
+  const c = Object.assign(e, d || {});
+  ['ingredients', 'prep', 'bulk', 'menu'].forEach(k => { if (!Array.isArray(c[k])) c[k] = []; });
+  c.settings = Object.assign(emptyCatalog().settings, c.settings || {});
+  c.settings.laborRates = Object.assign(emptyCatalog().settings.laborRates, c.settings.laborRates || {});
+  c.settings.entities = Object.assign(emptyCatalog().settings.entities, c.settings.entities || {});
+  [...c.prep, ...c.bulk, ...c.menu].forEach(it => { if (!Array.isArray(it.lines)) it.lines = []; if (!Array.isArray(it.labor)) it.labor = []; });
+  delete c.rev; delete c.updatedAt; delete c.updatedBy;
+  return c;
+}
+const COLL_LABEL = { ing: 'Ingredient', prep: 'Prep', bulk: 'Bulk item', menu: 'Menu item' };
+function listFor(t) { return t === 'ing' ? C.ingredients : t === 'prep' ? C.prep : t === 'bulk' ? C.bulk : t === 'menu' ? C.menu : null; }
+function findRef(ref) { const [t, id] = String(ref || '').split(':'); const l = listFor(t); const it = l && l.find(x => x.id === id); return it ? { type: t, item: it } : null; }
+
+// ---------- cost engine ----------
+let _memo = {};
+function unitInfo(ref, depth = 0) {
+  if (_memo[ref]) return _memo[ref];
+  const r = findRef(ref);
+  if (!r) return { missing: true };
+  if (depth > 6) return { name: r.item.name, cost: null, loop: true };
+  let out;
+  if (r.type === 'ing') {
+    const q = n(r.item.packQty), p = n(r.item.packPrice);
+    out = { name: r.item.name, base: nu(r.item.packUnit), alt: altOf(r.item), cost: q > 0 && !isNaN(p) ? p / q : null };
+  } else {
+    const c = batchCost(r.item, depth + 1);
+    out = { name: r.item.name, base: nu(r.item.yieldUnit), alt: altOf(r.item), cost: c.perUnit };
+  }
+  _memo[ref] = out;
+  return out;
+}
+function lineCost(line, depth = 0) {
+  if (!line.ref) return { cost: 0 };
+  const u = unitInfo(line.ref, depth);
+  if (u.missing) return { cost: 0, err: 'This item was deleted' };
+  const q = n(line.qty);
+  if (isNaN(q)) return { cost: 0, warn: 'Enter a quantity' };
+  if (u.cost == null) return { cost: 0, warn: 'No cost yet for ' + u.name };
+  const b = toBase(q, line.unit || u.base, u.base, u.alt);
+  if (b == null) return { cost: 0, err: `Can't convert ${line.unit} to ${u.base}. Add "1 ${u.base} = ? ${line.unit}" on ${u.name}.` };
+  return { cost: b * u.cost };
+}
+function laborRate(l, loc) { const o = n(l.rate); if (!isNaN(o)) return o; const r = n((C.settings.laborRates || {})[loc]); return isNaN(r) ? null : r; }
+function laborCost(l, loc) {
+  const m = n(l.minutes); if (isNaN(m)) return 0;
+  const p = n(l.people); const r = laborRate(l, loc);
+  return r == null ? 0 : m / 60 * (isNaN(p) || p <= 0 ? 1 : p) * r;
+}
+function batchCost(it, depth = 0) {
+  let ing = 0, lab = 0; const warns = [];
+  (it.lines || []).forEach(l => { const c = lineCost(l, depth); ing += c.cost; if (c.err) warns.push(c.err); else if (c.warn) warns.push(c.warn); });
+  (it.labor || []).forEach(l => { lab += laborCost(l, it.location); if (!isNaN(n(l.minutes)) && laborRate(l, it.location) == null) warns.push(`No labor rate for ${LOCS[it.location] || 'this location'} (Rates tab)`); });
+  const total = ing + lab;
+  const y = n(it.yieldQty);
+  return { ing, lab, total, perUnit: it.yieldQty === undefined ? total : (y > 0 ? total / y : null), warns: [...new Set(warns)] };
+}
+function menuCost(it) { const c = batchCost(Object.assign({}, it, { yieldQty: 1 })); const p = n(it.price); c.price = p; c.fcPct = p > 0 ? c.ing / p : null; return c; } // fcPct = food only, labor excluded
+// Cost of 1 unit of `unit` for a ref (e.g. per lb for a tray item)
+function costPer(ref, unit) { const u = unitInfo(ref); if (u.missing || u.cost == null) return null; const b = toBase(1, unit, u.base, u.alt); return b == null ? null : b * u.cost; }
+function unitsFor(ref) {
+  const u = unitInfo(ref); if (!u || u.missing) return [];
+  const out = []; const add = x => { x = nu(x); if (x && !out.includes(x)) out.push(x); };
+  const fam = x => { add(x); const f = UNITS[nu(x)]; if (f) Object.keys(UNITS).filter(k => UNITS[k][0] === f[0]).forEach(add); };
+  fam(u.base); if (u.alt) fam(u.alt.unit);
+  return out;
+}
+function usedIn(ref) {
+  const out = [];
+  [['prep', C.prep], ['bulk', C.bulk], ['menu', C.menu]].forEach(([t, l]) => l.forEach(it => { if ((it.lines || []).some(x => x.ref === ref)) out.push(it.name || '(unnamed)'); }));
+  return out;
+}
+
+// ---------- auth + load ----------
+async function handleLogin() {
+  const email = toLoginEmail(document.getElementById('loginEmail').value);
+  const pw = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  try { await auth.signInWithEmailAndPassword(email, pw); }
+  catch (e) { err.textContent = e.message; err.style.display = 'block'; }
+}
+auth.onAuthStateChanged(async user => {
+  if (!user) { document.getElementById('loginOverlay').classList.remove('hidden'); return; }
+  document.getElementById('loginOverlay').classList.add('hidden');
+  const profile = await loadUserProfile();
+  if (!profile || profile.role !== 'owner') {
+    if (profile && profile.role === 'driver') { window.location.replace('delivery.html'); return; }
+    document.getElementById('content').innerHTML = '<div class="panel desc">Food Cost is owner only.</div>';
+    return;
+  }
+  await loadAll();
+});
+
+async function loadAll() {
+  try {
+    const snap = await db.collection('food_cost').doc('catalog').get();
+    const d = snap.exists ? snap.data() : null;
+    loadedRev = d && d.rev ? d.rev : 0;
+    C = normalizeCatalog(d);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('content').innerHTML = `<div class="banner">Could not load Food Cost data (${esc(e.code || e.message)}). If this says permission-denied, the new Firestore rules for <b>food_cost</b> have not been published yet.</div>`;
+    setPill('Not loaded', true);
+    return;
+  }
+  try {
+    const s = await db.collection('config').doc('settings').get();
+    const items = (s.exists && s.data().items) || [];
+    dailyItems = items.filter(i => i.category === 'kitchen');
+  } catch (e) { console.warn('daily items', e); }
+  try {
+    const r = await db.collection('delivery_config').doc('rates').get();
+    staffRates = (r.exists && r.data().staff) || {};
+  } catch (e) { console.warn('staff rates', e); }
+  tab = new URLSearchParams(location.search).get('tab') || ls('nnc.foodcost.tab') || 'bulk';
+  const now = new Date(); const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  billMonth = ls('nnc.foodcost.month') || `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+  setPill('All changes saved');
+  render();
+}
+
+// ---------- saving ----------
+let saveTimer = null, saving = false, saveAgain = false, dirty = false, conflict = false;
+function setPill(text, err) { const p = document.getElementById('savePill'); p.textContent = text; p.classList.toggle('err', !!err); }
+function queueSave() {
+  if (conflict) return;
+  dirty = true; setPill('Saving…');
+  clearTimeout(saveTimer); saveTimer = setTimeout(saveCatalog, 900);
+}
+async function saveCatalog() {
+  clearTimeout(saveTimer);
+  if (!dirty || conflict) return;
+  if (saving) { saveAgain = true; return; }
+  saving = true; dirty = false;
+  const ref = db.collection('food_cost').doc('catalog');
+  try {
+    const data = JSON.parse(JSON.stringify(C));
+    await db.runTransaction(async tx => {
+      const s = await tx.get(ref);
+      const cur = s.exists ? (s.data().rev || 0) : 0;
+      if (cur !== loadedRev) throw new Error('CONFLICT');
+      data.rev = cur + 1;
+      data.updatedAt = new Date().toISOString();
+      data.updatedBy = (auth.currentUser && auth.currentUser.email) || '';
+      tx.set(ref, data);
+    });
+    loadedRev++;
+    setPill(dirty ? 'Saving…' : 'All changes saved');
+  } catch (e) {
+    console.error('save', e);
+    if (e.message === 'CONFLICT') {
+      conflict = true; setPill('Not saved', true);
+      showConflict();
+    } else { dirty = true; setPill('Not saved, retrying', true); setTimeout(saveCatalog, 4000); }
+  }
+  saving = false;
+  if (saveAgain) { saveAgain = false; saveCatalog(); }
+}
+function showConflict() {
+  const el = document.getElementById('conflictBanner'); if (el) el.style.display = 'block';
+  render();
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { saveCatalog(); saveInvoiceDraft(); } });
+window.addEventListener('beforeunload', e => { if (dirty || saving || invDirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// ---------- generic field binding ----------
+// data-p="bulk.<id>.lines.2.qty" | "settings.markupPct" | "inv.manual.rentonToIss.0.desc"
+function setPath(path, v) {
+  const parts = path.split('.');
+  let obj, i;
+  if (parts[0] === 'settings') { obj = C.settings; i = 1; }
+  else if (parts[0] === 'inv') { obj = INV; i = 1; }
+  else { obj = (C[parts[0]] || []).find(x => x.id === parts[1]); i = 2; }
+  if (!obj) return null;
+  for (; i < parts.length - 1; i++) {
+    const k = /^\d+$/.test(parts[i]) ? Number(parts[i]) : parts[i];
+    if (obj[k] == null || typeof obj[k] !== 'object') obj[k] = {};
+    obj = obj[k];
+  }
+  const last = parts[parts.length - 1];
+  const before = obj[last];
+  obj[last] = v;
+  return { obj, last, before };
+}
+document.addEventListener('change', e => {
+  const el = e.target; const p = el.dataset && el.dataset.p; if (!p) return;
+  let v = el.type === 'checkbox' ? el.checked : el.value;
+  if (el.dataset.num !== undefined && v !== '') { v = Number(v); if (isNaN(v)) v = ''; }
+  if (typeof v === 'string') v = v.trim();
+  const res = setPath(p, v); if (!res) return;
+  // side effects
+  if (/^ingredients\.[^.]+\.packPrice$/.test(p) && res.before !== v) {
+    if (res.before !== '' && res.before != null) res.obj.prevPrice = res.before;
+    res.obj.priceDate = dk(new Date());
+  }
+  if (/\.lines\.\d+\.ref$/.test(p)) { _memo = {}; const u = unitInfo(v); res.obj.unit = u && !u.missing ? u.base : ''; }
+  if (p.startsWith('inv.')) queueInvoiceSave(); else queueSave();
+  rerenderKeepFocus();
+});
+function rerenderKeepFocus() {
+  setTimeout(() => {
+    const a = document.activeElement; const id = a && a.id;
+    const y = window.scrollY;
+    render();
+    window.scrollTo(0, y);
+    if (id) { const el = document.getElementById(id); if (el) { el.focus(); if (el.select && el.tagName === 'INPUT') try { el.select(); } catch (e) { } } }
+  }, 0);
+}
+function fid(path) { return 'p_' + path.replace(/[^a-zA-Z0-9_]/g, '_'); }
+function inp(path, val, o = {}) {
+  return `<input id="${fid(path)}" data-p="${path}" type="${o.num ? 'number' : 'text'}" ${o.num ? 'data-num step="any" inputmode="decimal"' : ''} value="${esc(val == null ? '' : val)}" placeholder="${esc(o.ph || '')}" ${o.list ? `list="${o.list}"` : ''} class="${o.cls || ''}" ${o.style ? `style="${o.style}"` : ''}>`;
+}
+function sel(path, val, optsHtml, o = {}) {
+  return `<select id="${fid(path)}" data-p="${path}" class="${o.cls || ''}">${optsHtml}</select>`.replace(`value="${esc(val)}"`, `value="${esc(val)}" selected`);
+}
+function opts(pairs, val) { return pairs.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(val) ? ' selected' : ''}>${esc(l)}</option>`).join(''); }
+function locOpts(val) { return opts(Object.entries(LOCS), val); }
+
+// ---------- actions ----------
+function addItem(t) {
+  const id = newId();
+  if (t === 'ing') { C.ingredients.unshift({ id, name: '', category: '', vendor: '', packQty: '', packUnit: 'lb', packPrice: '', notes: '' }); ingSearch = ''; }
+  if (t === 'prep') C.prep.unshift({ id, name: '', location: 'nnc-iss', lines: [], labor: [], yieldQty: '', yieldUnit: 'lb', notes: '', logSource: '' });
+  if (t === 'bulk') C.bulk.unshift({ id, name: '', location: 'nnc-renton', dailyId: '', lines: [], labor: [], yieldQty: '', yieldUnit: 'tray', notes: '' });
+  if (t === 'menu') C.menu.unshift({ id, name: '', category: '', location: 'nnc-iss', price: '', lines: [], labor: [], notes: '' });
+  openIds.add(id);
+  queueSave(); render();
+  setTimeout(() => { const el = document.getElementById(fid((t === 'ing' ? 'ingredients' : t) + '.' + id + '.name')); if (el) el.focus(); }, 30);
+}
+function addFromDaily(dailyId) {
+  const di = dailyItems.find(x => x.id === dailyId); if (!di) return;
+  const id = newId();
+  C.bulk.push({ id, name: di.name, location: 'nnc-renton', dailyId: di.id, lines: [], labor: [], yieldQty: '', yieldUnit: nu(di.unit), notes: '' });
+  openIds.add(id); queueSave(); render();
+}
+function delItem(t, id) {
+  const l = listFor(t); const it = l.find(x => x.id === id); if (!it) return;
+  if (t !== 'menu') {
+    const u = usedIn(t + ':' + id);
+    if (u.length) { toast(`Can't delete: used in ${u.slice(0, 3).join(', ')}${u.length > 3 ? '…' : ''}`); return; }
+  }
+  if (!confirmInline(id)) return;
+  l.splice(l.indexOf(it), 1); queueSave(); render();
+}
+// Two-tap delete (no browser dialogs)
+const _armed = {};
+function confirmInline(id) {
+  if (_armed[id] && Date.now() - _armed[id] < 4000) { delete _armed[id]; return true; }
+  _armed[id] = Date.now(); toast('Tap Delete again to confirm'); return false;
+}
+function dupItem(t, id) {
+  const l = listFor(t); const it = l.find(x => x.id === id); if (!it) return;
+  const c = JSON.parse(JSON.stringify(it)); c.id = newId(); c.name = (it.name || '') + ' (copy)';
+  if (t === 'bulk') c.dailyId = '';
+  l.splice(l.indexOf(it) + 1, 0, c); openIds.add(c.id); queueSave(); render();
+}
+function addLine(t, id, key) {
+  const it = listFor(t).find(x => x.id === id); if (!it) return;
+  if (key === 'labor') it.labor.push({ task: '', minutes: '', people: 1, rate: '' });
+  else it.lines.push({ ref: '', qty: '', unit: '' });
+  queueSave(); render();
+  setTimeout(() => { const i = (key === 'labor' ? it.labor : it.lines).length - 1; const el = document.getElementById(fid(`${t}.${id}.${key}.${i}.${key === 'labor' ? 'task' : 'ref'}`)); if (el) el.focus(); }, 30);
+}
+function delLine(t, id, key, i) { const it = listFor(t).find(x => x.id === id); if (!it) return; it[key].splice(i, 1); queueSave(); render(); }
+function toggleOpen(id) { openIds.has(id) ? openIds.delete(id) : openIds.add(id); render(); }
+function setTab(t) { tab = t; ls('nnc.foodcost.tab', t); render(); window.scrollTo(0, 0); }
+
+// ---------- render ----------
+function render() {
+  if (!C) return;
+  _memo = {};
+  const tabs = [
+    ['ing', 'Ingredients', `${C.ingredients.length} items · prices`],
+    ['bulk', 'Bulk Cooking', 'Prep + batches'],
+    ['line', 'Line Cooking', 'Menu dishes'],
+    ['bill', 'Monthly Billing', 'Invoices between locations'],
+    ['rates', 'Rates', 'Labor rates']
+  ].filter(([k]) => k !== 'bill' || FEATURES.billing);
+  if (!tabs.some(([k]) => k === tab)) tab = 'bulk';
+  document.getElementById('tabs').innerHTML = tabs.map(([k, l, s]) => `<button class="tab ${tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}<span class="sub">${s}</span></button>`).join('');
+  const conflictHtml = `<div class="banner" id="conflictBanner" style="display:${conflict ? 'block' : 'none'}"><b>Not saved.</b> Food Cost was changed in another tab or device after you opened this page. Your last change here was not saved, so nothing got overwritten. <button class="btn btn-sm btn-white" onclick="location.reload()">Reload latest</button></div>`;
+  let body = '';
+  if (tab === 'ing') body = renderIngredients();
+  else if (tab === 'bulk') body = renderBulk();
+  else if (tab === 'line') body = renderLine();
+  else if (tab === 'bill' && FEATURES.billing) body = renderBilling();
+  else body = renderRates();
+  document.getElementById('content').innerHTML = conflictHtml + body + unitDatalist();
+}
+function unitDatalist() { return `<datalist id="unitList">${UNIT_SUGGEST.map(u => `<option value="${u}">`).join('')}</datalist>`; }
+
+function flowStrip() {
+  return `<div class="flow"><span class="st">Ingredients</span><span class="ar">→</span><span class="st b">Prep (any location)</span><span class="ar">→</span><span class="st b">Bulk batch at Renton</span><span class="ar">→</span><span class="st b">Cost per tray</span><span class="ar">→</span><span class="st l">Line dish (portion + extras)</span></div>`;
+}
+
+// ===== INGREDIENTS =====
+function renderIngredients() {
+  const q = ingSearch.toLowerCase();
+  const rows = C.ingredients.filter(i => !q || (i.name + ' ' + (i.category || '') + ' ' + (i.vendor || '')).toLowerCase().includes(q));
+  const today = new Date();
+  const body = rows.map(i => {
+    const P = 'ingredients.' + i.id;
+    const u = unitInfo('ing:' + i.id);
+    const used = usedIn('ing:' + i.id);
+    const stale = i.priceDate && (today - parseDk(i.priceDate)) / 864e5 > STALE_DAYS;
+    const alt = `<div class="eq small">1 ${esc(nu(i.packUnit) || 'unit')} = ${inp(P + '.altQty', i.altQty, { num: true, ph: 'qty', style: 'width:70px' })} ${inp(P + '.altUnit', i.altUnit, { list: 'unitList', ph: 'unit', style: 'width:80px' })}</div>`;
+    return `<tr>
+      <td style="min-width:180px">${inp(P + '.name', i.name, { ph: 'e.g. Chicken thigh, boneless' })}</td>
+      <td class="w-m">${inp(P + '.category', i.category, { ph: 'Meat, spice…', list: 'catList' })}</td>
+      <td class="w-m">${inp(P + '.vendor', i.vendor, { ph: 'Vendor', list: 'vendorList' })}</td>
+      <td class="w-xs">${inp(P + '.packQty', i.packQty, { num: true, ph: '40' })}</td>
+      <td class="w-s">${inp(P + '.packUnit', i.packUnit, { list: 'unitList', ph: 'lb' })}</td>
+      <td class="w-s">${inp(P + '.packPrice', i.packPrice, { num: true, ph: '$' })}${i.prevPrice !== undefined && i.prevPrice !== '' ? `<div class="muted small">was ${money(n(i.prevPrice))}</div>` : ''}</td>
+      <td class="num"><b>${u.cost == null ? '—' : money4(u.cost)}</b><div class="muted small">per ${esc(nu(i.packUnit) || 'unit')}</div></td>
+      <td>${alt}</td>
+      <td>${i.priceDate ? `<span class="tag ${stale ? 'stale' : ''}">${esc(i.priceDate)}</span>` : '<span class="muted small">—</span>'}</td>
+      <td class="small">${used.length ? `<span title="${esc(used.join(', '))}">${used.length} recipe${used.length > 1 ? 's' : ''}</span>` : '<span class="muted">not used</span>'}</td>
+      <td><button class="btn-x" title="Delete" onclick="delItem('ing','${i.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+  const cats = [...new Set(C.ingredients.map(i => i.category).filter(Boolean))];
+  const vendors = [...new Set(C.ingredients.map(i => i.vendor).filter(Boolean))];
+  const staleCount = C.ingredients.filter(i => i.priceDate && (today - parseDk(i.priceDate)) / 864e5 > STALE_DAYS).length;
+  const noPrice = C.ingredients.filter(i => unitInfo('ing:' + i.id).cost == null).length;
+  return `<div class="panel">
+    <div class="sec-h"><h2>Ingredients</h2><div class="toolbar" style="margin:0">
+      <input type="search" placeholder="Search name, category, vendor" value="${esc(ingSearch)}" oninput="ingSearch=this.value;clearTimeout(window._sq);window._sq=setTimeout(()=>{render();const s=document.querySelector('input[type=search]');s.focus();s.setSelectionRange(s.value.length,s.value.length)},250)">
+      <button class="btn btn-white" onclick="openPaste()">Paste from spreadsheet</button>
+      <button class="btn btn-primary" onclick="addItem('ing')">+ Add ingredient</button></div></div>
+    <p class="desc">One price list for everything. Enter what you pay for a pack (for example $96 for a 40 lb case) and the cost per unit is worked out. If a recipe measures in cups but you buy by the pound, fill in "1 lb = ? cup" so the two can be converted. Prices older than ${STALE_DAYS} days are marked in amber.</p>
+    ${noPrice ? `<div class="banner warn" style="margin-bottom:10px">${noPrice} ingredient${noPrice > 1 ? 's have' : ' has'} no price yet. Recipes using them will show too low a cost.</div>` : ''}
+    ${staleCount ? `<div class="banner warn" style="margin-bottom:10px">${staleCount} price${staleCount > 1 ? 's are' : ' is'} over ${STALE_DAYS} days old.</div>` : ''}
+    <div class="table-box"><table class="t">
+      <thead><tr><th>Name</th><th>Category</th><th>Vendor</th><th class="num">Pack qty</th><th>Unit</th><th class="num">Pack price</th><th class="num">Cost / unit</th><th>Conversion (optional)</th><th>Price date</th><th>Used in</th><th></th></tr></thead>
+      <tbody>${body || `<tr><td colspan="11" class="muted" style="padding:24px;text-align:center">${q ? 'No match.' : 'No ingredients yet. Add one, or paste your price list from a spreadsheet.'}</td></tr>`}</tbody>
+    </table></div>
+    <datalist id="catList">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+    <datalist id="vendorList">${vendors.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+  </div>`;
+}
+
+// paste import
+function openPaste() {
+  document.getElementById('modalRoot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">
+    <h3>Paste ingredients from a spreadsheet</h3>
+    <p class="desc" style="margin:0">Copy rows from Excel or Google Sheets and paste below. Columns in this order: <b>Name, Pack qty, Unit, Pack price, Vendor, Category</b> (vendor and category optional). A header row is skipped. If a name already exists, its price is updated instead of adding a duplicate.</p>
+    <textarea id="pasteBox" placeholder="Chicken thigh boneless	40	lb	96.00	Sysco	Meat"></textarea>
+    <div id="pastePrev" class="small muted"></div>
+    <div class="card-actions"><button class="btn btn-white" onclick="closeModal()">Cancel</button><button class="btn btn-white" onclick="previewPaste()">Preview</button><button class="btn btn-primary" onclick="applyPaste()">Import</button></div>
+  </div></div>`;
+  setTimeout(() => document.getElementById('pasteBox').focus(), 30);
+}
+function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
+function parsePaste() {
+  const txt = document.getElementById('pasteBox').value;
+  const rows = [];
+  txt.split(/\r?\n/).forEach(line => {
+    if (!line.trim()) return;
+    const c = (line.includes('\t') ? line.split('\t') : line.split(',')).map(x => x.trim());
+    const qty = Number(String(c[1] || '').replace(/[^0-9.]/g, ''));
+    const price = Number(String(c[3] || '').replace(/[^0-9.\-]/g, ''));
+    if (!c[0] || (!qty && !price)) return; // header or junk
+    rows.push({ name: c[0], packQty: qty || '', packUnit: nu(c[2] || 'lb'), packPrice: isNaN(price) ? '' : price, vendor: c[4] || '', category: c[5] || '' });
+  });
+  return rows;
+}
+function previewPaste() {
+  const rows = parsePaste();
+  const upd = rows.filter(r => C.ingredients.some(i => i.name.toLowerCase() === r.name.toLowerCase())).length;
+  document.getElementById('pastePrev').innerHTML = rows.length ? `${rows.length} rows read: ${rows.length - upd} new, ${upd} price updates. First: <b>${esc(rows[0].name)}</b> ${rows[0].packQty} ${esc(rows[0].packUnit)} for ${money(rows[0].packPrice)}` : 'Nothing readable yet.';
+}
+function applyPaste() {
+  const rows = parsePaste(); if (!rows.length) { previewPaste(); return; }
+  const today = dk(new Date());
+  rows.forEach(r => {
+    const ex = C.ingredients.find(i => i.name.toLowerCase() === r.name.toLowerCase());
+    if (ex) {
+      if (r.packPrice !== '' && r.packPrice !== ex.packPrice) { ex.prevPrice = ex.packPrice; ex.packPrice = r.packPrice; ex.priceDate = today; }
+      if (r.packQty) ex.packQty = r.packQty; if (r.packUnit) ex.packUnit = r.packUnit;
+      if (r.vendor) ex.vendor = r.vendor; if (r.category) ex.category = r.category;
+    } else C.ingredients.push(Object.assign({ id: newId(), notes: '', priceDate: r.packPrice !== '' ? today : '' }, r));
+  });
+  C.ingredients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  closeModal(); queueSave(); render(); toast(`Imported ${rows.length} rows`);
+}
+
+// ===== shared recipe editor =====
+function refOptions(val, types) {
+  const grp = (label, t, list) => list.length ? `<optgroup label="${label}">${[...list].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(x => `<option value="${t}:${x.id}"${val === t + ':' + x.id ? ' selected' : ''}>${esc(x.name || '(unnamed)')}</option>`).join('')}</optgroup>` : '';
+  let h = `<option value="">Choose…</option>`;
+  if (types.includes('bulk')) h += grp('Bulk items (per tray etc.)', 'bulk', C.bulk);
+  if (types.includes('prep')) h += grp('Prep items', 'prep', FEATURES.prep ? C.prep : C.prep.filter(x => val === 'prep:' + x.id));
+  if (types.includes('ing')) h += grp('Ingredients', 'ing', C.ingredients);
+  return h;
+}
+function linesTable(t, it, types, title) {
+  const P = `${t}.${it.id}`;
+  const rows = it.lines.map((l, i) => {
+    const c = lineCost(l);
+    const units = unitsFor(l.ref);
+    const unitSel = l.ref ? `<select id="${fid(P + '.lines.' + i + '.unit')}" data-p="${P}.lines.${i}.unit">${units.map(u => `<option${nu(l.unit) === u ? ' selected' : ''}>${u}</option>`).join('')}</select>` : '<span class="muted small">—</span>';
+    const u = l.ref ? unitInfo(l.ref) : null;
+    const per = u && !u.missing && u.cost != null ? `<div class="muted small">${money4(u.cost)}/${esc(u.base)}</div>` : '';
+    return `<tr>
+      <td style="min-width:200px"><select id="${fid(P + '.lines.' + i + '.ref')}" data-p="${P}.lines.${i}.ref">${refOptions(l.ref, types)}</select>${c.err ? `<div class="err-t">${esc(c.err)}</div>` : c.warn ? `<div class="warn-t">${esc(c.warn)}</div>` : ''}</td>
+      <td class="w-s">${inp(P + '.lines.' + i + '.qty', l.qty, { num: true })}</td>
+      <td class="w-s">${unitSel}</td>
+      <td class="num">${money(c.cost)}${per}</td>
+      <td style="width:40px"><button class="btn-x" title="Remove" onclick="delLine('${t}','${it.id}','lines',${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+  const total = it.lines.reduce((s, l) => s + lineCost(l).cost, 0);
+  return `<h3>${title}</h3><div class="table-box"><table class="t">
+    <thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Cost</th><th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="5" class="muted small" style="padding:12px">Nothing added yet.</td></tr>`}</tbody>
+    ${rows ? `<tfoot><tr><td colspan="3">Total</td><td class="num">${money(total)}</td><td></td></tr></tfoot>` : ''}
+  </table></div>
+  <button class="btn-link" onclick="addLine('${t}','${it.id}','lines')">+ Add line</button>`;
+}
+function laborTable(t, it, title) {
+  const P = `${t}.${it.id}`;
+  const def = laborRate({}, it.location);
+  const rows = it.labor.map((l, i) => `<tr>
+      <td style="min-width:180px">${inp(P + '.labor.' + i + '.task', l.task, { ph: 'e.g. Cook, portion into trays' })}</td>
+      <td class="w-s">${inp(P + '.labor.' + i + '.minutes', l.minutes, { num: true, ph: 'min' })}</td>
+      <td class="w-xs">${inp(P + '.labor.' + i + '.people', l.people, { num: true, ph: '1' })}</td>
+      <td class="w-s">${inp(P + '.labor.' + i + '.rate', l.rate, { num: true, ph: def == null ? 'set rate' : '$' + def })}</td>
+      <td class="num">${money(laborCost(l, it.location))}</td>
+      <td style="width:40px"><button class="btn-x" title="Remove" onclick="delLine('${t}','${it.id}','labor',${i})">✕</button></td>
+    </tr>`).join('');
+  const total = it.labor.reduce((s, l) => s + laborCost(l, it.location), 0);
+  const mins = it.labor.reduce((s, l) => s + (n(l.minutes) || 0) * (n(l.people) > 0 ? n(l.people) : 1), 0);
+  return `<h3>${title}</h3><div class="table-box"><table class="t">
+    <thead><tr><th>Task</th><th class="num">Minutes</th><th class="num">People</th><th class="num">$/hr</th><th class="num">Cost</th><th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="6" class="muted small" style="padding:12px">No labor added. Leave the $/hr blank to use the ${esc(LOCS[it.location] || '')} rate${def == null ? ' (not set yet, see Rates tab)' : ' ($' + def + '/hr)'}.</td></tr>`}</tbody>
+    ${rows ? `<tfoot><tr><td>Total</td><td class="num">${fmt(mins / 60)} staff hrs</td><td></td><td></td><td class="num">${money(total)}</td><td></td></tr></tfoot>` : ''}
+  </table></div>
+  <button class="btn-link" onclick="addLine('${t}','${it.id}','labor')">+ Add task</button>`;
+}
+function warnList(c) { return c.warns.length ? `<div class="banner warn" style="margin-top:12px">${c.warns.map(esc).join('<br>')}</div>` : ''; }
+function yieldBlock(t, it) {
+  const P = `${t}.${it.id}`;
+  return `<div class="ff"><label>Batch makes</label><div class="eq">${inp(P + '.yieldQty', it.yieldQty, { num: true, ph: '3', style: 'width:80px' })} ${inp(P + '.yieldUnit', it.yieldUnit, { list: 'unitList', ph: 'tray', style: 'width:100px' })}</div></div>
+    <div class="ff"><label>1 ${esc(nu(it.yieldUnit) || 'unit')} weighs / holds (optional)</label><div class="eq">${inp(P + '.altQty', it.altQty, { num: true, ph: '12', style: 'width:80px' })} ${inp(P + '.altUnit', it.altUnit, { list: 'unitList', ph: 'lb', style: 'width:100px' })}</div></div>`;
+}
+
+// ===== BULK COOKING =====
+function itemCard(t, it, cls, headExtra, bodyHtml) {
+  const open = openIds.has(it.id);
+  return `<div class="card ${cls} ${open ? 'open' : ''}"><div class="card-h" onclick="toggleOpen('${it.id}')"><span class="chev">›</span>${headExtra}</div>${open ? `<div class="card-b">${bodyHtml}</div>` : ''}</div>`;
+}
+function renderBulk() {
+  const prepCards = C.prep.map(it => {
+    const c = batchCost(it); const u = nu(it.yieldUnit) || 'unit';
+    const head = `<div class="nm">${esc(it.name || 'New prep item')}<span class="s">Prepped at ${esc(LOCS[it.location] || '')}${it.yieldQty ? ` · makes ${fmt(n(it.yieldQty))} ${esc(u)}` : ''}${it.logSource ? ' · linked to prep log' : ''}</span></div>
+      <div class="kv"><span class="k">Batch</span><span class="v">${money(c.total)}</span></div>
+      <div class="kv"><span class="k">Per ${esc(u)}</span><span class="v">${money4(c.perUnit)}</span></div>
+      ${c.warns.length ? '<span class="tag stale">check</span>' : ''}`;
+    const P = 'prep.' + it.id;
+    const body = `<div class="fgrid">
+        <div class="ff"><label>Name</label>${inp(P + '.name', it.name, { ph: 'e.g. Cut korma chicken' })}</div>
+        <div class="ff"><label>Prepped at</label>${sel(P + '.location', it.location, locOpts(it.location))}</div>
+        ${yieldBlock('prep', it)}
+        <div class="ff"><label>Prep log link (for billing)</label>${sel(P + '.logSource', it.logSource || '', opts([['', 'None'], ['chicken-korma', 'Chicken prep log: Cut Korma'], ['chicken-clean', 'Chicken prep log: Only Clean']], it.logSource || ''))}</div>
+      </div>
+      ${linesTable('prep', it, ['ing', 'prep'], 'What goes in (one batch)')}
+      ${laborTable('prep', it, 'Labor (one batch)')}
+      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div><div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${altOf(it) ? `<div class="tot"><div class="k">Per ${esc(nu(it.altUnit))}</div><div class="v">${money4(c.perUnit == null ? null : c.perUnit / n(it.altQty))}</div></div>` : ''}</div>
+      ${warnList(c)}
+      <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
+      <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('prep','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('prep','${it.id}')">Delete</button></div>`;
+    return itemCard('prep', it, 'p', head, body);
+  }).join('');
+
+  const linked = {}; C.bulk.forEach(b => { if (b.dailyId) linked[b.dailyId] = (linked[b.dailyId] || 0) + 1; });
+  const unlinked = dailyItems.filter(d => !linked[d.id]);
+  const bulkCards = C.bulk.map(it => {
+    const c = batchCost(it); const u = nu(it.yieldUnit) || 'unit';
+    const di = dailyItems.find(d => d.id === it.dailyId);
+    const unitMismatch = di && toBase(1, di.unit, u, altOf(it)) == null;
+    const head = `<div class="nm">${esc(it.name || 'New bulk item')}<span class="s">Cooked at ${esc(LOCS[it.location] || '')}${it.yieldQty ? ` · batch makes ${fmt(n(it.yieldQty))} ${esc(u)}` : ''}${di ? ` · daily order: ${esc(di.name)}` : (FEATURES.billing ? ' · <b style="color:var(--amber)">not linked to daily order</b>' : '')}</span></div>
+      <div class="kv"><span class="k">Batch</span><span class="v">${money(c.total)}</span></div>
+      <div class="kv"><span class="k">Per ${esc(u)}</span><span class="v">${money4(c.perUnit)}</span></div>
+      ${c.warns.length || (FEATURES.billing && unitMismatch) ? '<span class="tag stale">check</span>' : ''}`;
+    const P = 'bulk.' + it.id;
+    const dOpts = opts([['', 'Not on the daily order'], ...dailyItems.map(d => [d.id, `${d.name} (${d.unit})${linked[d.id] && d.id !== it.dailyId ? ' · already linked' : ''}`])], it.dailyId || '');
+    const body = `<div class="fgrid">
+        <div class="ff"><label>Name</label>${inp(P + '.name', it.name, { ph: 'e.g. Chicken Korma' })}</div>
+        <div class="ff"><label>Cooked at</label>${sel(P + '.location', it.location, locOpts(it.location))}</div>
+        <div class="ff"><label>Daily order item</label>${sel(P + '.dailyId', it.dailyId || '', dOpts)}</div>
+        ${yieldBlock('bulk', it)}
+      </div>
+      ${FEATURES.billing && unitMismatch ? `<div class="banner warn" style="margin-top:10px">The daily order counts ${esc(di.name)} in <b>${esc(di.unit)}</b> but this batch is measured in <b>${esc(u)}</b>. Set the batch unit to ${esc(nu(di.unit))}, or fill in the "weighs / holds" box so billing can convert.</div>` : ''}
+      ${FEATURES.billing && linked[it.dailyId] > 1 ? `<div class="banner warn" style="margin-top:10px">Another bulk item is linked to the same daily order item. Billing will count it twice.</div>` : ''}
+      ${linesTable('bulk', it, ['ing', 'prep', 'bulk'], 'What goes in (one batch)')}
+      ${laborTable('bulk', it, 'Labor (one batch)')}
+      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div><div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${altOf(it) ? `<div class="tot"><div class="k">Per ${esc(nu(it.altUnit))}</div><div class="v">${money4(c.perUnit == null ? null : c.perUnit / n(it.altQty))}</div></div>` : ''}<div class="tot"><div class="k">Labor share</div><div class="v">${pct(c.total ? c.lab / c.total : null)}</div></div></div>
+      ${warnList(c)}
+      <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
+      <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('bulk','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('bulk','${it.id}')">Delete</button></div>`;
+    return itemCard('bulk', it, 'b', head, body);
+  }).join('');
+
+  return `${FEATURES.prep ? `<div class="panel">
+    <div class="sec-h"><h2>Prep <span class="tag b">Bulk Cooking</span></h2><button class="btn btn-primary" onclick="addItem('prep')">+ Add prep item</button></div>
+    <p class="desc">Raw work done before the big pot, at any location (for example Issaquah cuts the raw chicken). Each prep item has its ingredients, the labor to do it, and what it yields, so you get a cost per lb of prepped product. Prep items then go into bulk recipes. Prep done outside Renton is what that location bills Renton for.</p>
+    ${prepCards || '<div class="muted small">No prep items yet.</div>'}
+  </div>` : ''}
+  <div class="panel">
+    <div class="sec-h"><h2>Bulk batches <span class="tag b">Bulk Cooking</span></h2><button class="btn btn-primary" onclick="addItem('bulk')">+ Add bulk item</button></div>
+    <p class="desc">One batch as cooked at Renton: what goes in the pot, the labor for each task, and how many trays it yields. That gives the cost per tray, and the cost per lb if you fill in what a tray weighs. Include the foil tray and lid as an ingredient line if you want packaging in the cost.</p>
+    ${unlinked.length ? `<div style="margin-bottom:12px"><div class="small muted" style="margin-bottom:6px">Daily order items with no bulk recipe yet (tap to add):</div><div class="chips">${unlinked.map(d => `<button class="chip" onclick="addFromDaily('${d.id}')">+ ${esc(d.name)} <span class="muted">(${esc(d.unit)})</span></button>`).join('')}</div></div>` : ''}
+    ${bulkCards || '<div class="muted small">No bulk items yet.</div>'}
+  </div>`;
+}
+
+// ===== LINE COOKING =====
+function renderLine() {
+  const cards = C.menu.map(it => {
+    const c = menuCost(it);
+    const head = `<div class="nm">${esc(it.name || 'New menu item')}<span class="s">${esc(it.category || '')}${it.category ? ' · ' : ''}${esc(LOCS[it.location] || '')}</span></div>
+      <div class="kv"><span class="k">Plate cost</span><span class="v">${money(c.total)}</span></div>
+      <div class="kv"><span class="k">Menu price</span><span class="v">${isNaN(c.price) ? '—' : money(c.price)}</span></div>
+      <div class="kv"><span class="k">Food cost</span><span class="v" style="color:${c.fcPct > 0.35 ? 'var(--danger)' : 'inherit'}">${pct(c.fcPct)}</span></div>
+      ${c.warns.length ? '<span class="tag stale">check</span>' : ''}`;
+    const P = 'menu.' + it.id;
+    const body = `<div class="fgrid">
+        <div class="ff"><label>Dish name</label>${inp(P + '.name', it.name, { ph: 'e.g. Chicken Karahi' })}</div>
+        <div class="ff"><label>Category</label>${inp(P + '.category', it.category, { ph: 'Curry, Tandoor…', list: 'menuCatList' })}</div>
+        <div class="ff"><label>Cooked at</label>${sel(P + '.location', it.location, locOpts(it.location))}</div>
+        <div class="ff"><label>Menu price</label>${inp(P + '.price', it.price, { num: true, ph: '$' })}</div>
+      </div>
+      ${linesTable('menu', it, ['bulk', 'prep', 'ing'], 'One order: bulk portion + extra ingredients')}
+      ${laborTable('menu', it, 'Line labor (optional)')}
+      <div class="totals"><div class="tot"><div class="k">Food</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Line labor</div><div class="v">${money(c.lab)}</div></div><div class="tot hi"><div class="k">Plate cost</div><div class="v">${money(c.total)}</div></div><div class="tot"><div class="k">Food cost %</div><div class="v">${pct(c.price > 0 ? c.ing / c.price : null)}</div></div><div class="tot"><div class="k">Gross margin</div><div class="v">${c.price > 0 ? money(c.price - c.total) : '—'}</div></div></div>
+      ${warnList(c)}
+      <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
+      <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('menu','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('menu','${it.id}')">Delete</button></div>`;
+    return itemCard('menu', it, 'l', head, body);
+  }).join('');
+  const cats = [...new Set(C.menu.map(i => i.category).filter(Boolean))];
+  return `<div class="panel">
+    <div class="sec-h"><h2>Line Cooking <span class="tag l">Menu dishes</span></h2><button class="btn btn-primary" onclick="addItem('menu')">+ Add menu item</button></div>
+    <p class="desc">What the cook does when an order comes in: a portion of a bulk item (for example 10 oz of Chicken Korma, priced from its cost per tray) plus the extra ingredients added on the line. One bulk item can feed many dishes. To portion by weight, the bulk item needs its "1 tray weighs" box filled in. Food cost % here is food only; plate cost also includes line labor if you add it.</p>
+    ${cards || '<div class="muted small">No menu items yet.</div>'}
+    <datalist id="menuCatList">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+  </div>`;
+}
+
+// ===== RATES =====
+function renderRates() {
+  const S = C.settings;
+  const ingOpts = opts([['', 'Choose…'], ...[...C.ingredients].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(i => ['ing:' + i.id, i.name || '(unnamed)'])], S.rawChickenIng);
+  const withRate = Object.keys(staffRates).filter(k => !isNaN(n(staffRates[k].wage)));
+  return `<div class="panel">
+    <h2>Labor rates</h2>
+    <p class="desc">Loaded hourly cost (wage plus payroll taxes and benefits) used for recipe labor when a task has no $/hr of its own. Use what an hour of kitchen labor really costs you at that location.</p>
+    <div class="fgrid">${Object.entries(LOCS).map(([k, l]) => `<div class="ff"><label>${l} $/hr</label>${inp('settings.laborRates.' + k, S.laborRates[k], { num: true, ph: 'e.g. 24.50' })}</div>`).join('')}</div>
+    ${FEATURES.billing ? `<p class="desc" style="margin-top:12px">For the monthly chicken bill, actual logged prep time uses each person's own rate from Delivery Data when they have one (${withRate.length} staff with a wage there), and the Issaquah rate above for everyone else.</p>` : ''}
+  </div>
+  ${FEATURES.billing ? `<div class="panel">
+    <h2>Billing</h2>
+    <div class="fgrid">
+      <div class="ff"><label>Markup on internal bills %</label>${inp('settings.markupPct', S.markupPct, { num: true, ph: '0' })}</div>
+      <div class="ff"><label>Raw chicken (for the chicken bill)</label>${sel('settings.rawChickenIng', S.rawChickenIng, ingOpts)}</div>
+    </div>
+    <p class="desc" style="margin-top:10px">0% means locations bill each other at cost. If you add a markup, the same % applies in both directions. Check with your CPA which approach fits your LLC setup before the first real invoice; this page just does the math.</p>
+    <h3>Names on invoices</h3>
+    <div class="fgrid">${Object.entries(LOCS).map(([k, l]) => `<div class="ff"><label>${l}</label>${inp('settings.entities.' + k, S.entities[k])}</div>`).join('')}</div>
+  </div>` : ''}`;
+}
+
+// ===== MONTHLY BILLING =====
+function monthRange(m) { const [y, mo] = m.split('-').map(Number); const first = new Date(y, mo - 1, 1); const last = new Date(y, mo, 0); return { first, last }; }
+function getPar(item, date) { const dn = DAYS[date.getDay()]; return (item.par && item.par[dn]) || 0; }
+function snapToStep(val, step) { if (!step || step <= 0) return val; if (val <= 0) return 0; return Math.ceil(val / step) * step; }
+// Same rule as daily.html calcNormalOrder
+function calcNormalOrder(item, pm, date, sunOn) {
+  if (date.getDay() === 0 && !sunOn && item.category === 'kitchen') return 0;
+  const nextPar = getPar(item, addDays(date, 1));
+  return snapToStep(Math.max(0, nextPar - Number(pm)), item.orderStep || 0.5);
+}
+function hasVal(v) { return !(v === undefined || v === null || v === ''); }
+// Delivered on day D = what was ordered the night before (daily.html amFromPrevDay minus PM)
+function deliveredOn(item, D, days) {
+  const prev = addDays(D, -1);
+  const pDay = days[dk(prev)] || {}; const pd = pDay[item.id] || {};
+  const sunOn = !!(pDay.__meta && pDay.__meta.sundayOrders);
+  if (prev.getDay() === 0 && !sunOn && item.category === 'kitchen') return { qty: 0 };
+  const extra = pd.extraOrder ? Number(pd.extraOrder) || 0 : 0;
+  let normal = null;
+  if (pd.manualOrder === true && hasVal(pd.normalOrder)) normal = Number(pd.normalOrder);
+  else if (hasVal(pd.pm)) normal = calcNormalOrder(item, Number(pd.pm), prev, sunOn) || 0;
+  if (normal === null) return { qty: extra, missing: true };
+  return { qty: r2(normal + extra) };
+}
+function usedOn(item, D, days) {
+  const d = (days[dk(D)] || {})[item.id] || {};
+  if (!hasVal(d.pm)) return { qty: 0, missing: true };
+  const prevPm = ((days[dk(addDays(D, -1))] || {})[item.id] || {}).pm;
+  let am = null;
+  if (hasVal(prevPm)) am = deliveredOn(item, D, days).qty + Number(prevPm);
+  else if (hasVal(d.am)) am = Number(d.am);
+  if (am === null) return { qty: 0, missing: true };
+  return { qty: r2(am - Number(d.pm)) };
+}
+async function loadMonth(m, force) {
+  if (BILL[m] && !force) return BILL[m];
+  const { first, last } = monthRange(m);
+  const startKey = dk(addDays(first, -1)), endKey = dk(last);
+  const FP = firebase.firestore.FieldPath.documentId();
+  const out = { days: {}, chicken: {}, invoice: null, loadedAt: new Date(), errors: [] };
+  await Promise.all([
+    db.collection('days').where(FP, '>=', startKey).where(FP, '<=', endKey).get()
+      .then(s => s.forEach(d => { out.days[d.id] = d.data(); })).catch(e => out.errors.push('Daily order: ' + (e.code || e.message))),
+    db.collection('chicken-prep').doc('nnc-iss').collection('records').where(FP, '>=', dk(first)).where(FP, '<=', endKey).get()
+      .then(s => s.forEach(d => { out.chicken[d.id] = d.data(); })).catch(e => out.errors.push('Chicken prep log: ' + (e.code || e.message))),
+    db.collection('food_cost_invoices').doc(m).get()
+      .then(s => { out.invoice = s.exists ? s.data() : null; }).catch(e => out.errors.push('Saved invoices: ' + (e.code || e.message)))
+  ]);
+  BILL[m] = out;
+  return out;
+}
+function defaultInvoice(m) { return { month: m, opts: { basis: 'delivered', chickenBasis: 'actual', includeKorma: true, includeClean: false }, manual: { rentonToIss: [], issToRenton: [] }, snapshots: [] }; }
+function staffRate(name) { const r = staffRates[name]; if (!r) return null; const w = n(r.wage); if (isNaN(w)) return null; const l = n(r.load); return w * (1 + (isNaN(l) ? 0 : l) / 100); }
+
+function calcRentonToIss(m, data) {
+  const { first, last } = monthRange(m);
+  const mk = 1 + (n(C.settings.markupPct) || 0) / 100;
+  const basis = INV.opts.basis;
+  const rows = [], skipped = [];
+  dailyItems.forEach(di => {
+    const b = C.bulk.find(x => x.dailyId === di.id);
+    let del = 0, use = 0, missDel = 0, missUse = 0;
+    for (let D = new Date(first); D <= last; D = addDays(D, 1)) {
+      const a = deliveredOn(di, D, data.days); del += a.qty; if (a.missing) missDel++;
+      const u = usedOn(di, D, data.days); use += u.qty; if (u.missing) missUse++;
+    }
+    del = r2(del); use = r2(use);
+    if (!b) { if (del || use) skipped.push({ name: di.name, unit: di.unit, del, use }); return; }
+    const qty = basis === 'used' ? use : del;
+    const unitCost = costPer('bulk:' + b.id, di.unit);
+    const ui = unitInfo('bulk:' + b.id);
+    const why = unitCost != null ? '' : (ui.cost == null ? 'No cost yet: finish the recipe and batch size' : `Recipe is per ${ui.base} but the daily order counts ${di.unit}. Fix the unit on the bulk item.`);
+    rows.push({ name: b.name, unit: di.unit, del, use, qty, unitCost: unitCost == null ? null : unitCost * mk, amount: unitCost == null ? 0 : qty * unitCost * mk, missDel, missUse, noCost: why });
+  });
+  INV.manual.rentonToIss.forEach(l => { const q = n(l.qty), p = n(l.price); rows.push({ manual: true, name: l.desc || 'Other', unit: l.unit || '', qty: isNaN(q) ? 0 : q, unitCost: isNaN(p) ? 0 : p, amount: (isNaN(q) ? 0 : q) * (isNaN(p) ? 0 : p) }); });
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  return { rows, skipped, total };
+}
+function calcIssToRenton(m, data) {
+  const mk = 1 + (n(C.settings.markupPct) || 0) / 100;
+  const rawPerLb = C.settings.rawChickenIng ? costPer(C.settings.rawChickenIng, 'lb') : null;
+  const issRate = n(C.settings.laborRates['nnc-iss']);
+  const defaultRateUsed = new Set();
+  const kinds = [
+    { key: 'chicken-korma', task: 'cutting', label: 'Chicken cut for korma', inc: INV.opts.includeKorma,
+      raw: r => n(r.weight_full_cases) || (n(r.cases_opened) || 0) * 40, out: r => (n(r.weight_15lb_bags) || 0) + (n(r.weight_non_15lb) || 0) + (n(r.weight_small_pieces) || 0) },
+    { key: 'chicken-clean', task: 'cleaning', label: 'Chicken cleaned', inc: INV.opts.includeClean,
+      raw: r => (n(r.cleaned_cases) || 0) * 40, out: r => (n(r.cleaned_weight) || 0) + (n(r.cleaned_small_pieces) || 0) }
+  ];
+  const rows = [];
+  kinds.forEach(k => {
+    let raw = 0, out = 0, labor = 0, mins = 0, estDays = 0, days = 0;
+    const std = C.prep.find(p => p.logSource === k.key);
+    const stdPerLb = std ? costPer('prep:' + std.id, 'lb') : null;
+    // labor $ per lb produced, from the prep recipe (used only for days with no logged sessions)
+    const stdLaborPerLb = (() => {
+      if (!std) return null; const y = n(std.yieldQty); if (!(y > 0)) return null;
+      const basePerLb = toBase(1, 'lb', nu(std.yieldUnit), altOf(std)); if (!basePerLb) return null;
+      return batchCost(std).lab / (y / basePerLb);
+    })();
+    Object.entries(data.chicken).forEach(([date, r]) => {
+      const rr = k.raw(r) || 0, oo = k.out(r) || 0; if (!rr && !oo) return;
+      days++; raw += rr; out += oo;
+      const sess = (r.sessions || []).filter(s => s.status !== 'open' && s.task === k.task && n(s.minutes) > 0);
+      if (sess.length) {
+        sess.forEach(s => {
+          const staff = (s.staff && s.staff.length) ? s.staff : ['(unnamed)'];
+          staff.forEach(name => {
+            let rate = staffRate(name);
+            if (rate == null) { rate = isNaN(issRate) ? 0 : issRate; defaultRateUsed.add(name); }
+            labor += n(s.minutes) / 60 * rate; mins += n(s.minutes);
+          });
+        });
+      } else { estDays++; if (stdLaborPerLb != null) labor += oo * stdLaborPerLb; }
+    });
+    const rawCost = rawPerLb == null ? null : raw * rawPerLb;
+    const actual = rawCost == null ? null : rawCost + labor;
+    const standard = stdPerLb == null ? null : out * stdPerLb;
+    const amountBase = INV.opts.chickenBasis === 'standard' ? standard : actual;
+    rows.push({ key: k.key, label: k.label, inc: k.inc, days, raw: r2(raw), out: r2(out), yieldPct: raw ? out / raw : null, rawCost, labor, mins, estDays, actual, standard, std, amount: k.inc && amountBase != null ? amountBase * mk : 0, missingPrice: amountBase == null });
+  });
+  const manual = INV.manual.issToRenton.map(l => { const q = n(l.qty), p = n(l.price); return { name: l.desc || 'Other', unit: l.unit || '', qty: isNaN(q) ? 0 : q, unitCost: isNaN(p) ? 0 : p, amount: (isNaN(q) ? 0 : q) * (isNaN(p) ? 0 : p) }; });
+  const total = rows.reduce((s, r) => s + r.amount, 0) + manual.reduce((s, r) => s + r.amount, 0);
+  return { rows, manual, total, rawPerLb, defaultRateUsed: [...defaultRateUsed] };
+}
+
+function renderBilling() {
+  const data = BILL[billMonth];
+  const head = `<div class="panel"><div class="sec-h"><h2>Monthly Billing</h2>
+    <div class="toolbar" style="margin:0"><input type="month" value="${billMonth}" onchange="pickMonth(this.value)" class="btn btn-white" style="font-weight:600"><button class="btn btn-white" onclick="refreshMonth()">Refresh data</button></div></div>
+    <p class="desc">Two bills per month. <b>Renton → Issaquah</b> for the bulk food delivered, priced at each bulk item's cost per tray. <b>Issaquah → Renton</b> for the chicken Issaquah prepped for Renton, from the Chicken Prep Log. Prices use today's recipe costs, so save a snapshot when you close the month; the snapshot keeps the numbers even if prices change later.</p></div>`;
+  if (!data) { if (_loadingMonth === billMonth) return head + '<div class="panel desc">Loading the month…</div>'; _loadingMonth = billMonth; loadMonth(billMonth).then(d => { _loadingMonth = null; INV = Object.assign(defaultInvoice(billMonth), d.invoice || {}); INV.opts = Object.assign(defaultInvoice(billMonth).opts, INV.opts || {}); INV.manual = Object.assign({ rentonToIss: [], issToRenton: [] }, INV.manual || {}); render(); }); return head + '<div class="panel desc">Loading the month…</div>'; }
+  if (!INV || INV.month !== billMonth) { INV = Object.assign(defaultInvoice(billMonth), data.invoice || {}); INV.opts = Object.assign(defaultInvoice(billMonth).opts, INV.opts || {}); INV.manual = Object.assign({ rentonToIss: [], issToRenton: [] }, INV.manual || {}); }
+  const A = calcRentonToIss(billMonth, data);
+  const B = calcIssToRenton(billMonth, data);
+  const mk = n(C.settings.markupPct) || 0;
+  const net = A.total - B.total;
+  const E = C.settings.entities;
+  const errs = data.errors.length ? `<div class="banner">Some data didn't load: ${data.errors.map(esc).join('; ')}</div>` : '';
+  const dayCount = Object.keys(data.days).filter(k => k.startsWith(billMonth)).length;
+
+  const aRows = A.rows.filter(r => !r.manual).map(r => `<tr>
+    <td>${esc(r.name)}${r.noCost ? `<div class="err-t">${esc(r.noCost)}</div>` : ''}</td><td>${esc(r.unit)}</td>
+    <td class="num">${fmt(r.del)}${r.missDel ? `<div class="warn-t">${r.missDel} day${r.missDel > 1 ? 's' : ''} no PM</div>` : ''}</td>
+    <td class="num">${fmt(r.use)}</td>
+    <td class="num"><b>${fmt(r.qty)}</b></td><td class="num">${money4(r.unitCost)}</td><td class="num"><b>${money(r.amount)}</b></td></tr>`).join('');
+  const manualRows = (key) => INV.manual[key].map((l, i) => `<tr>
+    <td>${inp(`inv.manual.${key}.${i}.desc`, l.desc, { ph: 'Description' })}</td>
+    <td class="w-s">${inp(`inv.manual.${key}.${i}.unit`, l.unit, { ph: 'unit', list: 'unitList' })}</td>
+    ${key === 'rentonToIss' ? '<td></td><td></td>' : ''}
+    <td class="w-s">${inp(`inv.manual.${key}.${i}.qty`, l.qty, { num: true })}</td>
+    <td class="w-s">${inp(`inv.manual.${key}.${i}.price`, l.price, { num: true, ph: '$' })}</td>
+    <td class="num">${money((n(l.qty) || 0) * (n(l.price) || 0))} <button class="btn-x" onclick="delManual('${key}',${i})">✕</button></td></tr>`).join('');
+
+  const bRows = B.rows.map(r => `<tr>
+    <td><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" style="width:auto;min-height:0" data-p="inv.opts.${r.key === 'chicken-korma' ? 'includeKorma' : 'includeClean'}" ${r.inc ? 'checked' : ''}> ${esc(r.label)}</label><div class="muted small">${r.days} day${r.days === 1 ? '' : 's'} logged${r.estDays ? ` · <span class="warn-t">${r.estDays} without logged sessions, labor ${r.std ? 'estimated from the prep recipe' : 'counted as $0'}</span>` : ''}</div></td>
+    <td class="num">${fmt(r.raw, 1)} lb</td><td class="num">${fmt(r.out, 1)} lb<div class="muted small">${pct(r.yieldPct)} yield</div></td>
+    <td class="num">${money(r.rawCost)}</td><td class="num">${money(r.labor)}<div class="muted small">${fmt(r.mins / 60, 1)} hrs logged</div></td>
+    <td class="num">${money(r.actual)}${r.out && r.actual != null ? `<div class="muted small">${money4(r.actual / r.out)}/lb</div>` : ''}</td>
+    <td class="num">${r.std ? money(r.standard) : '<span class="muted small">no linked prep item</span>'}${r.out && r.standard != null ? `<div class="muted small">${money4(r.standard / r.out)}/lb</div>` : ''}</td>
+    <td class="num"><b>${r.inc ? money(r.amount) : '<span class="muted">not billed</span>'}</b></td></tr>`).join('');
+
+  const snaps = (INV.snapshots || []).slice().reverse();
+  return `${head}${errs}
+  <div class="grid2">
+    <div class="stat"><div class="k">${esc(E['nnc-renton'])} bills ${esc(E['nnc-iss'])}</div><div class="v">${money(A.total)}</div><div class="s">bulk food, ${INV.opts.basis === 'used' ? 'trays used' : 'trays delivered'}</div></div>
+    <div class="stat"><div class="k">${esc(E['nnc-iss'])} bills ${esc(E['nnc-renton'])}</div><div class="v">${money(B.total)}</div><div class="s">chicken prep and other</div></div>
+    <div class="stat"><div class="k">Net</div><div class="v">${money(Math.abs(net))}</div><div class="s">${net >= 0 ? 'Issaquah owes Renton' : 'Renton owes Issaquah'}${mk ? ` · includes ${mk}% markup` : ' · at cost'}</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-h"><h2>Renton → Issaquah: bulk food</h2>
+      <div class="toolbar" style="margin:0"><span class="small muted">Bill on</span><div class="seg"><button class="${INV.opts.basis === 'delivered' ? 'on' : ''}" onclick="setInvOpt('basis','delivered')">Delivered</button><button class="${INV.opts.basis === 'used' ? 'on' : ''}" onclick="setInvOpt('basis','used')">Used</button></div><button class="btn btn-white btn-sm" onclick="printInvoice('A')">Print invoice</button></div></div>
+    <p class="desc">Delivered = what Issaquah ordered the night before (Order + Extra on the Daily Order). Used = AM minus PM. ${dayCount ? `${dayCount} daily order days found.` : '<b>No daily order data found for this month.</b>'} Orders are rebuilt from today's pars, so a month where pars changed can differ slightly from what was actually sent.</p>
+    <div class="table-box"><table class="t">
+      <thead><tr><th>Item</th><th>Unit</th><th class="num">Delivered</th><th class="num">Used</th><th class="num">Billed qty</th><th class="num">Price / unit</th><th class="num">Amount</th></tr></thead>
+      <tbody>${aRows || '<tr><td colspan="7" class="muted small" style="padding:12px">No bulk items are linked to daily order items yet (Bulk Cooking tab).</td></tr>'}${manualRows('rentonToIss')}</tbody>
+      <tfoot><tr><td colspan="6">Total</td><td class="num">${money(A.total)}</td></tr></tfoot>
+    </table></div>
+    <button class="btn-link" onclick="addManual('rentonToIss')">+ Add other line (credit, catering transfer…)</button>
+    ${A.skipped.length ? `<div class="banner warn" style="margin-top:10px"><b>Not billed, no bulk recipe yet:</b> ${A.skipped.map(s => `${esc(s.name)} (${fmt(s.del)} ${esc(s.unit)} delivered)`).join(', ')}</div>` : ''}
+  </div>
+
+  <div class="panel">
+    <div class="sec-h"><h2>Issaquah → Renton: chicken prep</h2>
+      <div class="toolbar" style="margin:0"><span class="small muted">Bill on</span><div class="seg"><button class="${INV.opts.chickenBasis === 'actual' ? 'on' : ''}" onclick="setInvOpt('chickenBasis','actual')">Actual</button><button class="${INV.opts.chickenBasis === 'standard' ? 'on' : ''}" onclick="setInvOpt('chickenBasis','standard')">Standard</button></div><button class="btn btn-white btn-sm" onclick="printInvoice('B')">Print invoice</button></div></div>
+    <p class="desc">From the Chicken Prep Log. <b>Actual</b> = raw lbs used × raw chicken price + logged prep time × each person's rate. <b>Standard</b> = lbs produced × the cost per lb of the linked prep item. Big gaps between the two mean the recipe yield or time is off, or the crew was slower or faster than standard.</p>
+    ${B.rawPerLb == null ? `<div class="banner warn" style="margin-bottom:10px">Pick the raw chicken ingredient on the Rates tab (and give it a price per lb) so raw cost can be calculated.</div>` : ''}
+    ${B.defaultRateUsed.length ? `<div class="banner info" style="margin-bottom:10px">Issaquah default rate used for: ${B.defaultRateUsed.map(esc).join(', ')}. Add their wage in Delivery Data for exact labor.</div>` : ''}
+    <div class="table-box"><table class="t">
+      <thead><tr><th>Item</th><th class="num">Raw</th><th class="num">Produced</th><th class="num">Raw cost</th><th class="num">Labor</th><th class="num">Actual</th><th class="num">Standard</th><th class="num">Billed</th></tr></thead>
+      <tbody>${bRows}</tbody>
+    </table></div>
+    <h3>Other lines</h3>
+    <div class="table-box"><table class="t">
+      <thead><tr><th>Description</th><th>Unit</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead>
+      <tbody>${manualRows('issToRenton') || '<tr><td colspan="5" class="muted small" style="padding:12px">Other prep sent to Renton (onions, produce prep…). Add a line.</td></tr>'}</tbody>
+      <tfoot><tr><td colspan="4">Total to Renton</td><td class="num">${money(B.total)}</td></tr></tfoot>
+    </table></div>
+    <button class="btn-link" onclick="addManual('issToRenton')">+ Add other line</button>
+  </div>
+
+  <div class="panel">
+    <div class="sec-h"><h2>Close the month</h2><button class="btn btn-primary" onclick="saveSnapshot()">Save snapshot</button></div>
+    <p class="desc">Freezes both bills with today's prices. Save again if you fix something; earlier snapshots are kept below.</p>
+    ${snaps.length ? `<div class="table-box"><table class="t"><thead><tr><th>Saved</th><th>By</th><th class="num">Renton → Issaquah</th><th class="num">Issaquah → Renton</th><th class="num">Net</th><th></th></tr></thead><tbody>${snaps.map((s, i) => `<tr><td>${esc(new Date(s.savedAt).toLocaleString())}</td><td>${esc(s.by || '')}</td><td class="num">${money(s.A.total)}</td><td class="num">${money(s.B.total)}</td><td class="num">${money(s.A.total - s.B.total)}</td><td><button class="btn-link" onclick="printSnapshot(${snaps.length - 1 - i},'A')">Print R→I</button> <button class="btn-link" onclick="printSnapshot(${snaps.length - 1 - i},'B')">Print I→R</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="muted small">No snapshot saved for this month yet.</div>'}
+  </div>`;
+}
+let _loadingMonth = null;
+function pickMonth(m) { if (!m) return; saveInvoiceDraft(); billMonth = m; ls('nnc.foodcost.month', m); INV = null; render(); }
+function refreshMonth() { saveInvoiceDraft(); delete BILL[billMonth]; INV = null; render(); }
+function setInvOpt(k, v) { INV.opts[k] = v; queueInvoiceSave(); render(); }
+function addManual(key) { INV.manual[key].push({ desc: '', unit: '', qty: '', price: '' }); queueInvoiceSave(); render(); }
+function delManual(key, i) { INV.manual[key].splice(i, 1); queueInvoiceSave(); render(); }
+let invTimer = null, invDirty = false;
+function queueInvoiceSave() { invDirty = true; clearTimeout(invTimer); invTimer = setTimeout(saveInvoiceDraft, 900); }
+async function saveInvoiceDraft() {
+  clearTimeout(invTimer); if (!invDirty || !INV) return; invDirty = false;
+  try {
+    await db.collection('food_cost_invoices').doc(INV.month).set(JSON.parse(JSON.stringify({ month: INV.month, opts: INV.opts, manual: INV.manual, updatedAt: new Date().toISOString() })), { merge: true });
+    if (BILL[INV.month]) BILL[INV.month].invoice = Object.assign(BILL[INV.month].invoice || {}, { opts: INV.opts, manual: INV.manual });
+  } catch (e) { invDirty = true; toast('Billing notes not saved: ' + (e.code || e.message)); }
+}
+function snapshotLines() {
+  const data = BILL[billMonth];
+  const A = calcRentonToIss(billMonth, data), B = calcIssToRenton(billMonth, data);
+  return {
+    A: { total: r2(A.total), basis: INV.opts.basis, lines: A.rows.filter(r => r.manual || (r.qty && !r.noCost)).map(r => ({ desc: r.name, unit: r.unit, qty: r.qty, price: r.unitCost == null ? 0 : r.unitCost, amount: r2(r.amount) })) },
+    B: { total: r2(B.total), basis: INV.opts.chickenBasis, lines: [...B.rows.filter(r => r.inc && r.amount).map(r => ({ desc: `${r.label} (${fmt(r.raw, 1)} lb raw)`, unit: 'lb', qty: r.out, price: r.out ? r.amount / r.out : 0, amount: r2(r.amount) })), ...B.manual.map(r => ({ desc: r.name, unit: r.unit, qty: r.qty, price: r.unitCost, amount: r2(r.amount) }))] },
+    markupPct: n(C.settings.markupPct) || 0
+  };
+}
+async function saveSnapshot() {
+  const s = Object.assign(snapshotLines(), { savedAt: new Date().toISOString(), by: (auth.currentUser && auth.currentUser.email) || '' });
+  try {
+    await db.collection('food_cost_invoices').doc(billMonth).set({ month: billMonth, opts: INV.opts, manual: INV.manual, snapshots: firebase.firestore.FieldValue.arrayUnion(JSON.parse(JSON.stringify(s))) }, { merge: true });
+    INV.snapshots = (INV.snapshots || []).concat([s]);
+    if (BILL[billMonth]) BILL[billMonth].invoice = Object.assign(BILL[billMonth].invoice || {}, { snapshots: INV.snapshots });
+    toast('Snapshot saved'); render();
+  } catch (e) { toast('Not saved: ' + (e.code || e.message)); }
+}
+function monthLabel(m) { const { first } = monthRange(m); return first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); }
+function invoiceHtml(which, snap, live) {
+  const E = C.settings.entities;
+  const from = which === 'A' ? E['nnc-renton'] : E['nnc-iss'];
+  const to = which === 'A' ? E['nnc-iss'] : E['nnc-renton'];
+  const part = snap[which];
+  const num = `${which === 'A' ? 'REN-ISS' : 'ISS-REN'}-${billMonth}`;
+  const basis = which === 'A' ? (part.basis === 'used' ? 'trays used (AM minus PM)' : 'trays delivered (nightly orders)') : (part.basis === 'standard' ? 'standard cost per lb produced' : 'actual raw chicken cost plus logged prep labor');
+  return `<div class="inv"><h1>Invoice</h1><div>${esc(num)}${live ? ' · DRAFT' : ''}</div>
+    <div class="row"><div><b>From</b><br>${esc(from)}</div><div><b>To</b><br>${esc(to)}</div><div><b>Period</b><br>${esc(monthLabel(billMonth))}</div><div><b>Date</b><br>${esc(new Date(snap.savedAt || Date.now()).toLocaleDateString())}</div></div>
+    <table><thead><tr><th>Description</th><th>Unit</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead>
+    <tbody>${part.lines.map(l => `<tr><td>${esc(l.desc)}</td><td>${esc(l.unit)}</td><td class="num">${fmt(l.qty)}</td><td class="num">${money4(l.price)}</td><td class="num">${money(l.amount)}</td></tr>`).join('') || '<tr><td colspan="5">No charges</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="4">Total due</td><td class="num">${money(part.total)}</td></tr></tfoot></table>
+    <div class="note">Billed on ${esc(basis)}. Prices at ${snap.markupPct ? 'cost plus ' + snap.markupPct + '%' : 'cost'} from the Naan N Curry food cost recipes${live ? ' as of today (draft, not a saved snapshot)' : ' as saved ' + esc(new Date(snap.savedAt).toLocaleString())}.</div></div>`;
+}
+function doPrint(html) {
+  document.getElementById('printArea').innerHTML = html;
+  document.body.classList.add('printing');
+  setTimeout(() => { window.print(); setTimeout(() => document.body.classList.remove('printing'), 500); }, 50);
+}
+function printInvoice(which) { doPrint(invoiceHtml(which, snapshotLines(), true)); }
+function printSnapshot(i, which) { const s = INV.snapshots[i]; if (s) doPrint(invoiceHtml(which, s, false)); }
+</script>
+</body>
+</html>
