@@ -159,7 +159,7 @@ table.t input:focus,table.t select:focus{outline:2px solid #93c5fd;border-color:
 <div class="header">
   <div>
     <h1>🧮 Food Cost <span class="owner-badge">Owner Only</span></h1>
-    <div class="header-sub">What every batch and dish costs, and the monthly bills between locations.</div>
+    <div class="header-sub">What every bulk batch and menu dish costs to make.</div>
   </div>
   <div class="header-right">
     <span class="pill" id="savePill">Loading…</span>
@@ -203,9 +203,31 @@ const UNIT_ALIASES = { lbs: 'lb', pound: 'lb', pounds: 'lb', ounce: 'oz', ounces
 const UNIT_SUGGEST = ['lb', 'oz', 'kg', 'g', 'gal', 'qt', 'cup', 'fl oz', 'tbsp', 'tsp', 'l', 'ml', 'each', 'case', 'bag', 'bunch', 'bottle', 'tray', 'container', 'batch'];
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const STALE_DAYS = 90;
+// Bulk Cooking list = kitchen items on the Daily Order (minus BULK_SKIP_DAILY) + BULK_EXTRAS.
+// Edit these two lists to change what "Add all" offers. Units are the batch yield unit (editable per item).
+const BULK_SKIP_DAILY = ['milk'];                      // bought, not cooked
+const BULK_EXTRAS = [                                   // cooked in bulk but not on the Daily Order
+  { name: 'Chicken Seekh Kabab', unit: 'each' },
+  { name: 'Lamb Seekh Kabab', unit: 'each' },
+  { name: 'Beef Seekh Kabab', unit: 'each' },
+  { name: 'Achari Boti', unit: 'lb' },
+  { name: 'Bihari Kabab', unit: 'lb' },
+  { name: 'Broast', unit: 'each' },
+  { name: 'Nehari Beef', unit: 'tray' },
+  { name: 'Haleem', unit: 'tray' },
+  { name: 'Garam Masala', unit: 'lb', group: 'spice' },    // Bulk Spices section
+  { name: 'Nehari Masala', unit: 'lb', group: 'spice' }
+];
+// Main kitchen spices for the Ingredients tab: read live from the Weekly Main Kitchen
+// Inventory (inventory_config/frozen_nnc-iss, subCategory 'spices'); this list is the fallback.
+// Skipped: ones made in house as Bulk Spices (garam masala).
+const MK_SPICE_SKIP = ['mk-garam-masala-ground'];
+const MK_SPICES_DEFAULT = ['Chaat Masala (case)', 'Methi (5lb container)', 'Cumin (gallon ziploc)', 'Green Cardamom (gallon ziploc)', 'Black Cardamom (gallon ziploc)', 'Garam Masala Ground (large nido)', 'Bay Leaf (gallon ziploc)', 'Cinnamon Stick (gallon ziploc)', 'Cloves (gallon ziploc)', 'Black Pepper - Whole (gallon ziploc)', 'Black Pepper Crush - Karahi (gallon ziploc)', 'Coriander Crush - Karahi (gallon ziploc)', 'Coriander Powder - Handi (gallon ziploc)', 'Fennel Seed Crush - Handi (gallon ziploc)', 'Fennel Seed Whole (5 lb container)', 'Ground Almond - Mughlai (gallon ziploc)', 'Ground Pistachio (gallon ziploc)', 'Achaar Powder (gallon ziploc)', 'Anaar Dana (16 oz black container)', 'Rice Whole Garam Masala']
+  .map(n => ({ id: n === 'Garam Masala Ground (large nido)' ? 'mk-garam-masala-ground' : '', name: n }));
+let mkSpices = MK_SPICES_DEFAULT;
 // Phase 1 (Nov 1 2026): ingredients, bulk cooking and line cooking only.
 // Prep items and monthly billing are built but hidden until time tracking is in place.
-const FEATURES = { prep: false, billing: false };
+const FEATURES = { prep: false, billing: false, lineLocations: false }; // lineLocations off = Line Cooking is Issaquah only
 
 let C = null;            // catalog
 let loadedRev = 0;
@@ -215,6 +237,7 @@ let staffRates = {};     // delivery_config/rates.staff
 let tab = 'ing';
 let openIds = new Set();
 let ingSearch = '';
+let menuSearch = '';
 let billMonth = '';
 const BILL = {};         // month -> {days, chicken, loadedAt}
 
@@ -377,6 +400,11 @@ async function loadAll() {
     const r = await db.collection('delivery_config').doc('rates').get();
     staffRates = (r.exists && r.data().staff) || {};
   } catch (e) { console.warn('staff rates', e); }
+  try {
+    const mk = await db.collection('inventory_config').doc('frozen_nnc-iss').get();
+    const its = mk.exists && Array.isArray(mk.data().items) ? mk.data().items.filter(i => i.subCategory === 'spices') : [];
+    if (its.length) mkSpices = its.map(i => ({ id: i.id || '', name: i.name || '' })).filter(i => i.name);
+  } catch (e) { console.warn('main kitchen spices', e); }
   tab = new URLSearchParams(location.search).get('tab') || ls('nnc.foodcost.tab') || 'bulk';
   const now = new Date(); const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   billMonth = ls('nnc.foodcost.month') || `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
@@ -482,11 +510,11 @@ function opts(pairs, val) { return pairs.map(([v, l]) => `<option value="${esc(v
 function locOpts(val) { return opts(Object.entries(LOCS), val); }
 
 // ---------- actions ----------
-function addItem(t) {
+function addItem(t, group) {
   const id = newId();
   if (t === 'ing') { C.ingredients.unshift({ id, name: '', category: '', vendor: '', packQty: '', packUnit: 'lb', packPrice: '', notes: '' }); ingSearch = ''; }
   if (t === 'prep') C.prep.unshift({ id, name: '', location: 'nnc-iss', lines: [], labor: [], yieldQty: '', yieldUnit: 'lb', notes: '', logSource: '' });
-  if (t === 'bulk') C.bulk.unshift({ id, name: '', location: 'nnc-renton', dailyId: '', lines: [], labor: [], yieldQty: '', yieldUnit: 'tray', notes: '' });
+  if (t === 'bulk') C.bulk.unshift({ id, name: '', location: 'nnc-renton', dailyId: '', group: group || '', lines: [], labor: [], yieldQty: '', yieldUnit: group === 'spice' ? 'lb' : 'tray', notes: '' });
   if (t === 'menu') C.menu.unshift({ id, name: '', category: '', location: 'nnc-iss', price: '', lines: [], labor: [], notes: '' });
   openIds.add(id);
   queueSave(); render();
@@ -497,6 +525,31 @@ function addFromDaily(dailyId) {
   const id = newId();
   C.bulk.push({ id, name: di.name, location: 'nnc-renton', dailyId: di.id, lines: [], labor: [], yieldQty: '', yieldUnit: nu(di.unit), notes: '' });
   openIds.add(id); queueSave(); render();
+}
+function bulkSuggestions() {
+  const linked = new Set(C.bulk.map(b => b.dailyId).filter(Boolean));
+  const names = new Set(C.bulk.map(b => (b.name || '').trim().toLowerCase()));
+  const daily = dailyItems.filter(d => !BULK_SKIP_DAILY.includes(d.id) && !linked.has(d.id) && !names.has(d.name.toLowerCase()))
+    .map(d => ({ key: 'd:' + d.id, name: d.name, unit: d.unit, dailyId: d.id }));
+  const extras = BULK_EXTRAS.filter(x => !names.has(x.name.toLowerCase())).map(x => ({ key: 'x:' + x.name, name: x.name, unit: x.unit, dailyId: '', group: x.group || '' }));
+  return daily.concat(extras);
+}
+function addSuggested(key, group) {
+  const sg = bulkSuggestions().filter(x => (key === '*' && (group === undefined || (x.group || '') === group)) || x.key === key);
+  sg.forEach(x => C.bulk.push({ id: newId(), name: x.name, location: 'nnc-renton', dailyId: x.dailyId, group: x.group || '', lines: [], labor: [], yieldQty: '', yieldUnit: nu(x.unit), notes: '' }));
+  if (sg.length) { queueSave(); render(); if (key === '*') toast(`Added ${sg.length} bulk items`); }
+}
+function addAllFromDaily(group) { addSuggested('*', group); }
+// main kitchen spices -> ingredients
+function mkSpiceName(n) { return String(n).replace(/\s*\([^)]*\)\s*$/, '').trim(); }
+function mkSpiceSuggestions() {
+  const have = new Set(C.ingredients.map(i => (i.name || '').trim().toLowerCase()));
+  return mkSpices.filter(x => !MK_SPICE_SKIP.includes(x.id) && !/^garam masala ground/i.test(x.name) && !have.has(mkSpiceName(x.name).toLowerCase()));
+}
+function addMkSpices() {
+  const add = mkSpiceSuggestions();
+  add.forEach(x => { const m = String(x.name).match(/\(([^)]*)\)\s*$/); C.ingredients.push({ id: newId(), name: mkSpiceName(x.name), category: 'Spice', vendor: '', packQty: '', packUnit: 'lb', packPrice: '', notes: m ? 'Main kitchen inventory: ' + m[1] : 'Main kitchen inventory' }); });
+  if (add.length) { queueSave(); render(); toast(`Added ${add.length} spices. Add a price for each.`); }
 }
 function delItem(t, id) {
   const l = listFor(t); const it = l.find(x => x.id === id); if (!it) return;
@@ -535,9 +588,9 @@ function render() {
   if (!C) return;
   _memo = {};
   const tabs = [
-    ['ing', 'Ingredients', `${C.ingredients.length} items · prices`],
-    ['bulk', 'Bulk Cooking', 'Prep + batches'],
+    ['bulk', 'Bulk Cooking', 'Batches at Renton'],
     ['line', 'Line Cooking', 'Menu dishes'],
+    ['ing', 'Ingredients', `${C.ingredients.length} items · prices`],
     ['bill', 'Monthly Billing', 'Invoices between locations'],
     ['rates', 'Rates', 'Labor rates']
   ].filter(([k]) => k !== 'bill' || FEATURES.billing);
@@ -568,13 +621,13 @@ function renderIngredients() {
     const u = unitInfo('ing:' + i.id);
     const used = usedIn('ing:' + i.id);
     const stale = i.priceDate && (today - parseDk(i.priceDate)) / 864e5 > STALE_DAYS;
-    const alt = `<div class="eq small">1 ${esc(nu(i.packUnit) || 'unit')} = ${inp(P + '.altQty', i.altQty, { num: true, ph: 'qty', style: 'width:70px' })} ${inp(P + '.altUnit', i.altUnit, { list: 'unitList', ph: 'unit', style: 'width:80px' })}</div>`;
+    const alt = `<div class="eq small" style="white-space:nowrap">1 ${esc(nu(i.packUnit) || 'unit')} = ${inp(P + '.altQty', i.altQty, { num: true, ph: 'qty', style: 'width:70px' })} ${inp(P + '.altUnit', i.altUnit, { list: 'unitList', ph: 'unit', style: 'width:80px' })}</div>`;
     return `<tr>
       <td style="min-width:180px">${inp(P + '.name', i.name, { ph: 'e.g. Chicken thigh, boneless' })}</td>
       <td class="w-m">${inp(P + '.category', i.category, { ph: 'Meat, spice…', list: 'catList' })}</td>
       <td class="w-m">${inp(P + '.vendor', i.vendor, { ph: 'Vendor', list: 'vendorList' })}</td>
       <td class="w-xs">${inp(P + '.packQty', i.packQty, { num: true, ph: '40' })}</td>
-      <td class="w-s">${inp(P + '.packUnit', i.packUnit, { list: 'unitList', ph: 'lb' })}</td>
+      <td style="width:90px">${inp(P + '.packUnit', i.packUnit, { list: 'unitList', ph: 'lb' })}</td>
       <td class="w-s">${inp(P + '.packPrice', i.packPrice, { num: true, ph: '$' })}${i.prevPrice !== undefined && i.prevPrice !== '' ? `<div class="muted small">was ${money(n(i.prevPrice))}</div>` : ''}</td>
       <td class="num"><b>${u.cost == null ? '—' : money4(u.cost)}</b><div class="muted small">per ${esc(nu(i.packUnit) || 'unit')}</div></td>
       <td>${alt}</td>
@@ -590,12 +643,13 @@ function renderIngredients() {
   return `<div class="panel">
     <div class="sec-h"><h2>Ingredients</h2><div class="toolbar" style="margin:0">
       <input type="search" placeholder="Search name, category, vendor" value="${esc(ingSearch)}" oninput="ingSearch=this.value;clearTimeout(window._sq);window._sq=setTimeout(()=>{render();const s=document.querySelector('input[type=search]');s.focus();s.setSelectionRange(s.value.length,s.value.length)},250)">
+      ${mkSpiceSuggestions().length ? `<button class="btn btn-white" onclick="addMkSpices()">+ Main kitchen spices (${mkSpiceSuggestions().length})</button>` : ''}
       <button class="btn btn-white" onclick="openPaste()">Paste from spreadsheet</button>
       <button class="btn btn-primary" onclick="addItem('ing')">+ Add ingredient</button></div></div>
     <p class="desc">One price list for everything. Enter what you pay for a pack (for example $96 for a 40 lb case) and the cost per unit is worked out. If a recipe measures in cups but you buy by the pound, fill in "1 lb = ? cup" so the two can be converted. Prices older than ${STALE_DAYS} days are marked in amber.</p>
     ${noPrice ? `<div class="banner warn" style="margin-bottom:10px">${noPrice} ingredient${noPrice > 1 ? 's have' : ' has'} no price yet. Recipes using them will show too low a cost.</div>` : ''}
     ${staleCount ? `<div class="banner warn" style="margin-bottom:10px">${staleCount} price${staleCount > 1 ? 's are' : ' is'} over ${STALE_DAYS} days old.</div>` : ''}
-    <div class="table-box"><table class="t">
+    <div class="table-box"><table class="t" style="min-width:1180px">
       <thead><tr><th>Name</th><th>Category</th><th>Vendor</th><th class="num">Pack qty</th><th>Unit</th><th class="num">Pack price</th><th class="num">Cost / unit</th><th>Conversion (optional)</th><th>Price date</th><th>Used in</th><th></th></tr></thead>
       <tbody>${body || `<tr><td colspan="11" class="muted" style="padding:24px;text-align:center">${q ? 'No match.' : 'No ingredients yet. Add one, or paste your price list from a spreadsheet.'}</td></tr>`}</tbody>
     </table></div>
@@ -653,7 +707,7 @@ function applyPaste() {
 function refOptions(val, types) {
   const grp = (label, t, list) => list.length ? `<optgroup label="${label}">${[...list].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(x => `<option value="${t}:${x.id}"${val === t + ':' + x.id ? ' selected' : ''}>${esc(x.name || '(unnamed)')}</option>`).join('')}</optgroup>` : '';
   let h = `<option value="">Choose…</option>`;
-  if (types.includes('bulk')) h += grp('Bulk items (per tray etc.)', 'bulk', C.bulk);
+  if (types.includes('bulk')) { h += grp('Bulk spices', 'bulk', C.bulk.filter(b => b.group === 'spice')); h += grp('Bulk items', 'bulk', C.bulk.filter(b => b.group !== 'spice')); }
   if (types.includes('prep')) h += grp('Prep items', 'prep', FEATURES.prep ? C.prep : C.prep.filter(x => val === 'prep:' + x.id));
   if (types.includes('ing')) h += grp('Ingredients', 'ing', C.ingredients);
   return h;
@@ -738,21 +792,21 @@ function renderBulk() {
   }).join('');
 
   const linked = {}; C.bulk.forEach(b => { if (b.dailyId) linked[b.dailyId] = (linked[b.dailyId] || 0) + 1; });
-  const unlinked = dailyItems.filter(d => !linked[d.id]);
-  const bulkCards = C.bulk.map(it => {
+  const sugg = bulkSuggestions();
+  const bulkCardsArr = C.bulk.map(it => {
     const c = batchCost(it); const u = nu(it.yieldUnit) || 'unit';
     const di = dailyItems.find(d => d.id === it.dailyId);
     const unitMismatch = di && toBase(1, di.unit, u, altOf(it)) == null;
-    const head = `<div class="nm">${esc(it.name || 'New bulk item')}<span class="s">Cooked at ${esc(LOCS[it.location] || '')}${it.yieldQty ? ` · batch makes ${fmt(n(it.yieldQty))} ${esc(u)}` : ''}${di ? ` · daily order: ${esc(di.name)}` : (FEATURES.billing ? ' · <b style="color:var(--amber)">not linked to daily order</b>' : '')}</span></div>
-      <div class="kv"><span class="k">Batch</span><span class="v">${money(c.total)}</span></div>
-      <div class="kv"><span class="k">Per ${esc(u)}</span><span class="v">${money4(c.perUnit)}</span></div>
+    const head = `<div class="nm">${esc(it.name || 'New bulk item')}<span class="s">${it.lines.length ? '' : '<span style="color:var(--amber)">no recipe yet</span> · '}Cooked at ${esc(LOCS[it.location] || '')}${it.yieldQty ? ` · batch makes ${fmt(n(it.yieldQty))} ${esc(u)}` : ''}${di ? (di.name.toLowerCase() === (it.name || '').toLowerCase() ? ' · on daily order' : ` · daily order: ${esc(di.name)}`) : (FEATURES.billing ? ' · <b style="color:var(--amber)">not linked to daily order</b>' : '')}</span></div>
+      <div class="kv"><span class="k">Batch</span><span class="v">${it.lines.length || it.labor.length ? money(c.total) : '—'}</span></div>
+      <div class="kv"><span class="k">Per ${esc(u)}</span><span class="v">${it.lines.length || it.labor.length ? money4(c.perUnit) : '—'}</span></div>
       ${c.warns.length || (FEATURES.billing && unitMismatch) ? '<span class="tag stale">check</span>' : ''}`;
     const P = 'bulk.' + it.id;
     const dOpts = opts([['', 'Not on the daily order'], ...dailyItems.map(d => [d.id, `${d.name} (${d.unit})${linked[d.id] && d.id !== it.dailyId ? ' · already linked' : ''}`])], it.dailyId || '');
     const body = `<div class="fgrid">
         <div class="ff"><label>Name</label>${inp(P + '.name', it.name, { ph: 'e.g. Chicken Korma' })}</div>
         <div class="ff"><label>Cooked at</label>${sel(P + '.location', it.location, locOpts(it.location))}</div>
-        <div class="ff"><label>Daily order item</label>${sel(P + '.dailyId', it.dailyId || '', dOpts)}</div>
+        ${it.group === 'spice' ? '' : `<div class="ff"><label>Daily order item</label>${sel(P + '.dailyId', it.dailyId || '', dOpts)}</div>`}
         ${yieldBlock('bulk', it)}
       </div>
       ${FEATURES.billing && unitMismatch ? `<div class="banner warn" style="margin-top:10px">The daily order counts ${esc(di.name)} in <b>${esc(di.unit)}</b> but this batch is measured in <b>${esc(u)}</b>. Set the batch unit to ${esc(nu(di.unit))}, or fill in the "weighs / holds" box so billing can convert.</div>` : ''}
@@ -764,7 +818,11 @@ function renderBulk() {
       <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
       <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('bulk','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('bulk','${it.id}')">Delete</button></div>`;
     return itemCard('bulk', it, 'b', head, body);
-  }).join('');
+  });
+  const isSpice = it => it.group === 'spice';
+  const bulkCards = C.bulk.map((it, i) => isSpice(it) ? '' : bulkCardsArr[i]).join('');
+  const spiceCards = C.bulk.map((it, i) => isSpice(it) ? bulkCardsArr[i] : '').join('');
+  const chipRow = (list, group, label) => list.length ? `<div style="margin-bottom:12px"><div class="small muted" style="margin-bottom:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${label} not added yet (tap one, or <button class="btn btn-white btn-sm" onclick="addAllFromDaily('${group}')">Add all ${list.length}</button>):</div><div class="chips">${list.map(d => `<button class="chip" onclick="addSuggested('${esc(d.key).replace(/'/g, '&#39;')}')">+ ${esc(d.name)} <span class="muted">(${esc(d.unit)})</span></button>`).join('')}</div></div>` : '';
 
   return `${FEATURES.prep ? `<div class="panel">
     <div class="sec-h"><h2>Prep <span class="tag b">Bulk Cooking</span></h2><button class="btn btn-primary" onclick="addItem('prep')">+ Add prep item</button></div>
@@ -772,27 +830,33 @@ function renderBulk() {
     ${prepCards || '<div class="muted small">No prep items yet.</div>'}
   </div>` : ''}
   <div class="panel">
-    <div class="sec-h"><h2>Bulk batches <span class="tag b">Bulk Cooking</span></h2><button class="btn btn-primary" onclick="addItem('bulk')">+ Add bulk item</button></div>
+    <div class="sec-h"><h2>Bulk Cooking</h2><button class="btn btn-primary" onclick="addItem('bulk','')">+ Add bulk item</button></div>
     <p class="desc">One batch as cooked at Renton: what goes in the pot, the labor for each task, and how many trays it yields. That gives the cost per tray, and the cost per lb if you fill in what a tray weighs. Include the foil tray and lid as an ingredient line if you want packaging in the cost.</p>
-    ${unlinked.length ? `<div style="margin-bottom:12px"><div class="small muted" style="margin-bottom:6px">Daily order items with no bulk recipe yet (tap to add):</div><div class="chips">${unlinked.map(d => `<button class="chip" onclick="addFromDaily('${d.id}')">+ ${esc(d.name)} <span class="muted">(${esc(d.unit)})</span></button>`).join('')}</div></div>` : ''}
+    ${chipRow(sugg.filter(x => !x.group), '', 'Bulk items')}
     ${bulkCards || '<div class="muted small">No bulk items yet.</div>'}
+  </div>
+  <div class="panel">
+    <div class="sec-h"><h2>Bulk Spices</h2><button class="btn btn-primary" onclick="addItem('bulk','spice')">+ Add spice mix</button></div>
+    <p class="desc">Spice mixes roasted and ground in house. Each batch has its whole spices (from Ingredients), the roasting and grinding time, and how many lbs it makes, which gives a cost per lb. Bulk recipes then use them by the lb, oz, cup or tbsp; for cups and spoons, fill in what 1 lb holds.</p>
+    ${chipRow(sugg.filter(x => x.group === 'spice'), 'spice', 'Spice mixes')}
+    ${spiceCards || '<div class="muted small">No spice mixes yet.</div>'}
   </div>`;
 }
 
 // ===== LINE COOKING =====
 function renderLine() {
-  const cards = C.menu.map(it => {
+  const cardsArr = C.menu.map(it => {
     const c = menuCost(it);
-    const head = `<div class="nm">${esc(it.name || 'New menu item')}<span class="s">${esc(it.category || '')}${it.category ? ' · ' : ''}${esc(LOCS[it.location] || '')}</span></div>
-      <div class="kv"><span class="k">Plate cost</span><span class="v">${money(c.total)}</span></div>
+    const head = `<div class="nm">${esc(it.name || 'New menu item')}<span class="s">${FEATURES.lineLocations ? esc(it.category || '') + (it.category ? ' · ' : '') + esc(LOCS[it.location] || '') : (it.lines.length ? it.lines.length + ' line' + (it.lines.length > 1 ? 's' : '') : '<span style="color:var(--amber)">no recipe yet</span>')}</span></div>
+      <div class="kv"><span class="k">Plate cost</span><span class="v">${it.lines.length ? money(c.total) : '—'}</span></div>
       <div class="kv"><span class="k">Menu price</span><span class="v">${isNaN(c.price) ? '—' : money(c.price)}</span></div>
-      <div class="kv"><span class="k">Food cost</span><span class="v" style="color:${c.fcPct > 0.35 ? 'var(--danger)' : 'inherit'}">${pct(c.fcPct)}</span></div>
+      <div class="kv"><span class="k">Food cost</span><span class="v" style="color:${c.fcPct > 0.35 ? 'var(--danger)' : 'inherit'}">${it.lines.length ? pct(c.fcPct) : '—'}</span></div>
       ${c.warns.length ? '<span class="tag stale">check</span>' : ''}`;
     const P = 'menu.' + it.id;
     const body = `<div class="fgrid">
         <div class="ff"><label>Dish name</label>${inp(P + '.name', it.name, { ph: 'e.g. Chicken Karahi' })}</div>
         <div class="ff"><label>Category</label>${inp(P + '.category', it.category, { ph: 'Curry, Tandoor…', list: 'menuCatList' })}</div>
-        <div class="ff"><label>Cooked at</label>${sel(P + '.location', it.location, locOpts(it.location))}</div>
+        ${FEATURES.lineLocations ? `<div class="ff"><label>Cooked at</label>${sel(P + '.location', it.location, locOpts(it.location))}</div>` : ''}
         <div class="ff"><label>Menu price</label>${inp(P + '.price', it.price, { num: true, ph: '$' })}</div>
       </div>
       ${linesTable('menu', it, ['bulk', 'prep', 'ing'], 'One order: bulk portion + extra ingredients')}
@@ -802,14 +866,64 @@ function renderLine() {
       <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
       <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('menu','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('menu','${it.id}')">Delete</button></div>`;
     return itemCard('menu', it, 'l', head, body);
-  }).join('');
+  });
   const cats = [...new Set(C.menu.map(i => i.category).filter(Boolean))];
+  // group cards by category, in the order categories first appear (menu order)
+  const mq = menuSearch.toLowerCase();
+  const order = [];
+  const groups = {};
+  C.menu.forEach((it, i) => {
+    if (mq && !((it.name || '') + ' ' + (it.category || '')).toLowerCase().includes(mq) && !openIds.has(it.id)) return;
+    const k = it.category || 'No category';
+    if (!groups[k]) { groups[k] = []; order.push(k); }
+    groups[k].push(cardsArr[i]);
+  });
+  const noRecipe = C.menu.filter(m => !m.lines.length).length;
+  const grouped = order.map(k => `<h3 style="margin:18px 0 8px">${esc(k)} <span class="muted small">(${groups[k].length})</span></h3>${groups[k].join('')}`).join('');
   return `<div class="panel">
-    <div class="sec-h"><h2>Line Cooking <span class="tag l">Menu dishes</span></h2><button class="btn btn-primary" onclick="addItem('menu')">+ Add menu item</button></div>
+    <div class="sec-h"><h2>Line Cooking${FEATURES.lineLocations ? '' : ' <span class="tag l">Issaquah</span>'}</h2><div class="toolbar" style="margin:0"><input type="search" placeholder="Search dishes" value="${esc(menuSearch)}" oninput="menuSearch=this.value;clearTimeout(window._mq);window._mq=setTimeout(()=>{render();const s=document.querySelector('#menuSearchBox');if(s){s.focus();s.setSelectionRange(s.value.length,s.value.length)}},250)" id="menuSearchBox"><button class="btn btn-white" onclick="openMenuPaste()">Paste menu</button><button class="btn btn-primary" onclick="addItem('menu')">+ Add menu item</button></div></div>
     <p class="desc">What the cook does when an order comes in: a portion of a bulk item (for example 10 oz of Chicken Korma, priced from its cost per tray) plus the extra ingredients added on the line. One bulk item can feed many dishes. To portion by weight, the bulk item needs its "1 tray weighs" box filled in. Food cost % here is food only; plate cost also includes line labor if you add it.</p>
-    ${cards || '<div class="muted small">No menu items yet.</div>'}
+    ${C.menu.length && noRecipe ? `<div class="small muted">${C.menu.length} dishes · ${noRecipe} without a recipe yet</div>` : ''}
+    ${C.menu.length ? (grouped || '<div class="muted small" style="margin-top:12px">No match.</div>') : '<div class="muted small">No menu items yet. Use Paste menu to add your whole menu at once.</div>'}
     <datalist id="menuCatList">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
   </div>`;
+}
+
+// menu paste import: Name, Category, Price (tab or comma separated)
+function openMenuPaste() {
+  document.getElementById('modalRoot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">
+    <h3>Paste menu items</h3>
+    <p class="desc" style="margin:0">One dish per line: <b>Name, Category, Price</b> (category and price optional). Paste from a spreadsheet or a list Claude made from your menu. If a dish name already exists, its category and price are updated instead of adding a duplicate. Recipes are added afterwards on each dish.</p>
+    <textarea id="menuPasteBox" placeholder="Chicken Karahi	Curry	19.99"></textarea>
+    <div id="menuPastePrev" class="small muted"></div>
+    <div class="card-actions"><button class="btn btn-white" onclick="closeModal()">Cancel</button><button class="btn btn-white" onclick="previewMenuPaste()">Preview</button><button class="btn btn-primary" onclick="applyMenuPaste()">Import</button></div>
+  </div></div>`;
+  setTimeout(() => document.getElementById('menuPasteBox').focus(), 30);
+}
+function parseMenuPaste() {
+  const rows = [];
+  document.getElementById('menuPasteBox').value.split(/\r?\n/).forEach(line => {
+    if (!line.trim()) return;
+    const c = (line.includes('\t') ? line.split('\t') : line.split(',')).map(x => x.trim());
+    const name = c[0]; if (!name || /^(name|dish|item)$/i.test(name)) return;
+    const price = Number(String(c[2] || '').replace(/[^0-9.]/g, ''));
+    rows.push({ name, category: c[1] || '', price: price > 0 ? price : '' });
+  });
+  return rows;
+}
+function previewMenuPaste() {
+  const rows = parseMenuPaste();
+  const upd = rows.filter(r => C.menu.some(m => (m.name || '').toLowerCase() === r.name.toLowerCase())).length;
+  document.getElementById('menuPastePrev').innerHTML = rows.length ? `${rows.length} dishes read: ${rows.length - upd} new, ${upd} updates. First: <b>${esc(rows[0].name)}</b>${rows[0].category ? ' (' + esc(rows[0].category) + ')' : ''} ${rows[0].price !== '' ? money(rows[0].price) : ''}` : 'Nothing readable yet.';
+}
+function applyMenuPaste() {
+  const rows = parseMenuPaste(); if (!rows.length) { previewMenuPaste(); return; }
+  rows.forEach(r => {
+    const ex = C.menu.find(m => (m.name || '').toLowerCase() === r.name.toLowerCase());
+    if (ex) { if (r.category) ex.category = r.category; if (r.price !== '') ex.price = r.price; }
+    else C.menu.push({ id: newId(), name: r.name, category: r.category, location: 'nnc-iss', price: r.price, lines: [], labor: [], notes: '' });
+  });
+  closeModal(); queueSave(); render(); toast(`Imported ${rows.length} dishes`);
 }
 
 // ===== RATES =====
