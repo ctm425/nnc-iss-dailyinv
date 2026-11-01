@@ -225,6 +225,28 @@ const MK_SPICE_SKIP = ['mk-garam-masala-ground'];
 const MK_SPICES_DEFAULT = ['Chaat Masala (case)', 'Methi (5lb container)', 'Cumin (gallon ziploc)', 'Green Cardamom (gallon ziploc)', 'Black Cardamom (gallon ziploc)', 'Garam Masala Ground (large nido)', 'Bay Leaf (gallon ziploc)', 'Cinnamon Stick (gallon ziploc)', 'Cloves (gallon ziploc)', 'Black Pepper - Whole (gallon ziploc)', 'Black Pepper Crush - Karahi (gallon ziploc)', 'Coriander Crush - Karahi (gallon ziploc)', 'Coriander Powder - Handi (gallon ziploc)', 'Fennel Seed Crush - Handi (gallon ziploc)', 'Fennel Seed Whole (5 lb container)', 'Ground Almond - Mughlai (gallon ziploc)', 'Ground Pistachio (gallon ziploc)', 'Achaar Powder (gallon ziploc)', 'Anaar Dana (16 oz black container)', 'Rice Whole Garam Masala']
   .map(n => ({ id: n === 'Garam Masala Ground (large nido)' ? 'mk-garam-masala-ground' : '', name: n }));
 let mkSpices = MK_SPICES_DEFAULT;
+// Issaquah menu (NNC_MAIN_MENU 10-25), one dish per protein/variant: [name, category, price]
+const MENU_SEED = [["Pakora", "Small Plates", 9.99], ["Tandoori Paneer", "Small Plates", 15.99], ["Chicken Tikka Masala", "Classics", 21.99], ["Paneer Tikka Masala", "Classics", 21.99], ["Chicken Korma", "Classics", 19.99], ["Lamb Korma", "Classics", 20.99], ["Paneer Palak", "Classics", 19.99], ["Chicken Palak", "Classics", 19.99], ["Lamb Palak", "Classics", 20.99], ["Chana Masala", "Classics", 16.99], ["Daal", "Classics", 16.99], ["Bhindi Masala", "Classics", 17.99], ["Bengun Bharta", "Classics", 17.99], ["Chicken Dumm Biryani", "Pakistani Staples", 22.99], ["Lamb Dumm Biryani", "Pakistani Staples", 23.99], ["Mixed Vegetable Dumm Biryani", "Pakistani Staples", 22.99], ["Chicken Mughlai Korma", "Pakistani Staples", 20.99], ["Lamb Mughlai Korma", "Pakistani Staples", 21.99], ["Paneer Mughlai Korma", "Pakistani Staples", 20.99], ["Chicken Handi", "Pakistani Staples", 20.99], ["Lamb Handi", "Pakistani Staples", 21.99], ["Chicken Baalti Gosht", "Pakistani Staples", 21.99], ["Lamb Baalti Gosht", "Pakistani Staples", 22.99], ["Vegetarian Baalti Gosht", "Pakistani Staples", 21.99], ["Chicken Achari", "Pakistani Staples", 20.99], ["Lamb Achari", "Pakistani Staples", 21.99], ["Paneer Achari", "Pakistani Staples", 20.99], ["Chicken Karahi", "Pakistani Staples", 20.99], ["Lamb Karahi", "Pakistani Staples", 21.99], ["Vegetarian Karahi", "Pakistani Staples", 20.99], ["Chicken Nehari", "Pakistani Staples", 20.99], ["Lamb Nehari", "Pakistani Staples", 21.99], ["Haleem", "Pakistani Staples", 21.99], ["Keema", "Pakistani Staples", 20.99], ["Lamb Chops", "Tandoori", 27.99], ["Lahori Fish", "Tandoori", 25.99], ["Boti Kabab", "Tandoori", 27.99], ["Chicken Tikka Boti (White)", "Tandoori", 23.99], ["Chicken Tikka Boti (Dark)", "Tandoori", 23.99], ["Achari Boti", "Tandoori", 23.99], ["Malai Boti", "Tandoori", 23.99], ["Chicken Seekh Kabab", "Tandoori", 23.99], ["Lamb Seekh Kabab", "Tandoori", 24.99], ["Saffron Rice", "Rice and Naan", 3.5], ["Plain Naan", "Rice and Naan", 2.99], ["Garlic Naan", "Rice and Naan", 3.99], ["Sesame Naan", "Rice and Naan", 3.99], ["Roti", "Rice and Naan", 2.99], ["Raita", "Sides", 3.99], ["Onion Salad", "Sides", 2.99], ["Chutney Trio", "Sides", 3.5], ["House Chai (Hot)", "Drinks", 3.5], ["House Chai (Iced)", "Drinks", 3.99], ["Soda (can)", "Drinks", 2.99], ["Topo Chico", "Drinks", 5.99], ["Voss Water", "Drinks", 3.99], ["Botal (glass bottle soda)", "Drinks", 5.99], ["Mango Lassi", "Drinks", 6.5], ["Salty Lassi", "Drinks", 6.5], ["Sweet Lassi", "Drinks", 6.5], ["Ghulab Jamun", "Desserts", 4.99], ["Pista Badam Kulfi", "Desserts", 5.99], ["Mango Ice Cream", "Desserts", 5.99], ["Lunch Chicken Dumm Biryani", "Lunch Special", 17.99], ["Lunch Lamb Dumm Biryani", "Lunch Special", 18.99], ["Lunch Mixed Vegetable Dumm Biryani", "Lunch Special", 17.99], ["Lunch Chicken Korma", "Lunch Special", 16.99], ["Lunch Lamb Korma", "Lunch Special", 17.99], ["Lunch Chana Masala", "Lunch Special", 16.99], ["Lunch Chicken Tikka Masala", "Lunch Special", 17.99], ["Lunch Mutter Paneer", "Lunch Special", 16.99], ["Lunch Daal", "Lunch Special", 16.99], ["Lunch Bengun Bharta", "Lunch Special", 16.99], ["Lunch Chicken Palak", "Lunch Special", 16.99], ["Lunch Paneer Palak", "Lunch Special", 16.99], ["Lunch Lamb Palak", "Lunch Special", 17.99], ["Lunch Chicken Seekh Kabab", "Lunch Special", 16.99], ["Lunch Lamb Seekh Kabab", "Lunch Special", 17.99], ["Lunch Chicken Tikka Boti (White)", "Lunch Special", 16.99], ["Lunch Chicken Tikka Boti (Dark)", "Lunch Special", 16.99]];
+// Starting lists (names only, no recipes or prices). Each list is filled once, tracked in
+// settings.seeded, so items you delete later never come back. Existing items are kept;
+// only missing names are added.
+function seedStarter() {
+  const S = C.settings; S.seeded = S.seeded || {}; let added = 0;
+  if (!S.seeded.bulk) {
+    bulkSuggestions().forEach(x => { added++; C.bulk.push({ id: newId(), name: x.name, location: 'nnc-renton', dailyId: x.dailyId, group: x.group || '', lines: [], labor: [], yieldQty: '', yieldUnit: nu(x.unit), notes: '' }); });
+    if (dailyItems.length) S.seeded.bulk = dk(new Date());   // wait for the Daily Order list before marking done
+  }
+  if (!S.seeded.spices) {
+    mkSpiceSuggestions().forEach(x => { added++; const m = String(x.name).match(/\(([^)]*)\)\s*$/); C.ingredients.push({ id: newId(), name: mkSpiceName(x.name), category: 'Spice', vendor: '', packQty: '', packUnit: 'lb', packPrice: '', notes: m ? 'Main kitchen inventory: ' + m[1] : 'Main kitchen inventory' }); });
+    S.seeded.spices = dk(new Date());
+  }
+  if (!S.seeded.menu) {
+    const have = new Set(C.menu.map(m => (m.name || '').trim().toLowerCase()));
+    MENU_SEED.forEach(([name, category, price]) => { if (have.has(name.toLowerCase())) return; added++; C.menu.push({ id: newId(), name, category, location: 'nnc-iss', price, lines: [], labor: [], notes: '' }); });
+    S.seeded.menu = dk(new Date());
+  }
+  return added;
+}
 // Phase 1 (Nov 1 2026): ingredients, bulk cooking and line cooking only.
 // Prep items and monthly billing are built but hidden until time tracking is in place.
 const FEATURES = { prep: false, billing: false, lineLocations: false }; // lineLocations off = Line Cooking is Issaquah only
@@ -409,6 +431,12 @@ async function loadAll() {
   const now = new Date(); const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   billMonth = ls('nnc.foodcost.month') || `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
   setPill('All changes saved');
+  const s0 = JSON.stringify(C.settings.seeded || {});
+  const added = seedStarter();
+  if (added || JSON.stringify(C.settings.seeded) !== s0) {
+    queueSave();
+    if (added) setTimeout(() => toast(`Starting lists added: ${added} items (bulk, spices, menu)`), 300);
+  }
   render();
 }
 
@@ -589,6 +617,7 @@ function render() {
   _memo = {};
   const tabs = [
     ['bulk', 'Bulk Cooking', 'Batches at Renton'],
+    ['spice', 'Bulk Spices', 'Spice mixes'],
     ['line', 'Line Cooking', 'Menu dishes'],
     ['ing', 'Ingredients', `${C.ingredients.length} items · prices`],
     ['bill', 'Monthly Billing', 'Invoices between locations'],
@@ -599,7 +628,8 @@ function render() {
   const conflictHtml = `<div class="banner" id="conflictBanner" style="display:${conflict ? 'block' : 'none'}"><b>Not saved.</b> Food Cost was changed in another tab or device after you opened this page. Your last change here was not saved, so nothing got overwritten. <button class="btn btn-sm btn-white" onclick="location.reload()">Reload latest</button></div>`;
   let body = '';
   if (tab === 'ing') body = renderIngredients();
-  else if (tab === 'bulk') body = renderBulk();
+  else if (tab === 'bulk') body = renderBulk('');
+  else if (tab === 'spice') body = renderBulk('spice');
   else if (tab === 'line') body = renderLine();
   else if (tab === 'bill' && FEATURES.billing) body = renderBilling();
   else body = renderRates();
@@ -768,7 +798,7 @@ function itemCard(t, it, cls, headExtra, bodyHtml) {
   const open = openIds.has(it.id);
   return `<div class="card ${cls} ${open ? 'open' : ''}"><div class="card-h" onclick="toggleOpen('${it.id}')"><span class="chev">›</span>${headExtra}</div>${open ? `<div class="card-b">${bodyHtml}</div>` : ''}</div>`;
 }
-function renderBulk() {
+function renderBulk(view) {
   const prepCards = C.prep.map(it => {
     const c = batchCost(it); const u = nu(it.yieldUnit) || 'unit';
     const head = `<div class="nm">${esc(it.name || 'New prep item')}<span class="s">Prepped at ${esc(LOCS[it.location] || '')}${it.yieldQty ? ` · makes ${fmt(n(it.yieldQty))} ${esc(u)}` : ''}${it.logSource ? ' · linked to prep log' : ''}</span></div>
@@ -824,6 +854,12 @@ function renderBulk() {
   const spiceCards = C.bulk.map((it, i) => isSpice(it) ? bulkCardsArr[i] : '').join('');
   const chipRow = (list, group, label) => list.length ? `<div style="margin-bottom:12px"><div class="small muted" style="margin-bottom:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${label} not added yet (tap one, or <button class="btn btn-white btn-sm" onclick="addAllFromDaily('${group}')">Add all ${list.length}</button>):</div><div class="chips">${list.map(d => `<button class="chip" onclick="addSuggested('${esc(d.key).replace(/'/g, '&#39;')}')">+ ${esc(d.name)} <span class="muted">(${esc(d.unit)})</span></button>`).join('')}</div></div>` : '';
 
+  if (view === 'spice') return `<div class="panel">
+    <div class="sec-h"><h2>Bulk Spices</h2><button class="btn btn-primary" onclick="addItem('bulk','spice')">+ Add spice mix</button></div>
+    <p class="desc">Spice mixes roasted and ground in house. Each batch has its whole spices (from Ingredients), the roasting and grinding time, and how many lbs it makes, which gives a cost per lb. Bulk Cooking and Line Cooking recipes use them by the lb, oz, cup or tbsp; for cups and spoons, fill in what 1 lb holds.</p>
+    ${chipRow(sugg.filter(x => x.group === 'spice'), 'spice', 'Spice mixes')}
+    ${spiceCards || '<div class="muted small">No spice mixes yet.</div>'}
+  </div>`;
   return `${FEATURES.prep ? `<div class="panel">
     <div class="sec-h"><h2>Prep <span class="tag b">Bulk Cooking</span></h2><button class="btn btn-primary" onclick="addItem('prep')">+ Add prep item</button></div>
     <p class="desc">Raw work done before the big pot, at any location (for example Issaquah cuts the raw chicken). Each prep item has its ingredients, the labor to do it, and what it yields, so you get a cost per lb of prepped product. Prep items then go into bulk recipes. Prep done outside Renton is what that location bills Renton for.</p>
@@ -834,12 +870,6 @@ function renderBulk() {
     <p class="desc">One batch as cooked at Renton: what goes in the pot, the labor for each task, and how many trays it yields. That gives the cost per tray, and the cost per lb if you fill in what a tray weighs. Include the foil tray and lid as an ingredient line if you want packaging in the cost.</p>
     ${chipRow(sugg.filter(x => !x.group), '', 'Bulk items')}
     ${bulkCards || '<div class="muted small">No bulk items yet.</div>'}
-  </div>
-  <div class="panel">
-    <div class="sec-h"><h2>Bulk Spices</h2><button class="btn btn-primary" onclick="addItem('bulk','spice')">+ Add spice mix</button></div>
-    <p class="desc">Spice mixes roasted and ground in house. Each batch has its whole spices (from Ingredients), the roasting and grinding time, and how many lbs it makes, which gives a cost per lb. Bulk recipes then use them by the lb, oz, cup or tbsp; for cups and spoons, fill in what 1 lb holds.</p>
-    ${chipRow(sugg.filter(x => x.group === 'spice'), 'spice', 'Spice mixes')}
-    ${spiceCards || '<div class="muted small">No spice mixes yet.</div>'}
   </div>`;
 }
 
@@ -859,7 +889,7 @@ function renderLine() {
         ${FEATURES.lineLocations ? `<div class="ff"><label>Cooked at</label>${sel(P + '.location', it.location, locOpts(it.location))}</div>` : ''}
         <div class="ff"><label>Menu price</label>${inp(P + '.price', it.price, { num: true, ph: '$' })}</div>
       </div>
-      ${linesTable('menu', it, ['bulk', 'prep', 'ing'], 'One order: bulk portion + extra ingredients')}
+      ${linesTable('menu', it, ['bulk', 'prep', 'ing'], 'One order: bulk portions, spices + extra ingredients')}
       ${laborTable('menu', it, 'Line labor (optional)')}
       <div class="totals"><div class="tot"><div class="k">Food</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Line labor</div><div class="v">${money(c.lab)}</div></div><div class="tot hi"><div class="k">Plate cost</div><div class="v">${money(c.total)}</div></div><div class="tot"><div class="k">Food cost %</div><div class="v">${pct(c.price > 0 ? c.ing / c.price : null)}</div></div><div class="tot"><div class="k">Gross margin</div><div class="v">${c.price > 0 ? money(c.price - c.total) : '—'}</div></div></div>
       ${warnList(c)}
@@ -882,7 +912,7 @@ function renderLine() {
   const grouped = order.map(k => `<h3 style="margin:18px 0 8px">${esc(k)} <span class="muted small">(${groups[k].length})</span></h3>${groups[k].join('')}`).join('');
   return `<div class="panel">
     <div class="sec-h"><h2>Line Cooking${FEATURES.lineLocations ? '' : ' <span class="tag l">Issaquah</span>'}</h2><div class="toolbar" style="margin:0"><input type="search" placeholder="Search dishes" value="${esc(menuSearch)}" oninput="menuSearch=this.value;clearTimeout(window._mq);window._mq=setTimeout(()=>{render();const s=document.querySelector('#menuSearchBox');if(s){s.focus();s.setSelectionRange(s.value.length,s.value.length)}},250)" id="menuSearchBox"><button class="btn btn-white" onclick="openMenuPaste()">Paste menu</button><button class="btn btn-primary" onclick="addItem('menu')">+ Add menu item</button></div></div>
-    <p class="desc">What the cook does when an order comes in: a portion of a bulk item (for example 10 oz of Chicken Korma, priced from its cost per tray) plus the extra ingredients added on the line. One bulk item can feed many dishes. To portion by weight, the bulk item needs its "1 tray weighs" box filled in. Food cost % here is food only; plate cost also includes line labor if you add it.</p>
+    <p class="desc">What the cook does when an order comes in: portions of one or more bulk items (for example 10 oz of Chicken Korma, priced from its cost per tray), bulk spices (for example 1 tsp of Garam Masala), and the extra ingredients added on the line. One bulk item can feed many dishes. To portion by weight, the bulk item needs its "1 tray weighs" box filled in. Food cost % here is food only; plate cost also includes line labor if you add it.</p>
     ${C.menu.length && noRecipe ? `<div class="small muted">${C.menu.length} dishes · ${noRecipe} without a recipe yet</div>` : ''}
     ${C.menu.length ? (grouped || '<div class="muted small" style="margin-top:12px">No match.</div>') : '<div class="muted small">No menu items yet. Use Paste menu to add your whole menu at once.</div>'}
     <datalist id="menuCatList">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
