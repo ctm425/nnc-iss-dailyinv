@@ -51,10 +51,12 @@ button,input,select{font-family:inherit}
 .quick-stat .sub{font-size:.78rem;color:var(--gray-400);margin-top:2px}
 
 .table-box{overflow-x:auto;border:1px solid var(--gray-200);border-radius:10px}
-table.log{border-collapse:collapse;width:100%;min-width:1350px;font-size:.84rem}
-table.log th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--gray-500);padding:9px 10px;background:var(--gray-50);border-bottom:2px solid var(--gray-200);font-weight:700;letter-spacing:.3px;white-space:nowrap}
-table.log td{padding:9px 10px;border-bottom:1px solid var(--gray-100);white-space:nowrap}
-table.log tr:hover td{background:var(--gray-50)}
+table.log{border-collapse:collapse;width:100%;min-width:1440px;font-size:.84rem}
+table.log th{text-align:center;font-size:.68rem;text-transform:uppercase;color:var(--gray-700);padding:10px;background:var(--gray-200);border-bottom:2px solid var(--gray-300);font-weight:700;letter-spacing:.3px;white-space:nowrap}
+table.log td{text-align:center;padding:9px 10px;border-bottom:1px solid var(--gray-200);white-space:nowrap;background:#fff}
+table.log tbody tr:nth-child(even) td{background:var(--gray-100)}
+table.log tbody tr:hover td{background:#e0e7ff}
+table.log .num,table.log th.num{text-align:center}
 .num{text-align:right}
 .tag{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px}
 .tag.open{background:#fff7ed;color:#9a3412}
@@ -289,6 +291,8 @@ function calc(run) {
   const t = k => (s[k] && s[k].t) || null;
   const start = t('shiftStart'), end = t('shiftEnd');
   const minutes = start && end ? (end - start) / 60000 : null;
+  const ad = t('arrivedDest'), ld = t('leftDest');
+  const destMin = ad && ld && ld >= ad ? Math.round((ld - ad) / 60000) : null;
   const miles = run.odoStart != null && run.odoEnd != null ? Math.round((run.odoEnd - run.odoStart) * 10) / 10 : null;
   const dr = loadedRate(run.driverName);
   const hr = run.helperName ? loadedRate(run.helperName) : 0;
@@ -303,7 +307,7 @@ function calc(run) {
     if (Math.abs(diff) > CLOCK_FLAG_MIN) flags.push(STEP_NAMES[k] + ': reached the system ' + (diff > 0 ? diff + ' min after' : -diff + ' min before') + ' the phone time');
   });
   const missingRate = (dr == null ? [run.driverName || 'driver'] : []).concat(run.helperName && hr == null ? [run.helperName] : []);
-  return { t, minutes, miles, labor, vehicle, total, flags, missingRate };
+  return { t, minutes, destMin, miles, labor, vehicle, total, flags, missingRate };
 }
 
 // ==================== OWNER EDIT ====================
@@ -319,20 +323,21 @@ function snapshot(r) {
 }
 function openEdit(id) {
   const r = runs.find(x => x.id === id); if (!r) return;
-  editing = { id, draft: snapshot(r) };
+  editing = { id, draft: snapshot(r), who: '' };
   renderEdit();
 }
 function closeEdit() { editing = null; document.getElementById('editModal').innerHTML = ''; }
 // Update only the warning + Save button, never redraw the box while someone is typing
 function refreshEditState() {
   if (!editing) return;
-  const why = editProblem(editing.draft);
+  const why = editProblem(editing.draft) || (!String(editing.who || '').trim() ? 'Enter who is making this change.' : '');
   const w = document.getElementById('editWarn'), b = document.getElementById('editSave');
   if (w) { w.textContent = why; w.style.display = why ? '' : 'none'; }
   if (b) { b.disabled = !!why; b.style.opacity = why ? '.5' : ''; b.style.cursor = why ? 'not-allowed' : ''; }
 }
 function setDraft(k, v) { editing.draft[k] = v; refreshEditState(); }
 function setTime(k, v) { editing.draft.times[k] = v; refreshEditState(); }
+function setWho(v) { editing.who = v; refreshEditState(); }
 function editProblem(d) {
   const mins = STEP_KEYS.map(k => { const t = d.times[k]; if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; });
   let last = -1;
@@ -360,6 +365,8 @@ async function saveEdit() {
   const r = runs.find(x => x.id === editing.id); if (!r) { closeEdit(); return; }
   const d = editing.draft, why = editProblem(d);
   if (why) { toast(why); return; }
+  const who = titleName(editing.who);
+  if (!who) { toast('Enter who is making this change.'); return; }
   const before = snapshot(r);
   if (describeChange(before, d) === 'no changes') { closeEdit(); return; }
   const [Y, M, D] = d.date.split('-').map(Number);
@@ -374,7 +381,7 @@ async function saveEdit() {
   const odoS = String(d.odoStart) === '' ? null : n(d.odoStart);
   const odoE = String(d.odoEnd) === '' ? null : n(d.odoEnd);
   const u = auth.currentUser;
-  const name = (currentUserProfile && currentUserProfile.displayName) || (u && u.email) || 'owner';
+  const name = who; // the person who said they made the change; the account is kept in editedBy / by
   const upd = {
     date: d.date, driverName: d.driverName, helperName: d.helperName || '', vehicle: d.vehicle,
     origin: d.origin, dest: d.dest, odoStart: odoS, odoEnd: odoE, status: d.status || 'done',
@@ -397,7 +404,7 @@ function renderEdit() {
   const opt = (list, v, blank) => (blank != null ? `<option value=""${!v ? ' selected' : ''}>${esc(blank)}</option>` : '')
     + list.concat(v && !list.includes(v) ? [v] : []).map(o => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('');
   const sel = (k, label, list, blank) => `<div class="ff"><label>${label}</label><select onchange="setDraft('${k}',this.value)">${opt(list, d[k], blank)}</select></div>`;
-  const why = editProblem(d);
+  const why = editProblem(d) || (!String(editing.who || '').trim() ? 'Enter who is making this change.' : '');
   const hist = (r.history || []).slice().reverse();
   box.innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeEdit()"><div class="modal" role="dialog" aria-modal="true" aria-label="Edit trip">
     <h3>Edit trip · Delivery ${r.runNumber || 1}</h3>
@@ -415,6 +422,10 @@ function renderEdit() {
     <div class="mgrid">
       <div class="ff"><label>Odometer start</label><input inputmode="decimal" value="${esc(d.odoStart)}" onchange="setDraft('odoStart',this.value)"></div>
       <div class="ff"><label>Odometer end</label><input inputmode="decimal" value="${esc(d.odoEnd)}" onchange="setDraft('odoEnd',this.value)"></div>
+    </div>
+    <div class="ff" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 12px">
+      <label for="editWho" style="color:#92400e">Who is making this change? (required)</label>
+      <input id="editWho" list="ddPeople" autocomplete="off" placeholder="Type your name" value="${esc(editing.who)}" oninput="setWho(this.value)">
     </div>
     <div class="mwarn" id="editWarn" style="${why ? '' : 'display:none'}">${esc(why)}</div>
     <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">
@@ -437,12 +448,12 @@ async function deleteRun(id) {
 }
 
 function exportCsv() {
-  const head = ['Date', 'Run', 'Status', 'Driver', 'Helper', 'Vehicle', 'From', 'To', 'Shift start', 'Left origin', 'Arrived', 'Left destination', 'Back', 'Shift end', 'Shift minutes', 'Odometer start', 'Odometer end', 'Miles', 'Labor $', 'Vehicle $', 'Total $', 'Time flags'];
+  const head = ['Date', 'Run', 'Status', 'Driver', 'Helper', 'Vehicle', 'From', 'To', 'Shift start', 'Left origin', 'Arrived', 'Left destination', 'Back', 'Shift end', 'Minutes at destination', 'Shift minutes', 'Odometer start', 'Odometer end', 'Miles', 'Labor $', 'Vehicle $', 'Total $', 'Time flags'];
   const rows = filteredRuns().map(r => {
     const c = calc(r);
     return [r.date, r.runNumber, r.status, r.driverName, r.helperName || '', r.vehicle, r.origin, r.dest]
       .concat(STEP_KEYS.map(k => c.t(k) ? new Date(c.t(k)).toLocaleTimeString() : ''))
-      .concat([c.minutes != null ? Math.round(c.minutes) : '', r.odoStart ?? '', r.odoEnd ?? '', c.miles ?? '',
+      .concat([c.destMin ?? '', c.minutes != null ? Math.round(c.minutes) : '', r.odoStart ?? '', r.odoEnd ?? '', c.miles ?? '',
         c.labor != null ? c.labor.toFixed(2) : '', c.vehicle != null ? c.vehicle.toFixed(2) : '', c.total != null ? c.total.toFixed(2) : '', c.flags.join('; ')]);
   });
   const csv = [head].concat(rows).map(row => row.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
@@ -478,6 +489,7 @@ function render() {
   const shown = filteredRuns();
   const done = shown.filter(r => r.status === 'done').map(r => ({ r, c: calc(r) }));
   const mins = done.map(x => x.c.minutes).filter(v => v != null);
+  const destMins = done.map(x => x.c.destMin).filter(v => v != null);
   const costs = done.map(x => x.c.total).filter(v => v != null);
   const miles = done.reduce((s, x) => s + (x.c.miles || 0), 0);
   const avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
@@ -496,7 +508,7 @@ function render() {
       <td class="${r.helperName ? '' : 'muted'}">${esc(r.helperName || 'None')}</td>
       <td>${esc(r.vehicle || '—')}</td>
       <td>${esc(r.origin)} → ${esc(r.dest)}</td>
-      ${STEP_KEYS.map(k => `<td>${fmtT(c.t(k))}</td>`).join('')}
+      ${STEP_KEYS.map(k => `<td>${fmtT(c.t(k))}</td>` + (k === 'leftDest' ? `<td class="num" style="font-weight:700">${c.destMin != null ? c.destMin : '—'}</td>` : '')).join('')}
       <td><strong>${fmtMin(c.minutes)}</strong></td>
       <td class="num">${c.miles != null ? c.miles : '—'}<div class="muted" style="font-size:.7rem">${r.odoStart != null ? Number(r.odoStart).toLocaleString() : ''}${r.odoEnd != null ? ' → ' + Number(r.odoEnd).toLocaleString() : ''}</div></td>
       <td class="num">${costNote}</td>
@@ -504,7 +516,7 @@ function render() {
       <td class="num total-cell">${money(c.total)}</td>
       <td><button class="btn btn-white" style="min-height:32px;padding:4px 12px" onclick="openEdit('${r.id}')">Edit</button> <button class="btn-danger-link" onclick="deleteRun('${r.id}')">Delete</button></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="17" class="muted" style="padding:28px;text-align:center">${allRuns.length && anyFilter ? 'No trips match these filters.' : 'No deliveries logged ' + (range.from === range.to ? 'on ' + dayLabel(range.from) : 'between ' + dayLabel(range.from) + ' and ' + dayLabel(range.to)) + '.'}</td></tr>`;
+  }).join('') : `<tr><td colspan="18" class="muted" style="padding:28px;text-align:center">${allRuns.length && anyFilter ? 'No trips match these filters.' : 'No deliveries logged ' + (range.from === range.to ? 'on ' + dayLabel(range.from) : 'between ' + dayLabel(range.from) + ' and ' + dayLabel(range.to)) + '.'}</td></tr>`;
 
   // Filter choices come from what's actually in this date range
   const uniq = arr => [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -619,6 +631,7 @@ function render() {
 
     <div class="quick-stats">
       <div class="quick-stat"><div class="label">Average shift</div><div class="value">${fmtMin(avg(mins))}</div><div class="sub">Shift start to shift end</div></div>
+      <div class="quick-stat"><div class="label">Average at destination</div><div class="value">${destMins.length ? Math.round(avg(destMins)) + ' min' : '—'}</div><div class="sub">Arrived to left (unloading/loading)</div></div>
       <div class="quick-stat"><div class="label">Average cost per trip</div><div class="value" style="color:var(--primary)">${money(avg(costs))}</div><div class="sub">${costs.length < done.length ? (done.length - costs.length) + ' trip(s) missing a wage' : 'Labor plus van'}</div></div>
       <div class="quick-stat"><div class="label">Total cost</div><div class="value">${money(costs.length ? costs.reduce((s, v) => s + v, 0) : null)}</div><div class="sub">Saved trips with rates set</div></div>
       <div class="quick-stat"><div class="label">Miles</div><div class="value">${Math.round(miles * 10) / 10}</div><div class="sub">From odometer readings</div></div>
@@ -631,7 +644,7 @@ function render() {
         <table class="log">
           <thead><tr>
             <th>Date</th><th>Driver</th><th>Helper</th><th>Van</th><th>Route</th>
-            <th>Shift start</th><th>Left origin</th><th>Arrived</th><th>Left dest.</th><th>Back</th><th>Shift end</th>
+            <th>Shift start</th><th>Left origin</th><th>Arrived</th><th>Left dest.</th><th title="Left destination minus Arrived">At dest. (min)</th><th>Back</th><th>Shift end</th>
             <th>Shift time</th><th class="num">Miles</th><th class="num">Labor</th><th class="num">Van</th><th class="num">Total</th><th></th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
