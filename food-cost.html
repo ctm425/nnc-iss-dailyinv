@@ -206,7 +206,7 @@ const STALE_DAYS = 90;
 // Bulk Cooking list = kitchen items on the Daily Order (minus BULK_SKIP_DAILY) + BULK_EXTRAS.
 // Edit these two lists to change what "Add all" offers. Units are the batch yield unit (editable per item).
 const BULK_SKIP_DAILY = ['milk'];                      // bought, not cooked
-const BULK_EXTRAS = [                                   // cooked in bulk but not on the Daily Order
+const BULK_EXTRAS = [                                   // made in bulk but not on the Daily Order (group 'spice' = Bulk Spices/Input tab)
   { name: 'Chicken Seekh Kabab', unit: 'each' },
   { name: 'Lamb Seekh Kabab', unit: 'each' },
   { name: 'Beef Seekh Kabab', unit: 'each' },
@@ -216,7 +216,8 @@ const BULK_EXTRAS = [                                   // cooked in bulk but no
   { name: 'Nehari Beef', unit: 'tray' },
   { name: 'Haleem', unit: 'tray' },
   { name: 'Garam Masala', unit: 'lb', group: 'spice' },    // Bulk Spices section
-  { name: 'Nehari Masala', unit: 'lb', group: 'spice' }
+  { name: 'Nehari Masala', unit: 'lb', group: 'spice' },
+  { name: 'Ginger/Garlic Paste', unit: 'lb', group: 'spice' }
 ];
 // Main kitchen spices for the Ingredients tab: read live from the Weekly Main Kitchen
 // Inventory (inventory_config/frozen_nnc-iss, subCategory 'spices'); this list is the fallback.
@@ -236,6 +237,15 @@ function seedStarter() {
     bulkSuggestions().forEach(x => { added++; C.bulk.push({ id: newId(), name: x.name, location: 'nnc-renton', dailyId: x.dailyId, group: x.group || '', lines: [], labor: [], yieldQty: '', yieldUnit: nu(x.unit), notes: '' }); });
     if (dailyItems.length) S.seeded.bulk = dk(new Date());   // wait for the Daily Order list before marking done
   }
+  // extras added to BULK_EXTRAS after the first fill: add each once
+  const doneX = new Set(S.seeded.extras || (S.seeded.bulk ? ['Chicken Seekh Kabab', 'Lamb Seekh Kabab', 'Beef Seekh Kabab', 'Achari Boti', 'Bihari Kabab', 'Broast', 'Nehari Beef', 'Haleem', 'Garam Masala', 'Nehari Masala'] : []));
+  const names = new Set(C.bulk.map(b => (b.name || '').trim().toLowerCase()));
+  BULK_EXTRAS.forEach(x => {
+    if (doneX.has(x.name)) return;
+    if (!names.has(x.name.toLowerCase())) { added++; C.bulk.push({ id: newId(), name: x.name, location: 'nnc-renton', dailyId: '', group: x.group || '', lines: [], labor: [], yieldQty: '', yieldUnit: nu(x.unit), notes: '' }); }
+    doneX.add(x.name);
+  });
+  S.seeded.extras = [...doneX];
   if (!S.seeded.spices) {
     mkSpiceSuggestions().forEach(x => { added++; const m = String(x.name).match(/\(([^)]*)\)\s*$/); C.ingredients.push({ id: newId(), name: mkSpiceName(x.name), category: 'Spice', vendor: '', packQty: '', packUnit: 'lb', packPrice: '', notes: m ? 'Main kitchen inventory: ' + m[1] : 'Main kitchen inventory' }); });
     S.seeded.spices = dk(new Date());
@@ -259,6 +269,8 @@ let staffRates = {};     // delivery_config/rates.staff
 let tab = 'ing';
 let openIds = new Set();
 let ingSearch = '';
+let sorts = {};          // per-section sort, e.g. {bulk:'costDesc'} (per viewer, localStorage nnc.foodcost.sorts)
+let pricingQ = '';       // quarter shown on the Quarterly Pricing tab, e.g. '2026-Q4'
 let menuSearch = '';
 let billMonth = '';
 const BILL = {};         // month -> {days, chicken, loadedAt}
@@ -271,6 +283,33 @@ function money4(v) { if (v == null || isNaN(v)) return '—'; return Math.abs(v)
 function fmt(v, d = 2) { if (v == null || isNaN(v)) return '—'; return (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d }); }
 function pct(v) { return v == null || isNaN(v) || !isFinite(v) ? '—' : (v * 100).toFixed(1) + '%'; }
 function r2(v) { return Math.round(v * 100) / 100; }
+function byName(a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base', numeric: true }); }
+const SORT_OPTS = [['az', 'A to Z'], ['za', 'Z to A'], ['costDesc', 'Cost: high to low'], ['costAsc', 'Cost: low to high']];
+function sortOf(sec) { return sorts[sec] || 'az'; }
+function setSortSec(sec, v) { sorts[sec] = v; ls('nnc.foodcost.sorts', JSON.stringify(sorts)); render(); }
+// "Cost" per section: ingredients = cost per unit, bulk/spice/pricing = cost per yield unit, line = plate cost
+function costKey(sec, it) {
+  if (sec === 'ing') return unitInfo('ing:' + it.id).cost;
+  if (sec === 'line') return it.lines.length ? menuCost(it).total : null;
+  return (it.lines.length || it.labor.length) ? batchCost(it).perUnit : null;
+}
+function ord(list, sec) {
+  const m = sortOf(sec); const a = [...list];
+  if (m === 'za') return a.sort((x, y) => byName(y, x));
+  if (m === 'costDesc' || m === 'costAsc') {
+    const c = new Map(a.map(x => [x, costKey(sec, x)]));
+    return a.sort((x, y) => {
+      const cx = c.get(x), cy = c.get(y);
+      if (cx == null && cy == null) return byName(x, y);
+      if (cx == null) return 1; if (cy == null) return -1;   // no cost yet always last
+      return (m === 'costDesc' ? cy - cx : cx - cy) || byName(x, y);
+    });
+  }
+  return a.sort(byName);
+}
+function sortCtl(sec) {
+  return `<label class="small muted" style="display:flex;align-items:center;gap:6px;white-space:nowrap">Sort <select onchange="setSortSec('${sec}',this.value)" style="padding:7px 8px;border:1px solid var(--gray-300);border-radius:8px;font-size:.85rem;min-height:38px;background:#fff">${opts(SORT_OPTS, sortOf(sec))}</select></label>`;
+}
 function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function dk(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function parseDk(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
@@ -311,6 +350,7 @@ function normalizeCatalog(d) {
   const e = emptyCatalog();
   const c = Object.assign(e, d || {});
   ['ingredients', 'prep', 'bulk', 'menu'].forEach(k => { if (!Array.isArray(c[k])) c[k] = []; });
+  if (!c.pricing || typeof c.pricing !== 'object' || Array.isArray(c.pricing)) c.pricing = {};
   c.settings = Object.assign(emptyCatalog().settings, c.settings || {});
   c.settings.laborRates = Object.assign(emptyCatalog().settings.laborRates, c.settings.laborRates || {});
   c.settings.entities = Object.assign(emptyCatalog().settings.entities, c.settings.entities || {});
@@ -428,6 +468,8 @@ async function loadAll() {
     if (its.length) mkSpices = its.map(i => ({ id: i.id || '', name: i.name || '' })).filter(i => i.name);
   } catch (e) { console.warn('main kitchen spices', e); }
   tab = new URLSearchParams(location.search).get('tab') || ls('nnc.foodcost.tab') || 'bulk';
+  try { sorts = JSON.parse(ls('nnc.foodcost.sorts') || '{}') || {}; } catch (e) { sorts = {}; }
+  pricingQ = qKey(new Date());
   const now = new Date(); const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   billMonth = ls('nnc.foodcost.month') || `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
   setPill('All changes saved');
@@ -490,6 +532,7 @@ function setPath(path, v) {
   const parts = path.split('.');
   let obj, i;
   if (parts[0] === 'settings') { obj = C.settings; i = 1; }
+  else if (parts[0] === 'pricing') { obj = C.pricing; i = 1; }
   else if (parts[0] === 'inv') { obj = INV; i = 1; }
   else { obj = (C[parts[0]] || []).find(x => x.id === parts[1]); i = 2; }
   if (!obj) return null;
@@ -529,7 +572,7 @@ function rerenderKeepFocus() {
 }
 function fid(path) { return 'p_' + path.replace(/[^a-zA-Z0-9_]/g, '_'); }
 function inp(path, val, o = {}) {
-  return `<input id="${fid(path)}" data-p="${path}" type="${o.num ? 'number' : 'text'}" ${o.num ? 'data-num step="any" inputmode="decimal"' : ''} value="${esc(val == null ? '' : val)}" placeholder="${esc(o.ph || '')}" ${o.list ? `list="${o.list}"` : ''} class="${o.cls || ''}" ${o.style ? `style="${o.style}"` : ''}>`;
+  return `<input ${o.disabled ? 'disabled' : ''} id="${fid(path)}" data-p="${path}" type="${o.num ? 'number' : 'text'}" ${o.num ? 'data-num step="any" inputmode="decimal"' : ''} value="${esc(val == null ? '' : val)}" placeholder="${esc(o.ph || '')}" ${o.list ? `list="${o.list}"` : ''} class="${o.cls || ''}" ${o.style ? `style="${o.style}"` : ''}>`;
 }
 function sel(path, val, optsHtml, o = {}) {
   return `<select id="${fid(path)}" data-p="${path}" class="${o.cls || ''}">${optsHtml}</select>`.replace(`value="${esc(val)}"`, `value="${esc(val)}" selected`);
@@ -617,19 +660,22 @@ function render() {
   _memo = {};
   const tabs = [
     ['bulk', 'Bulk Cooking', 'Batches at Renton'],
-    ['spice', 'Bulk Spices', 'Spice mixes'],
+    ['spice', 'Bulk Spices/Input', 'Spice mixes, pastes'],
     ['line', 'Line Cooking', 'Menu dishes'],
     ['ing', 'Ingredients', `${C.ingredients.length} items · prices`],
     ['bill', 'Monthly Billing', 'Invoices between locations'],
-    ['rates', 'Rates', 'Labor rates']
+    ['rates', 'Rates', 'Labor rates'],
+    ['price', 'Quarterly Pricing + Markup', 'What each restaurant pays']
   ].filter(([k]) => k !== 'bill' || FEATURES.billing);
   if (!tabs.some(([k]) => k === tab)) tab = 'bulk';
-  document.getElementById('tabs').innerHTML = tabs.map(([k, l, s]) => `<button class="tab ${tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}<span class="sub">${s}</span></button>`).join('');
+  document.getElementById('tabs').innerHTML = tabs.map(([k, l, s]) => `<button class="tab ${tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}<span class="sub">${s}</span></button>`).join('')
+;
   const conflictHtml = `<div class="banner" id="conflictBanner" style="display:${conflict ? 'block' : 'none'}"><b>Not saved.</b> Food Cost was changed in another tab or device after you opened this page. Your last change here was not saved, so nothing got overwritten. <button class="btn btn-sm btn-white" onclick="location.reload()">Reload latest</button></div>`;
   let body = '';
   if (tab === 'ing') body = renderIngredients();
   else if (tab === 'bulk') body = renderBulk('');
   else if (tab === 'spice') body = renderBulk('spice');
+  else if (tab === 'price') body = renderPricing();
   else if (tab === 'line') body = renderLine();
   else if (tab === 'bill' && FEATURES.billing) body = renderBilling();
   else body = renderRates();
@@ -644,7 +690,7 @@ function flowStrip() {
 // ===== INGREDIENTS =====
 function renderIngredients() {
   const q = ingSearch.toLowerCase();
-  const rows = C.ingredients.filter(i => !q || (i.name + ' ' + (i.category || '') + ' ' + (i.vendor || '')).toLowerCase().includes(q));
+  const rows = ord(C.ingredients, 'ing').filter(i => !q || (i.name + ' ' + (i.category || '') + ' ' + (i.vendor || '')).toLowerCase().includes(q));
   const today = new Date();
   const body = rows.map(i => {
     const P = 'ingredients.' + i.id;
@@ -672,6 +718,7 @@ function renderIngredients() {
   const noPrice = C.ingredients.filter(i => unitInfo('ing:' + i.id).cost == null).length;
   return `<div class="panel">
     <div class="sec-h"><h2>Ingredients</h2><div class="toolbar" style="margin:0">
+      ${sortCtl('ing')}
       <input type="search" placeholder="Search name, category, vendor" value="${esc(ingSearch)}" oninput="ingSearch=this.value;clearTimeout(window._sq);window._sq=setTimeout(()=>{render();const s=document.querySelector('input[type=search]');s.focus();s.setSelectionRange(s.value.length,s.value.length)},250)">
       ${mkSpiceSuggestions().length ? `<button class="btn btn-white" onclick="addMkSpices()">+ Main kitchen spices (${mkSpiceSuggestions().length})</button>` : ''}
       <button class="btn btn-white" onclick="openPaste()">Paste from spreadsheet</button>
@@ -737,7 +784,7 @@ function applyPaste() {
 function refOptions(val, types) {
   const grp = (label, t, list) => list.length ? `<optgroup label="${label}">${[...list].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(x => `<option value="${t}:${x.id}"${val === t + ':' + x.id ? ' selected' : ''}>${esc(x.name || '(unnamed)')}</option>`).join('')}</optgroup>` : '';
   let h = `<option value="">Choose…</option>`;
-  if (types.includes('bulk')) { h += grp('Bulk spices', 'bulk', C.bulk.filter(b => b.group === 'spice')); h += grp('Bulk items', 'bulk', C.bulk.filter(b => b.group !== 'spice')); }
+  if (types.includes('bulk')) { h += grp('Bulk spices/input', 'bulk', C.bulk.filter(b => b.group === 'spice')); h += grp('Bulk items', 'bulk', C.bulk.filter(b => b.group !== 'spice')); }
   if (types.includes('prep')) h += grp('Prep items', 'prep', FEATURES.prep ? C.prep : C.prep.filter(x => val === 'prep:' + x.id));
   if (types.includes('ing')) h += grp('Ingredients', 'ing', C.ingredients);
   return h;
@@ -823,11 +870,12 @@ function renderBulk(view) {
 
   const linked = {}; C.bulk.forEach(b => { if (b.dailyId) linked[b.dailyId] = (linked[b.dailyId] || 0) + 1; });
   const sugg = bulkSuggestions();
-  const bulkCardsArr = C.bulk.map(it => {
+  const bulkList = ord(C.bulk, view === 'spice' ? 'spice' : 'bulk');
+  const bulkCardsArr = bulkList.map(it => {
     const c = batchCost(it); const u = nu(it.yieldUnit) || 'unit';
     const di = dailyItems.find(d => d.id === it.dailyId);
     const unitMismatch = di && toBase(1, di.unit, u, altOf(it)) == null;
-    const head = `<div class="nm">${esc(it.name || 'New bulk item')}<span class="s">${it.lines.length ? '' : '<span style="color:var(--amber)">no recipe yet</span> · '}Cooked at ${esc(LOCS[it.location] || '')}${it.yieldQty ? ` · batch makes ${fmt(n(it.yieldQty))} ${esc(u)}` : ''}${di ? (di.name.toLowerCase() === (it.name || '').toLowerCase() ? ' · on daily order' : ` · daily order: ${esc(di.name)}`) : (FEATURES.billing ? ' · <b style="color:var(--amber)">not linked to daily order</b>' : '')}</span></div>
+    const head = `<div class="nm">${esc(it.name || 'New bulk item')}<span class="s">${it.lines.length ? '' : '<span style="color:var(--amber)">no recipe yet</span> · '}${it.group === 'spice' ? 'Made' : 'Cooked'} at ${esc(LOCS[it.location] || '')}${it.yieldQty ? ` · batch makes ${fmt(n(it.yieldQty))} ${esc(u)}` : ''}${di ? (di.name.toLowerCase() === (it.name || '').toLowerCase() ? ' · on daily order' : ` · daily order: ${esc(di.name)}`) : (FEATURES.billing ? ' · <b style="color:var(--amber)">not linked to daily order</b>' : '')}</span></div>
       <div class="kv"><span class="k">Batch</span><span class="v">${it.lines.length || it.labor.length ? money(c.total) : '—'}</span></div>
       <div class="kv"><span class="k">Per ${esc(u)}</span><span class="v">${it.lines.length || it.labor.length ? money4(c.perUnit) : '—'}</span></div>
       ${c.warns.length || (FEATURES.billing && unitMismatch) ? '<span class="tag stale">check</span>' : ''}`;
@@ -850,15 +898,15 @@ function renderBulk(view) {
     return itemCard('bulk', it, 'b', head, body);
   });
   const isSpice = it => it.group === 'spice';
-  const bulkCards = C.bulk.map((it, i) => isSpice(it) ? '' : bulkCardsArr[i]).join('');
-  const spiceCards = C.bulk.map((it, i) => isSpice(it) ? bulkCardsArr[i] : '').join('');
+  const bulkCards = bulkList.map((it, i) => isSpice(it) ? '' : bulkCardsArr[i]).join('');
+  const spiceCards = bulkList.map((it, i) => isSpice(it) ? bulkCardsArr[i] : '').join('');
   const chipRow = (list, group, label) => list.length ? `<div style="margin-bottom:12px"><div class="small muted" style="margin-bottom:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${label} not added yet (tap one, or <button class="btn btn-white btn-sm" onclick="addAllFromDaily('${group}')">Add all ${list.length}</button>):</div><div class="chips">${list.map(d => `<button class="chip" onclick="addSuggested('${esc(d.key).replace(/'/g, '&#39;')}')">+ ${esc(d.name)} <span class="muted">(${esc(d.unit)})</span></button>`).join('')}</div></div>` : '';
 
   if (view === 'spice') return `<div class="panel">
-    <div class="sec-h"><h2>Bulk Spices</h2><button class="btn btn-primary" onclick="addItem('bulk','spice')">+ Add spice mix</button></div>
-    <p class="desc">Spice mixes roasted and ground in house. Each batch has its whole spices (from Ingredients), the roasting and grinding time, and how many lbs it makes, which gives a cost per lb. Bulk Cooking and Line Cooking recipes use them by the lb, oz, cup or tbsp; for cups and spoons, fill in what 1 lb holds.</p>
-    ${chipRow(sugg.filter(x => x.group === 'spice'), 'spice', 'Spice mixes')}
-    ${spiceCards || '<div class="muted small">No spice mixes yet.</div>'}
+    <div class="sec-h"><h2>Bulk Spices/Input</h2><div class="toolbar" style="margin:0">${sortCtl('spice')}<button class="btn btn-primary" onclick="addItem('bulk','spice')">+ Add spice or input</button></div></div>
+    <p class="desc">Spice mixes and other inputs made in house, like garam masala or ginger/garlic paste. Each batch has what goes in (from Ingredients), the labor (roasting, grinding, peeling, blending), and how many lbs it makes, which gives a cost per lb. Bulk Cooking and Line Cooking recipes use them by the lb, oz, cup or tbsp; for cups and spoons, fill in what 1 lb holds.</p>
+    ${chipRow(sugg.filter(x => x.group === 'spice'), 'spice', 'Spices/inputs')}
+    ${spiceCards || '<div class="muted small">Nothing here yet.</div>'}
   </div>`;
   return `${FEATURES.prep ? `<div class="panel">
     <div class="sec-h"><h2>Prep <span class="tag b">Bulk Cooking</span></h2><button class="btn btn-primary" onclick="addItem('prep')">+ Add prep item</button></div>
@@ -866,7 +914,7 @@ function renderBulk(view) {
     ${prepCards || '<div class="muted small">No prep items yet.</div>'}
   </div>` : ''}
   <div class="panel">
-    <div class="sec-h"><h2>Bulk Cooking</h2><button class="btn btn-primary" onclick="addItem('bulk','')">+ Add bulk item</button></div>
+    <div class="sec-h"><h2>Bulk Cooking</h2><div class="toolbar" style="margin:0">${sortCtl('bulk')}<button class="btn btn-primary" onclick="addItem('bulk','')">+ Add bulk item</button></div></div>
     <p class="desc">One batch as cooked at Renton: what goes in the pot, the labor for each task, and how many trays it yields. That gives the cost per tray, and the cost per lb if you fill in what a tray weighs. Include the foil tray and lid as an ingredient line if you want packaging in the cost.</p>
     ${chipRow(sugg.filter(x => !x.group), '', 'Bulk items')}
     ${bulkCards || '<div class="muted small">No bulk items yet.</div>'}
@@ -875,7 +923,8 @@ function renderBulk(view) {
 
 // ===== LINE COOKING =====
 function renderLine() {
-  const cardsArr = C.menu.map(it => {
+  const menuList = ord(C.menu, 'line');
+  const cardsArr = menuList.map(it => {
     const c = menuCost(it);
     const head = `<div class="nm">${esc(it.name || 'New menu item')}<span class="s">${FEATURES.lineLocations ? esc(it.category || '') + (it.category ? ' · ' : '') + esc(LOCS[it.location] || '') : (it.lines.length ? it.lines.length + ' line' + (it.lines.length > 1 ? 's' : '') : '<span style="color:var(--amber)">no recipe yet</span>')}</span></div>
       <div class="kv"><span class="k">Plate cost</span><span class="v">${it.lines.length ? money(c.total) : '—'}</span></div>
@@ -902,16 +951,19 @@ function renderLine() {
   const mq = menuSearch.toLowerCase();
   const order = [];
   const groups = {};
-  C.menu.forEach((it, i) => {
+  menuList.forEach((it, i) => {
     if (mq && !((it.name || '') + ' ' + (it.category || '')).toLowerCase().includes(mq) && !openIds.has(it.id)) return;
     const k = it.category || 'No category';
     if (!groups[k]) { groups[k] = []; order.push(k); }
     groups[k].push(cardsArr[i]);
   });
   const noRecipe = C.menu.filter(m => !m.lines.length).length;
+  // sections stay in menu order (as printed); sorting applies to dishes inside each section
+  const menuOrder = []; C.menu.forEach(m => { const k = m.category || 'No category'; if (!menuOrder.includes(k)) menuOrder.push(k); });
+  order.sort((a, b) => menuOrder.indexOf(a) - menuOrder.indexOf(b));
   const grouped = order.map(k => `<h3 style="margin:18px 0 8px">${esc(k)} <span class="muted small">(${groups[k].length})</span></h3>${groups[k].join('')}`).join('');
   return `<div class="panel">
-    <div class="sec-h"><h2>Line Cooking${FEATURES.lineLocations ? '' : ' <span class="tag l">Issaquah</span>'}</h2><div class="toolbar" style="margin:0"><input type="search" placeholder="Search dishes" value="${esc(menuSearch)}" oninput="menuSearch=this.value;clearTimeout(window._mq);window._mq=setTimeout(()=>{render();const s=document.querySelector('#menuSearchBox');if(s){s.focus();s.setSelectionRange(s.value.length,s.value.length)}},250)" id="menuSearchBox"><button class="btn btn-white" onclick="openMenuPaste()">Paste menu</button><button class="btn btn-primary" onclick="addItem('menu')">+ Add menu item</button></div></div>
+    <div class="sec-h"><h2>Line Cooking${FEATURES.lineLocations ? '' : ' <span class="tag l">Issaquah</span>'}</h2><div class="toolbar" style="margin:0">${sortCtl('line')}<input type="search" placeholder="Search dishes" value="${esc(menuSearch)}" oninput="menuSearch=this.value;clearTimeout(window._mq);window._mq=setTimeout(()=>{render();const s=document.querySelector('#menuSearchBox');if(s){s.focus();s.setSelectionRange(s.value.length,s.value.length)}},250)" id="menuSearchBox"><button class="btn btn-white" onclick="openMenuPaste()">Paste menu</button><button class="btn btn-primary" onclick="addItem('menu')">+ Add menu item</button></div></div>
     <p class="desc">What the cook does when an order comes in: portions of one or more bulk items (for example 10 oz of Chicken Korma, priced from its cost per tray), bulk spices (for example 1 tsp of Garam Masala), and the extra ingredients added on the line. One bulk item can feed many dishes. To portion by weight, the bulk item needs its "1 tray weighs" box filled in. Food cost % here is food only; plate cost also includes line labor if you add it.</p>
     ${C.menu.length && noRecipe ? `<div class="small muted">${C.menu.length} dishes · ${noRecipe} without a recipe yet</div>` : ''}
     ${C.menu.length ? (grouped || '<div class="muted small" style="margin-top:12px">No match.</div>') : '<div class="muted small">No menu items yet. Use Paste menu to add your whole menu at once.</div>'}
@@ -954,6 +1006,107 @@ function applyMenuPaste() {
     else C.menu.push({ id: newId(), name: r.name, category: r.category, location: 'nnc-iss', price: r.price, lines: [], labor: [], notes: '' });
   });
   closeModal(); queueSave(); render(); toast(`Imported ${rows.length} dishes`);
+}
+
+// ===== QUARTERLY PRICING + MARKUP =====
+// C.pricing['2026-Q4'] = { defaultMarkup, items: { <bulkId>: { markupPct, lockedCost, lockedPrice } },
+//                          locked, lockedAt, lockedBy, notes }
+// While a quarter is open, prices follow today's recipe cost. Locking freezes cost and price
+// for the quarter so recipe or ingredient changes mid-quarter don't move what restaurants pay.
+function qKey(d) { return d.getFullYear() + '-Q' + (Math.floor(d.getMonth() / 3) + 1); }
+function qShift(k, by) { const [y, q] = k.split('-Q').map(Number); const i = y * 4 + (q - 1) + by; return Math.floor(i / 4) + '-Q' + (i % 4 + 1); }
+function qLabel(k) { const [y, q] = k.split('-Q').map(Number); const m = ['Jan–Mar', 'Apr–Jun', 'Jul–Sep', 'Oct–Dec'][q - 1]; return `Q${q} ${y} (${m})`; }
+function prevQuarterWith(k) { for (let i = 1; i <= 12; i++) { const p = qShift(k, -i); if (C.pricing[p]) return p; } return null; }
+function markupOf(Q, id) { const v = n(((Q.items || {})[id] || {}).markupPct); if (!isNaN(v)) return v; const d = n(Q.defaultMarkup); return isNaN(d) ? 0 : d; }
+function startQuarter(k) {
+  const prev = prevQuarterWith(k);
+  const P = prev ? C.pricing[prev] : null;
+  const items = {};
+  if (P) Object.entries(P.items || {}).forEach(([id, v]) => { if (v && v.markupPct !== '' && v.markupPct != null) items[id] = { markupPct: v.markupPct }; });
+  C.pricing[k] = { defaultMarkup: P ? P.defaultMarkup : 10, items, locked: false, notes: '' };
+  queueSave(); render();
+  if (P) toast('Markups copied from ' + qLabel(prev));
+}
+function lockQuarter(k) {
+  const Q = C.pricing[k]; if (!Q) return;
+  if (!confirmInline('lock-' + k)) return;
+  Q.items = Q.items || {};
+  let missing = 0;
+  C.bulk.forEach(b => {
+    const cost = batchCost(b).perUnit; const m = markupOf(Q, b.id);
+    const row = Q.items[b.id] = Object.assign({}, Q.items[b.id] || {});
+    if (cost == null || !(b.lines.length || b.labor.length)) { row.lockedCost = null; row.lockedPrice = null; missing++; }
+    else { row.lockedCost = r4(cost); row.lockedPrice = r4(cost * (1 + m / 100)); row.lockedMarkup = m; }
+    row.unit = nu(b.yieldUnit);
+  });
+  Q.locked = true; Q.lockedAt = new Date().toISOString(); Q.lockedBy = (auth.currentUser && auth.currentUser.email) || '';
+  queueSave(); render(); toast(`${qLabel(k)} prices locked${missing ? ` (${missing} items have no cost yet)` : ''}`);
+}
+function unlockQuarter(k) {
+  const Q = C.pricing[k]; if (!Q) return;
+  if (!confirmInline('unlock-' + k)) return;
+  Q.locked = false; Q.unlockedAt = new Date().toISOString(); queueSave(); render();
+}
+function r4(v) { return Math.round(v * 10000) / 10000; }
+function pricingQuarterNav(k) { pricingQ = k; render(); }
+function applyDefaultToAll(k) {
+  const Q = C.pricing[k]; if (!Q || Q.locked) return;
+  if (!confirmInline('def-' + k)) return;
+  Object.values(Q.items || {}).forEach(v => { v.markupPct = ''; });
+  queueSave(); render(); toast('Every item now uses the default markup');
+}
+function renderPricing() {
+  const k = pricingQ || qKey(new Date());
+  const Q = C.pricing[k];
+  const cur = qKey(new Date());
+  const nav = `<div class="toolbar" style="margin:0"><button class="btn btn-white btn-sm" onclick="pricingQuarterNav('${qShift(k, -1)}')">‹</button><span style="font-weight:700;min-width:170px;text-align:center">${qLabel(k)}${k === cur ? ' <span class="tag">current</span>' : ''}</span><button class="btn btn-white btn-sm" onclick="pricingQuarterNav('${qShift(k, 1)}')">›</button></div>`;
+  const head = `<div class="sec-h"><h2>Quarterly Pricing + Markup</h2><div class="toolbar" style="margin:0">${sortCtl('price')}${nav}</div></div>
+    <p class="desc">What Renton charges each restaurant for bulk items and spices/inputs, set once a quarter. Cost per unit comes from the recipes. Pick a markup for each item (or leave it blank to use the default), check the price, then lock the quarter. Locking freezes cost and price until next quarter, so recipe or ingredient changes mid-quarter don't move what restaurants pay. Every restaurant pays the same price.</p>`;
+  if (!Q) {
+    const prev = prevQuarterWith(k);
+    return `<div class="panel">${head}<div class="banner info">No pricing set for ${qLabel(k)} yet. <button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="startQuarter('${k}')">Start ${qLabel(k).split(' (')[0]} pricing</button>${prev ? ` <span class="small">Markups will be copied from ${qLabel(prev)}.</span>` : ''}</div></div>`;
+  }
+  const P = C.pricing[prevQuarterWith(k)] || null;
+  const L = !!Q.locked;
+  const row = b => {
+    const c = batchCost(b); const has = b.lines.length || b.labor.length;
+    const costNow = has ? c.perUnit : null;
+    const it = (Q.items || {})[b.id] || {};
+    const m = markupOf(Q, b.id);
+    const cost = L ? it.lockedCost : costNow;
+    const price = L ? it.lockedPrice : (costNow == null ? null : costNow * (1 + m / 100));
+    const prevPrice = P && P.locked && P.items && P.items[b.id] ? P.items[b.id].lockedPrice : null;
+    const chg = prevPrice > 0 && price != null ? price / prevPrice - 1 : null;
+    const drift = L && it.lockedCost > 0 && costNow != null ? costNow / it.lockedCost - 1 : null;
+    const u = esc(nu(b.yieldUnit) || 'unit');
+    return `<tr>
+      <td><b>${esc(b.name || '(unnamed)')}</b>${has ? '' : '<div class="warn-t">No recipe yet</div>'}</td>
+      <td>${u}</td>
+      <td class="num">${money4(cost)}${drift != null && Math.abs(drift) >= 0.005 ? `<div class="${drift > 0 ? 'err-t' : 'muted small'}">now ${money4(costNow)} (${drift > 0 ? '+' : ''}${(drift * 100).toFixed(1)}%)</div>` : ''}</td>
+      <td class="w-s">${L ? `<span>${fmt(it.lockedMarkup != null ? it.lockedMarkup : m, 1)}%</span>` : inp(`pricing.${k}.items.${b.id}.markupPct`, it.markupPct, { num: true, ph: fmt(n(Q.defaultMarkup) || 0, 1) })}</td>
+      <td class="num">${price == null ? '—' : money(price - cost)}</td>
+      <td class="num"><b>${money4(price)}</b><div class="muted small">per ${u}</div></td>
+      <td class="num">${prevPrice != null ? money4(prevPrice) : '<span class="muted small">—</span>'}</td>
+      <td class="num">${chg == null ? '<span class="muted small">—</span>' : `<span class="${chg > 0 ? 'err-t' : 'muted small'}" style="font-size:.85rem">${chg > 0 ? '+' : ''}${(chg * 100).toFixed(1)}%</span>`}</td>
+    </tr>`;
+  };
+  const table = (title, list) => list.length ? `<h3>${title} <span class="muted small">(${list.length})</span></h3><div class="table-box"><table class="t" style="min-width:820px">
+    <thead><tr><th>Item</th><th>Unit</th><th class="num">${L ? 'Locked cost' : 'Cost now'}</th><th>Markup %</th><th class="num">Markup $</th><th class="num">Price charged</th><th class="num">Last quarter</th><th class="num">Change</th></tr></thead>
+    <tbody>${list.map(row).join('')}</tbody></table></div>` : '';
+  const bulk = ord(C.bulk.filter(b => b.group !== 'spice'), 'price'), spice = ord(C.bulk.filter(b => b.group === 'spice'), 'price');
+  const noCost = C.bulk.filter(b => !(b.lines.length || b.labor.length)).length;
+  return `<div class="panel">${head}
+    <div class="fgrid" style="align-items:end">
+      <div class="ff"><label>Default markup %</label>${inp(`pricing.${k}.defaultMarkup`, Q.defaultMarkup, { num: true, ph: '10', disabled: L })}</div>
+      <div class="ff"><label>Status</label><div style="min-height:38px;display:flex;align-items:center;gap:8px">${L ? `<span class="tag" style="background:#dcfce7;color:#166534">Locked</span><span class="small muted">${esc(new Date(Q.lockedAt).toLocaleDateString())}</span>` : '<span class="tag stale">Draft, prices follow today\'s costs</span>'}</div></div>
+      <div class="ff"><label>&nbsp;</label><div style="display:flex;gap:8px;flex-wrap:wrap">${L ? `<button class="btn btn-white" onclick="unlockQuarter('${k}')">Unlock to change</button>` : `<button class="btn btn-white" onclick="applyDefaultToAll('${k}')">Reset all to default</button><button class="btn btn-primary" onclick="lockQuarter('${k}')">Lock ${qLabel(k).split(' (')[0]} prices</button>`}</div></div>
+    </div>
+    ${!L && noCost ? `<div class="banner warn" style="margin-top:12px">${noCost} item${noCost > 1 ? 's have' : ' has'} no recipe yet, so no price. Finish those before you lock, or they'll be locked with no price.</div>` : ''}
+    ${L ? `<div class="banner info" style="margin-top:12px">Locked. Prices stay as shown for the quarter. If today's cost has moved, it shows under the locked cost so you can decide at the next review.</div>` : ''}
+    ${table('Bulk Cooking', bulk)}
+    ${table('Bulk Spices/Input', spice)}
+    <div class="ff" style="margin-top:14px"><label>Notes for this quarter</label>${inp(`pricing.${k}.notes`, Q.notes, { ph: 'e.g. Raised chicken items 5% after supplier increase' })}</div>
+  </div>`;
 }
 
 // ===== RATES =====
