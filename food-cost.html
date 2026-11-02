@@ -276,6 +276,10 @@ let loadedRev = 0;
 let INV = null;          // invoice draft for the selected month
 let dailyItems = [];     // kitchen items from config/settings
 let staffRates = {};     // delivery_config/rates.staff
+let vanRates = {};       // delivery_config/rates.vehicles {base, addon} $/mile
+let routeStats = {};     // 'Issaquah → Renton' -> {trips, avg, avgMin, avgMiles} from deliveries (last N days)
+let routeLoadErr = '';
+const IRS_RATE = 0.76;   // same default $/mile as delivery-data.html
 let tab = 'ing';
 let openIds = new Set();
 let ingSearch = '';
@@ -406,20 +410,28 @@ function lineCost(line, depth = 0) {
 }
 function laborRate(l, loc) { const o = n(l.rate); if (!isNaN(o)) return o; const r = n((C.settings.laborRates || {})[l.location || loc]); return isNaN(r) ? null : r; }
 // labor cost split by where each task is done, e.g. {'nnc-iss': 12.5, 'nnc-renton': 30}
-function laborByLoc(it) { const o = {}; (it.labor || []).forEach(l => { const k = l.location || it.location; o[k] = (o[k] || 0) + laborCost(l, it.location); }); return o; }
-function laborLocNote(it) { const locs = Object.keys(laborByLoc(it)).filter(k => k !== it.location); return locs.length ? ' · labor also at ' + locs.map(k => esc(LOCS[k] || k)).join(', ') : ''; }
+function laborByLoc(it) { const o = {}; (it.labor || []).filter(l => l.type !== 'transport').forEach(l => { const k = l.location || it.location; o[k] = (o[k] || 0) + laborCost(l, it.location); }); return o; }
+function laborLocNote(it) { const locs = Object.keys(laborByLoc(it)).filter(k => k !== it.location); const tr = (it.labor || []).some(l => l.type === 'transport'); return (locs.length ? ' · labor also at ' + locs.map(k => esc(LOCS[k] || k)).join(', ') : '') + (tr ? ' · includes transport' : ''); }
 function laborCost(l, loc) {
+  if (l.type === 'transport') return transportCost(l);
   const m = n(l.minutes); if (isNaN(m)) return 0;
   const p = n(l.people); const r = laborRate(l, loc);
   return r == null ? 0 : m / 60 * (isNaN(p) || p <= 0 ? 1 : p) * r;
 }
 function batchCost(it, depth = 0) {
-  let ing = 0, lab = 0; const warns = [];
+  let ing = 0, lab = 0, trans = 0; const warns = [];
   (it.lines || []).forEach(l => { const c = lineCost(l, depth); ing += c.cost; if (c.err) warns.push(c.err); else if (c.warn) warns.push(c.warn); });
-  (it.labor || []).forEach(l => { lab += laborCost(l, it.location); if (!isNaN(n(l.minutes)) && laborRate(l, it.location) == null) warns.push(`No labor rate for ${LOCS[l.location || it.location] || 'this location'} (Rates tab)`); });
-  const total = ing + lab;
+  (it.labor || []).forEach(l => {
+    if (l.type === 'transport') {
+      trans += transportCost(l);
+      if (!isNaN(n(l.share)) && tripAvg(l) == null) warns.push(`No delivery cost yet for ${l.route || 'the transport line'}: no trips with full times, miles and wages, so type a $/trip`);
+      return;
+    }
+    lab += laborCost(l, it.location); if (!isNaN(n(l.minutes)) && laborRate(l, it.location) == null) warns.push(`No labor rate for ${LOCS[l.location || it.location] || 'this location'} (Rates tab)`);
+  });
+  const total = ing + lab + trans;
   const y = n(it.yieldQty);
-  return { ing, lab, total, perUnit: it.yieldQty === undefined ? total : (y > 0 ? total / y : null), warns: [...new Set(warns)] };
+  return { ing, lab, trans, total, perUnit: it.yieldQty === undefined ? total : (y > 0 ? total / y : null), warns: [...new Set(warns)] };
 }
 function menuCost(it) { const c = batchCost(Object.assign({}, it, { yieldQty: 1 })); const p = n(it.price); c.price = p; c.fcPct = p > 0 ? c.ing / p : null; return c; } // fcPct = food only, labor excluded
 // Cost of 1 unit of `unit` for a ref (e.g. per lb for a tray item)
@@ -477,12 +489,14 @@ async function loadAll() {
   try {
     const r = await db.collection('delivery_config').doc('rates').get();
     staffRates = (r.exists && r.data().staff) || {};
+    vanRates = (r.exists && r.data().vehicles) || {};
   } catch (e) { console.warn('staff rates', e); }
   try {
     const mk = await db.collection('inventory_config').doc('frozen_nnc-iss').get();
     const its = mk.exists && Array.isArray(mk.data().items) ? mk.data().items.filter(i => i.subCategory === 'spices') : [];
     if (its.length) mkSpices = its.map(i => ({ id: i.id || '', name: i.name || '' })).filter(i => i.name);
   } catch (e) { console.warn('main kitchen spices', e); }
+  await loadRouteStats();
   tab = new URLSearchParams(location.search).get('tab') || ls('nnc.foodcost.tab') || 'bulk';
   try { sorts = JSON.parse(ls('nnc.foodcost.sorts') || '{}') || {}; } catch (e) { sorts = {}; }
   try { ingCollapsed = new Set(JSON.parse(ls('nnc.foodcost.ingCollapsed') || '[]')); } catch (e) { ingCollapsed = new Set(); }
@@ -589,6 +603,16 @@ document.addEventListener('change', e => {
       }
     }
   }
+  if (/\.labor\.\d+\.location$/.test(p)) {
+    const l = res.obj;
+    if (v === 'transport') {
+      l.type = 'transport'; l.location = '';
+      if (!l.route) { const it = (C.bulk.find(b => p.startsWith('bulk.' + b.id + '.')) || {}); const from = (LOCS[it.location] || '').toLowerCase(); const ks = Object.keys(routeStats); l.route = ks.find(k => k.toLowerCase().startsWith(from + ' →')) || ks[0] || ''; }
+      if (l.share == null) l.share = '';
+    } else if (l.type === 'transport') { delete l.type; l.rate = ''; }
+  }
+  if (p === 'settings.transportDays') { loadRouteStats().then(render); }
+  if (/^bulk\.[^.]+\.group$/.test(p)) { res.obj.groupSet = true; toast(`${res.obj.name || 'Item'} moved to ${v ? 'Bulk Raw Inputs: ' + rawLabel(v) : 'Bulk Cooking'}`); }
   if (/\.lines\.\d+\.ref$/.test(p)) { _memo = {}; const u = unitInfo(v); res.obj.unit = u && !u.missing ? u.base : ''; }
   if (p.startsWith('inv.')) queueInvoiceSave(); else queueSave();
   rerenderKeepFocus();
@@ -678,6 +702,7 @@ function dupItem(t, id) {
 function addLine(t, id, key) {
   const it = listFor(t).find(x => x.id === id); if (!it) return;
   if (key === 'labor') it.labor.push({ task: '', minutes: '', people: 1, rate: '' });
+  else if (key === 'transport') { key = 'labor'; const from = (LOCS[it.location] || '').toLowerCase(); const ks = Object.keys(routeStats); const r = ks.find(k => k.toLowerCase().startsWith(from + ' →')) || ks[0] || ''; it.labor.push({ type: 'transport', task: 'Delivery run', route: r, share: '', rate: '' }); }
   else it.lines.push({ ref: '', qty: '', unit: '' });
   queueSave(); render();
   setTimeout(() => { const i = (key === 'labor' ? it.labor : it.lines).length - 1; const el = document.getElementById(fid(`${t}.${id}.${key}.${i}.${key === 'labor' ? 'task' : 'ref'}`)); if (el) el.focus(); }, 30);
@@ -873,28 +898,49 @@ function linesTable(t, it, types, title) {
   </table></div>
   <button class="btn-link" onclick="addLine('${t}','${it.id}','lines')">+ Add line</button>`;
 }
+// Cost center = where a task's cost lands: a location (labor at that location's rate) or Transport
+// (a delivery run, priced from Delivery Data).
+function costCenterSel(L, l, it) {
+  const val = l.type === 'transport' ? 'transport' : (l.location || '');
+  return `<select id="${fid(L + '.location')}" data-p="${L}.location">${opts([['', 'Same (' + (LOCS[it.location] || '') + ')'], ...Object.entries(LOCS), ['transport', 'Transport']], val)}</select>`;
+}
 function laborTable(t, it, title) {
   const P = `${t}.${it.id}`;
   const def = laborRate({}, it.location);
-  const showLoc = t === 'bulk';
-  const rows = it.labor.map((l, i) => { const lr = laborRate(Object.assign({}, l, { rate: '' }), it.location); return `<tr>
-      <td style="min-width:180px">${inp(P + '.labor.' + i + '.task', l.task, { ph: 'e.g. Cook, portion into trays' })}</td>
-      ${showLoc ? `<td style="width:150px"><select id="${fid(P + '.labor.' + i + '.location')}" data-p="${P}.labor.${i}.location">${opts([['', 'Same (' + (LOCS[it.location] || '') + ')'], ...Object.entries(LOCS)], l.location || '')}</select></td>` : ''}
-      <td class="w-s">${inp(P + '.labor.' + i + '.minutes', l.minutes, { num: true, ph: 'min' })}</td>
-      <td class="w-xs">${inp(P + '.labor.' + i + '.people', l.people, { num: true, ph: '1' })}</td>
-      <td class="w-s">${inp(P + '.labor.' + i + '.rate', l.rate, { num: true, ph: lr == null ? 'set rate' : '$' + lr })}</td>
-      <td class="num">${money(laborCost(l, it.location))}</td>
-      <td style="width:40px"><button class="btn-x" title="Remove" onclick="delLine('${t}','${it.id}','labor',${i})">✕</button></td>
-    </tr>`; }).join('');
+  const showCC = t === 'bulk';
+  const routes = Object.keys(routeStats).sort();
+  const rows = it.labor.map((l, i) => {
+    const L = P + '.labor.' + i;
+    const del = `<td style="width:40px"><button class="btn-x" title="Remove" onclick="delLine('${t}','${it.id}','labor',${i})">✕</button></td>`;
+    if (l.type === 'transport') {
+      const st = routeStats[l.route];
+      const rOpts = [...new Set([...routes, ...(l.route ? [l.route] : [])])];
+      return `<tr style="background:#f8fafc">
+      <td style="min-width:180px">${inp(L + '.task', l.task, { ph: 'e.g. Issaquah to Renton run' })}</td>
+      <td style="width:150px">${costCenterSel(L, l, it)}</td>
+      <td colspan="2"><div class="eq" style="flex-wrap:wrap"><select id="${fid(L + '.route')}" data-p="${L}.route" style="width:170px">${opts([['', rOpts.length ? 'Choose route…' : 'No trips logged yet'], ...rOpts.map(r => [r, r])], l.route || '')}</select>${inp(L + '.share', l.share, { num: true, ph: '%', style: 'width:64px' })}<span class="small muted">% of trip</span></div></td>
+      <td class="w-s">${inp(L + '.rate', l.rate, { num: true, ph: st && st.avg != null ? '$' + st.avg.toFixed(2) : '$/trip' })}<div class="muted small" style="white-space:nowrap">${st && st.avg != null ? `avg of ${st.trips} trip${st.trips > 1 ? 's' : ''}` : 'per trip'}</div></td>
+      <td class="num">${money(transportCost(l))}</td>${del}</tr>`;
+    }
+    const lr = laborRate(Object.assign({}, l, { rate: '' }), it.location);
+    return `<tr>
+      <td style="min-width:180px">${inp(L + '.task', l.task, { ph: 'e.g. Cook, portion into trays' })}</td>
+      ${showCC ? `<td style="width:150px">${costCenterSel(L, l, it)}</td>` : ''}
+      <td class="w-s">${inp(L + '.minutes', l.minutes, { num: true, ph: 'min' })}</td>
+      <td class="w-xs">${inp(L + '.people', l.people, { num: true, ph: '1' })}</td>
+      <td class="w-s">${inp(L + '.rate', l.rate, { num: true, ph: lr == null ? 'set rate' : '$' + lr })}</td>
+      <td class="num">${money(laborCost(l, it.location))}</td>${del}</tr>`;
+  }).join('');
   const byLoc = laborByLoc(it); const locKeys = Object.keys(byLoc);
   const total = it.labor.reduce((s, l) => s + laborCost(l, it.location), 0);
-  const mins = it.labor.reduce((s, l) => s + (n(l.minutes) || 0) * (n(l.people) > 0 ? n(l.people) : 1), 0);
-  return `<h3>${title}</h3><div class="table-box"><table class="t">
-    <thead><tr><th>Task</th>${showLoc ? '<th>Done at</th>' : ''}<th class="num">Minutes</th><th class="num">People</th><th class="num">$/hr</th><th class="num">Cost</th><th></th></tr></thead>
-    <tbody>${rows || `<tr><td colspan="${showLoc ? 7 : 6}" class="muted small" style="padding:12px">No labor added. Leave the $/hr blank to use the ${esc(LOCS[it.location] || '')} rate${def == null ? ' (not set yet, see Rates tab)' : ' ($' + def + '/hr)'}.</td></tr>`}</tbody>
-    ${rows ? `<tfoot><tr><td>Total</td>${showLoc ? '<td></td>' : ''}<td class="num">${fmt(mins / 60)} staff hrs</td><td></td><td></td><td class="num">${money(total)}</td><td></td></tr></tfoot>` : ''}
+  const trans = it.labor.filter(l => l.type === 'transport').reduce((s, l) => s + transportCost(l), 0);
+  const mins = it.labor.filter(l => l.type !== 'transport').reduce((s, l) => s + (n(l.minutes) || 0) * (n(l.people) > 0 ? n(l.people) : 1), 0);
+  return `<h3>${showCC ? 'Labor & transport (one batch)' : title}</h3><div class="table-box"><table class="t">
+    <thead><tr><th>Task</th>${showCC ? '<th>Cost center</th>' : ''}<th class="num">Minutes</th><th class="num">People</th><th class="num">$/hr</th><th class="num">Cost</th><th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="${showCC ? 7 : 6}" class="muted small" style="padding:12px">Nothing added. Leave the $/hr blank to use the ${esc(LOCS[it.location] || '')} rate${def == null ? ' (not set yet, see Rates tab)' : ' ($' + def + '/hr)'}.${showCC ? ' Pick Transport as the cost center to add a delivery run.' : ''}</td></tr>`}</tbody>
+    ${rows ? `<tfoot><tr><td>Total</td>${showCC ? '<td></td>' : ''}<td class="num">${fmt(mins / 60)} staff hrs</td><td></td><td></td><td class="num">${money(total)}</td><td></td></tr></tfoot>` : ''}
   </table></div>
-  ${showLoc && locKeys.length > 1 ? `<div class="small" style="margin-top:6px;color:var(--gray-700)">Labor by location: ${locKeys.map(k => `<b>${esc(LOCS[k] || k)}</b> ${money(byLoc[k])}`).join(' · ')}</div>` : ''}
+  ${showCC && (locKeys.length > 1 || trans) ? `<div class="small" style="margin-top:6px;color:var(--gray-700)">By cost center: ${locKeys.map(k => `<b>${esc(LOCS[k] || k)}</b> ${money(byLoc[k])}`).join(' · ')}${trans ? `${locKeys.length ? ' · ' : ''}<b>Transport</b> ${money(trans)}` : ''}</div>` : ''}
   <button class="btn-link" onclick="addLine('${t}','${it.id}','labor')">+ Add task</button>`;
 }
 function warnList(c) { return c.warns.length ? `<div class="banner warn" style="margin-top:12px">${c.warns.map(esc).join('<br>')}</div>` : ''; }
@@ -948,7 +994,7 @@ function renderBulk(view) {
     const body = `<div class="fgrid">
         <div class="ff"><label>Name</label>${inp(P + '.name', it.name, { ph: 'e.g. Chicken Korma' })}</div>
         <div class="ff"><label>${isRaw(it) ? 'Made at' : 'Cooked at'}</label>${sel(P + '.location', it.location, locOpts(it.location))}</div>
-        ${isRaw(it) ? `<div class="ff"><label>Section</label>${sel(P + '.group', it.group, opts(RAW_GROUPS.map(g => [g[0], g[1]]), it.group))}</div>` : ''}
+        <div class="ff"><label>Section</label>${sel(P + '.group', it.group || '', opts([['', 'Bulk Cooking'], ...RAW_GROUPS.map(g => [g[0], 'Raw inputs: ' + g[1]])], it.group || ''))}</div>
         ${isRaw(it) ? '' : `<div class="ff"><label>Daily order item</label>${sel(P + '.dailyId', it.dailyId || '', dOpts)}</div>`}
         ${yieldBlock('bulk', it)}
       </div>
@@ -956,7 +1002,7 @@ function renderBulk(view) {
       ${FEATURES.billing && linked[it.dailyId] > 1 ? `<div class="banner warn" style="margin-top:10px">Another bulk item is linked to the same daily order item. Billing will count it twice.</div>` : ''}
       ${linesTable('bulk', it, ['ing', 'prep', 'bulk'], 'What goes in (one batch)')}
       ${laborTable('bulk', it, 'Labor (one batch)')}
-      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div><div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${altOf(it) ? `<div class="tot"><div class="k">Per ${esc(nu(it.altUnit))}</div><div class="v">${money4(c.perUnit == null ? null : c.perUnit / n(it.altQty))}</div></div>` : ''}<div class="tot"><div class="k">Labor share</div><div class="v">${pct(c.total ? c.lab / c.total : null)}</div></div></div>
+      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div>${c.trans ? `<div class="tot"><div class="k">Transport</div><div class="v">${money(c.trans)}</div></div>` : ''}<div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${altOf(it) ? `<div class="tot"><div class="k">Per ${esc(nu(it.altUnit))}</div><div class="v">${money4(c.perUnit == null ? null : c.perUnit / n(it.altQty))}</div></div>` : ''}<div class="tot"><div class="k">Labor share</div><div class="v">${pct(c.total ? c.lab / c.total : null)}</div></div></div>
       ${warnList(c)}
       <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
       <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('bulk','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('bulk','${it.id}')">Delete</button></div>`;
@@ -1190,6 +1236,13 @@ function renderRates() {
     <div class="fgrid">${Object.entries(LOCS).map(([k, l]) => `<div class="ff"><label>${l} $/hr</label>${inp('settings.laborRates.' + k, S.laborRates[k], { num: true, ph: 'e.g. 24.50' })}</div>`).join('')}</div>
     ${FEATURES.billing ? `<p class="desc" style="margin-top:12px">For the monthly chicken bill, actual logged prep time uses each person's own rate from Delivery Data when they have one (${withRate.length} staff with a wage there), and the Issaquah rate above for everyone else.</p>` : ''}
   </div>
+  <div class="panel">
+    <div class="sec-h"><h2>Transport (from Delivery Data)</h2><button class="btn btn-white btn-sm" onclick="refreshRoutes()">Refresh</button></div>
+    <p class="desc">Average cost of one delivery run on each route, using the same math as Delivery Data: shift time × driver and helper rates, plus miles × the van's $/mile. Only trips with both times, both odometer readings and wages for everyone are counted. Any task with Transport as its cost center uses this average times the share of the trip you enter.</p>
+    <div class="fgrid" style="margin-bottom:12px"><div class="ff"><label>Average over the last (days)</label>${inp('settings.transportDays', S.transportDays, { num: true, ph: '90' })}</div></div>
+    ${routeLoadErr ? `<div class="banner warn">Couldn't read deliveries: ${esc(routeLoadErr)}</div>` : ''}
+    ${Object.keys(routeStats).length ? `<div class="table-box"><table class="t"><thead><tr><th>Route</th><th class="num">Trips counted</th><th class="num">Avg cost / trip</th><th class="num">Avg time</th><th class="num">Avg miles</th><th class="num">Not counted</th></tr></thead><tbody>${Object.entries(routeStats).sort().map(([k, st]) => `<tr><td><b>${esc(k)}</b></td><td class="num">${st.trips}</td><td class="num"><b>${money(st.avg)}</b></td><td class="num">${st.avgMin != null ? Math.round(st.avgMin) + ' min' : '—'}</td><td class="num">${st.avgMiles != null ? fmt(st.avgMiles, 1) : '—'}</td><td class="num">${st.skipped ? `<span class="warn-t">${st.skipped}</span>` : '0'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="muted small">No delivery trips in this period yet.</div>'}
+  </div>
   ${FEATURES.billing ? `<div class="panel">
     <h2>Billing</h2>
     <div class="fgrid">
@@ -1254,6 +1307,37 @@ async function loadMonth(m, force) {
   return out;
 }
 function defaultInvoice(m) { return { month: m, opts: { basis: 'delivered', chickenBasis: 'actual', includeKorma: true, includeClean: false }, manual: { rentonToIss: [], issToRenton: [] }, snapshots: [] }; }
+// ---- transport: average delivery cost per route, same math as delivery-data.html calc() ----
+function vanPerMile(v) { const r = vanRates[v]; const b = r && !isNaN(n(r.base)) ? n(r.base) : IRS_RATE; const a = r && !isNaN(n(r.addon)) ? n(r.addon) : 0; return b + a; }
+function tripCost(run) {
+  const s = run.stamps || {}; const t = k => (s[k] && s[k].t) || null;
+  const start = t('shiftStart'), end = t('shiftEnd');
+  const minutes = start && end ? (end - start) / 60000 : null;
+  const miles = run.odoStart != null && run.odoEnd != null ? run.odoEnd - run.odoStart : null;
+  const dr = staffRate(run.driverName); const hr = run.helperName ? staffRate(run.helperName) : 0;
+  if (minutes == null || miles == null || dr == null || hr == null) return null;
+  return { total: minutes / 60 * (dr + hr) + miles * vanPerMile(run.vehicle), minutes, miles };
+}
+function routeKey(a, b) { return (a || '?') + ' → ' + (b || '?'); }
+async function loadRouteStats() {
+  const days = n(C.settings.transportDays) > 0 ? n(C.settings.transportDays) : 90;
+  const from = dk(addDays(new Date(), -days));
+  routeStats = {}; routeLoadErr = '';
+  try {
+    const snap = await db.collection('deliveries').where('date', '>=', from).get();
+    const acc = {};
+    snap.forEach(d => {
+      const r = d.data(); if (r.status === 'open') return;
+      const k = routeKey(r.origin, r.dest); const a = acc[k] = acc[k] || { trips: 0, skipped: 0, sum: 0, min: 0, mi: 0 };
+      const c = tripCost(r); if (!c) { a.skipped++; return; }
+      a.trips++; a.sum += c.total; a.min += c.minutes; a.mi += c.miles;
+    });
+    Object.entries(acc).forEach(([k, a]) => { routeStats[k] = { trips: a.trips, skipped: a.skipped, avg: a.trips ? a.sum / a.trips : null, avgMin: a.trips ? a.min / a.trips : null, avgMiles: a.trips ? a.mi / a.trips : null }; });
+  } catch (e) { console.warn('deliveries', e); routeLoadErr = e.code || e.message; }
+}
+function tripAvg(l) { const o = n(l.rate); if (!isNaN(o)) return o; const st = routeStats[l.route]; return st && st.avg != null ? st.avg : null; }
+function transportCost(l) { const sh = n(l.share); const a = tripAvg(l); return isNaN(sh) || a == null ? 0 : a * sh / 100; }
+async function refreshRoutes() { await loadRouteStats(); render(); toast('Delivery costs refreshed'); }
 function staffRate(name) { const r = staffRates[name]; if (!r) return null; const w = n(r.wage); if (isNaN(w)) return null; const l = n(r.load); return w * (1 + (isNaN(l) ? 0 : l) / 100); }
 
 function calcRentonToIss(m, data) {
