@@ -221,27 +221,35 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
     <div class="section-body">
       <div class="form-row">
         <label>Raw - White (from line):<span class="hint">Manual entry</span></label>
-        <input type="number" id="raw_white_line" min="0" step="0.5" oninput="calcTikkaRaw()">
+        <input type="number" id="raw_white_line" min="0" step="any" oninput="calcTikkaRaw()">
       </div>
       <div class="form-row">
         <label>Raw - Dark (from line):<span class="hint">Manual entry</span></label>
-        <input type="number" id="raw_dark_line" min="0" step="0.5" oninput="calcTikkaRaw()">
+        <input type="number" id="raw_dark_line" min="0" step="any" oninput="calcTikkaRaw()">
       </div>
       <div class="form-row">
         <label>Raw Bulk - White:<span class="hint">Manual entry</span></label>
-        <input type="number" id="raw_bulk_white" min="0" step="0.5" oninput="calcTikkaRaw()">
+        <input type="number" id="raw_bulk_white" min="0" step="any" oninput="calcTikkaRaw()">
       </div>
       <div class="form-row">
         <label>Raw Bulk - Dark:<span class="hint">Manual entry</span></label>
-        <input type="number" id="raw_bulk_dark" min="0" step="0.5" oninput="calcTikkaRaw()">
+        <input type="number" id="raw_bulk_dark" min="0" step="any" oninput="calcTikkaRaw()">
       </div>
       <div class="form-row">
         <label>Renton - Dark Raw:<span class="hint">Manual entry</span></label>
-        <input type="number" id="renton_dark_raw" min="0" step="0.5" oninput="calcTikkaRaw()">
+        <input type="number" id="renton_dark_raw" min="0" step="any" oninput="calcTikkaRaw()">
       </div>
       <div class="form-row">
         <label>Renton - White Raw:<span class="hint">Manual entry</span></label>
-        <input type="number" id="renton_white_raw" min="0" step="0.5" oninput="calcTikkaRaw()">
+        <input type="number" id="renton_white_raw" min="0" step="any" oninput="calcTikkaRaw()">
+      </div>
+      <div class="form-row">
+        <label>Bellevue - Dark Raw:<span class="hint">Manual entry</span></label>
+        <input type="number" id="bellevue_dark_raw" min="0" step="any" oninput="calcTikkaRaw()">
+      </div>
+      <div class="form-row">
+        <label>Bellevue - White Raw:<span class="hint">Manual entry</span></label>
+        <input type="number" id="bellevue_white_raw" min="0" step="any" oninput="calcTikkaRaw()">
       </div>
       <hr class="divider">
       <div class="totals-row">
@@ -257,27 +265,35 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
     <div class="section-body">
       <div class="form-row">
         <label>Cooked - White (from line):<span class="hint">Manual entry</span></label>
-        <input type="number" id="cooked_white_line" min="0" step="0.5" oninput="calcTikkaCooked()">
+        <input type="number" id="cooked_white_line" min="0" step="any" oninput="calcTikkaCooked()">
       </div>
       <div class="form-row">
         <label>Cooked - Dark (from line):<span class="hint">Manual entry</span></label>
-        <input type="number" id="cooked_dark_line" min="0" step="0.5" oninput="calcTikkaCooked()">
+        <input type="number" id="cooked_dark_line" min="0" step="any" oninput="calcTikkaCooked()">
       </div>
       <div class="form-row">
         <label>Cooked Bulk - White:<span class="hint">Manual entry</span></label>
-        <input type="number" id="cooked_bulk_white" min="0" step="0.5" oninput="calcTikkaCooked()">
+        <input type="number" id="cooked_bulk_white" min="0" step="any" oninput="calcTikkaCooked()">
       </div>
       <div class="form-row">
         <label>Cooked Bulk - Dark:<span class="hint">Manual entry</span></label>
-        <input type="number" id="cooked_bulk_dark" min="0" step="0.5" oninput="calcTikkaCooked()">
+        <input type="number" id="cooked_bulk_dark" min="0" step="any" oninput="calcTikkaCooked()">
       </div>
       <div class="form-row">
         <label>Renton - Dark Cooked:<span class="hint">Manual entry</span></label>
-        <input type="number" id="renton_dark_cooked" min="0" step="0.5" oninput="calcTikkaCooked()">
+        <input type="number" id="renton_dark_cooked" min="0" step="any" oninput="calcTikkaCooked()">
       </div>
       <div class="form-row">
         <label>Renton - White Cooked:<span class="hint">Manual entry</span></label>
-        <input type="number" id="renton_white_cooked" min="0" step="0.5" oninput="calcTikkaCooked()">
+        <input type="number" id="renton_white_cooked" min="0" step="any" oninput="calcTikkaCooked()">
+      </div>
+      <div class="form-row">
+        <label>Bellevue - Dark Cooked:<span class="hint">Manual entry</span></label>
+        <input type="number" id="bellevue_dark_cooked" min="0" step="any" oninput="calcTikkaCooked()">
+      </div>
+      <div class="form-row">
+        <label>Bellevue - White Cooked:<span class="hint">Manual entry</span></label>
+        <input type="number" id="bellevue_white_cooked" min="0" step="any" oninput="calcTikkaCooked()">
       </div>
       <hr class="divider">
       <div class="totals-row">
@@ -293,11 +309,11 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
     <div class="section-body">
       <div class="form-row">
         <label>Cut Dark (lbs):<span class="hint">Manual entry</span></label>
-        <input type="number" id="cut_dark" min="0" step="0.5" oninput="calcTikkaCutting()">
+        <input type="number" id="cut_dark" min="0" step="any" oninput="calcTikkaCutting()">
       </div>
       <div class="form-row">
         <label>Dark Wastage (oz):<span class="hint">Manual entry</span></label>
-        <input type="number" id="dark_wastage_oz" min="0" step="0.1" oninput="calcTikkaCutting()">
+        <input type="number" id="dark_wastage_oz" min="0" step="any" oninput="calcTikkaCutting()">
       </div>
       <div class="totals-row">
         <label>Total Dark (lbs):</label>
@@ -306,11 +322,11 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
       <hr class="divider">
       <div class="form-row">
         <label>Cut White (lbs):<span class="hint">Manual entry</span></label>
-        <input type="number" id="cut_white" min="0" step="0.5" oninput="calcTikkaCutting()">
+        <input type="number" id="cut_white" min="0" step="any" oninput="calcTikkaCutting()">
       </div>
       <div class="form-row">
         <label>White Wastage (oz):<span class="hint">Manual entry</span></label>
-        <input type="number" id="white_wastage_oz" min="0" step="0.1" oninput="calcTikkaCutting()">
+        <input type="number" id="white_wastage_oz" min="0" step="any" oninput="calcTikkaCutting()">
       </div>
       <div class="totals-row">
         <label>Total White (lbs):</label>
@@ -411,7 +427,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="toast" id="toast"></div>
 
 <script src="shared.js?v=20261029"></script>
-<script src="prep-sessions.js?v=20261030"></script>
+<script src="prep-sessions.js?v=20261030c"></script>
 <script>
 // ==================== STATE ====================
 let currentDate = new Date();
@@ -435,12 +451,16 @@ const FIELD_DEFS = [
   { key: 'raw_bulk_dark', label: 'Raw Bulk Dark', color: '#fed7aa', default: false },
   { key: 'renton_dark_raw', label: 'Renton Dark Raw', color: '#c4b5fd', default: false },
   { key: 'renton_white_raw', label: 'Renton White Raw', color: '#bfdbfe', default: false },
+  { key: 'bellevue_dark_raw', label: 'Bellevue Dark Raw', color: '#fda4af', default: false },
+  { key: 'bellevue_white_raw', label: 'Bellevue White Raw', color: '#99f6e4', default: false },
   { key: 'cooked_white_line', label: 'Cooked White Line', color: '#a3e635', default: false },
   { key: 'cooked_dark_line', label: 'Cooked Dark Line', color: '#fbbf24', default: false },
   { key: 'cooked_bulk_white', label: 'Cooked Bulk White', color: '#4ade80', default: false },
   { key: 'cooked_bulk_dark', label: 'Cooked Bulk Dark', color: '#f59e0b', default: false },
   { key: 'renton_dark_cooked', label: 'Renton Dark Cooked', color: '#d8b4fe', default: false },
   { key: 'renton_white_cooked', label: 'Renton White Cooked', color: '#dbeafe', default: false },
+  { key: 'bellevue_dark_cooked', label: 'Bellevue Dark Cooked', color: '#fb7185', default: false },
+  { key: 'bellevue_white_cooked', label: 'Bellevue White Cooked', color: '#5eead4', default: false },
   { key: 'cut_dark', label: 'Cut Dark', color: '#a78bfa', default: false },
   { key: 'dark_wastage_oz', label: 'Dark Wastage (oz)', color: '#e0e7ff', default: false },
   { key: 'cut_white', label: 'Cut White', color: '#7dd3fc', default: false },
@@ -531,6 +551,7 @@ function setDate(d) {
   loadDayData().then(() => PrepSessions.reapply());
   loadWeekData();
   PrepSessions.loadAll();
+  loadTikkaPrevDay();
 }
 
 function changeDate(delta) { const d = new Date(currentDate); d.setDate(d.getDate()+delta); setDate(d); }
@@ -554,8 +575,9 @@ function calcTikkaRaw() {
   const renton_dark_raw = num('renton_dark_raw');
   const renton_white_raw = num('renton_white_raw');
 
-  const total = raw_white_line + raw_dark_line + raw_bulk_white + raw_bulk_dark + renton_dark_raw + renton_white_raw;
-  document.getElementById('total_raw').textContent = total;
+  const total = raw_white_line + raw_dark_line + raw_bulk_white + raw_bulk_dark + renton_dark_raw + renton_white_raw
+    + num('bellevue_dark_raw') + num('bellevue_white_raw');
+  document.getElementById('total_raw').textContent = Math.round(total * 100) / 100;
 }
 
 function calcTikkaCooked() {
@@ -566,8 +588,9 @@ function calcTikkaCooked() {
   const renton_dark_cooked = num('renton_dark_cooked');
   const renton_white_cooked = num('renton_white_cooked');
 
-  const total = cooked_white_line + cooked_dark_line + cooked_bulk_white + cooked_bulk_dark + renton_dark_cooked + renton_white_cooked;
-  document.getElementById('total_cooked').textContent = total;
+  const total = cooked_white_line + cooked_dark_line + cooked_bulk_white + cooked_bulk_dark + renton_dark_cooked + renton_white_cooked
+    + num('bellevue_dark_cooked') + num('bellevue_white_cooked');
+  document.getElementById('total_cooked').textContent = Math.round(total * 100) / 100;
 }
 
 function calcTikkaCutting() {
@@ -597,6 +620,8 @@ function collectData() {
     raw_bulk_dark: num('raw_bulk_dark'),
     renton_dark_raw: num('renton_dark_raw'),
     renton_white_raw: num('renton_white_raw'),
+    bellevue_dark_raw: num('bellevue_dark_raw'),
+    bellevue_white_raw: num('bellevue_white_raw'),
     total_raw: parseFloat(document.getElementById('total_raw').textContent) || 0,
 
     cooked_white_line: num('cooked_white_line'),
@@ -605,6 +630,8 @@ function collectData() {
     cooked_bulk_dark: num('cooked_bulk_dark'),
     renton_dark_cooked: num('renton_dark_cooked'),
     renton_white_cooked: num('renton_white_cooked'),
+    bellevue_dark_cooked: num('bellevue_dark_cooked'),
+    bellevue_white_cooked: num('bellevue_white_cooked'),
     total_cooked: parseFloat(document.getElementById('total_cooked').textContent) || 0,
 
     cut_dark: num('cut_dark'),
@@ -644,8 +671,8 @@ async function loadDayData() {
 
   // Clear all inputs
   [
-    'raw_white_line', 'raw_dark_line', 'raw_bulk_white', 'raw_bulk_dark', 'renton_dark_raw', 'renton_white_raw',
-    'cooked_white_line', 'cooked_dark_line', 'cooked_bulk_white', 'cooked_bulk_dark', 'renton_dark_cooked', 'renton_white_cooked',
+    'raw_white_line', 'raw_dark_line', 'raw_bulk_white', 'raw_bulk_dark', 'renton_dark_raw', 'renton_white_raw', 'bellevue_dark_raw', 'bellevue_white_raw',
+    'cooked_white_line', 'cooked_dark_line', 'cooked_bulk_white', 'cooked_bulk_dark', 'renton_dark_cooked', 'renton_white_cooked', 'bellevue_dark_cooked', 'bellevue_white_cooked',
     'cut_dark', 'dark_wastage_oz', 'cut_white', 'white_wastage_oz'
   ].forEach(f => { document.getElementById(f).value = ''; });
 
@@ -665,6 +692,8 @@ async function loadDayData() {
       document.getElementById('raw_bulk_dark').value = d.raw_bulk_dark || '';
       document.getElementById('renton_dark_raw').value = d.renton_dark_raw || '';
       document.getElementById('renton_white_raw').value = d.renton_white_raw || '';
+      document.getElementById('bellevue_dark_raw').value = d.bellevue_dark_raw || '';
+      document.getElementById('bellevue_white_raw').value = d.bellevue_white_raw || '';
 
       document.getElementById('cooked_white_line').value = d.cooked_white_line || '';
       document.getElementById('cooked_dark_line').value = d.cooked_dark_line || '';
@@ -672,6 +701,8 @@ async function loadDayData() {
       document.getElementById('cooked_bulk_dark').value = d.cooked_bulk_dark || '';
       document.getElementById('renton_dark_cooked').value = d.renton_dark_cooked || '';
       document.getElementById('renton_white_cooked').value = d.renton_white_cooked || '';
+      document.getElementById('bellevue_dark_cooked').value = d.bellevue_dark_cooked || '';
+      document.getElementById('bellevue_white_cooked').value = d.bellevue_white_cooked || '';
 
       document.getElementById('cut_dark').value = d.cut_dark || '';
       document.getElementById('dark_wastage_oz').value = d.dark_wastage_oz || '';
@@ -1017,8 +1048,8 @@ async function _backfillTikkaTotals() {
   try {
     const snap = await db.collection('tikka-prep/nnc-iss/records').get();
     const n = v => parseFloat(v) || 0;
-    const RAW = ['raw_white_line','raw_dark_line','raw_bulk_white','raw_bulk_dark','renton_dark_raw','renton_white_raw'];
-    const COOKED = ['cooked_white_line','cooked_dark_line','cooked_bulk_white','cooked_bulk_dark','renton_dark_cooked','renton_white_cooked'];
+    const RAW = ['raw_white_line','raw_dark_line','raw_bulk_white','raw_bulk_dark','renton_dark_raw','renton_white_raw','bellevue_dark_raw','bellevue_white_raw'];
+    const COOKED = ['cooked_white_line','cooked_dark_line','cooked_bulk_white','cooked_bulk_dark','renton_dark_cooked','renton_white_cooked','bellevue_dark_cooked','bellevue_white_cooked'];
     let fixed = 0; const writes = [];
     snap.forEach(doc => {
       const d = doc.data(); const upd = {};
@@ -1035,15 +1066,257 @@ async function _backfillTikkaTotals() {
 }
 
 // Auth state observer
-// ==================== TIME & STAFF SESSIONS (Oct 29 2026) ====================
+// ==================== TIME & STAFF SESSIONS ====================
+// Oct 30 2026 (v2): sessions are filled one step at a time:
+//   What are you doing -> Location (cooking) / Batch (cutting) -> Who -> Start -> Weights -> End + Log.
+// Cooking: pick the location, then raw lbs per item (weighed before cooking).
+//   Issaquah: raw only. Its cooked weight is taken when it is cut (see Cutting).
+//   Renton / Bellevue: raw, plus cooked lbs after it cools (can be added later on the logged card).
+// Cutting: Issaquah only. Pick a batch = one item of a LOGGED Issaquah cooking session on the
+//   viewed day or the day before. Then: whole batch weight before cutting (-> that item's Cooked
+//   day field), cut pieces lbs (-> Cut Dark / Cut White) and wastage / dark pieces in oz (shown in lb too).
+//   A snapshot of the batch is stored on the session (s.batch) for yield.
+// The old "Raw tikka prep / marinating" task stays readable (legacyTasks) but can't be picked.
+const TIKKA_LOCS = {
+  issaquah: { label: 'Issaquah', items: [
+    { item: 'white_line', label: 'From Line - White', color: 'white', raw: 'raw_white_line', cooked: 'cooked_white_line' },
+    { item: 'dark_line',  label: 'From Line - Dark',  color: 'dark',  raw: 'raw_dark_line',  cooked: 'cooked_dark_line' },
+    { item: 'bulk_white', label: 'Bulk - White',      color: 'white', raw: 'raw_bulk_white', cooked: 'cooked_bulk_white' },
+    { item: 'bulk_dark',  label: 'Bulk - Dark',       color: 'dark',  raw: 'raw_bulk_dark',  cooked: 'cooked_bulk_dark' } ] },
+  renton: { label: 'Renton', items: [
+    { item: 'renton_dark',  label: 'Renton - Dark',  color: 'dark',  raw: 'renton_dark_raw',  cooked: 'renton_dark_cooked' },
+    { item: 'renton_white', label: 'Renton - White', color: 'white', raw: 'renton_white_raw', cooked: 'renton_white_cooked' } ] },
+  bellevue: { label: 'Bellevue', items: [
+    { item: 'bellevue_dark',  label: 'Bellevue - Dark',  color: 'dark',  raw: 'bellevue_dark_raw',  cooked: 'bellevue_dark_cooked' },
+    { item: 'bellevue_white', label: 'Bellevue - White', color: 'white', raw: 'bellevue_white_raw', cooked: 'bellevue_white_cooked' } ] }
+};
+const OZ_TO_LB = { factor: 1 / 16, unit: 'lb', decimals: 2 };
+const TIKKA_CUT_ALL = [
+  { key: 'cut_dark', label: 'Cut dark (lbs)', step: 'any' }, { key: 'dark_wastage_oz', label: 'Dark wastage (oz)', step: 'any', convert: OZ_TO_LB },
+  { key: 'cut_white', label: 'Cut white (lbs)', step: 'any' }, { key: 'white_wastage_oz', label: 'White wastage (oz)', step: 'any', convert: OZ_TO_LB }
+];
+const TIKKA_LEGACY_RAW = ['issaquah', 'renton'].flatMap(l => TIKKA_LOCS[l].items.map(it => ({ key: it.raw, label: it.label + ' raw (lbs)', step: 'any' })));
+const tikkaItem = item => TIKKA_LOCS.issaquah.items.find(it => it.item === item);
+const tikkaCutKey = color => color === 'dark' ? 'cut_dark' : 'cut_white';
+
+// Cooking fields. Issaquah has no cooked box (weighed at cutting) unless an older session already has one.
+function tikkaCookFields(loc, qty, chips) {
+  const L = TIKKA_LOCS[loc]; if (!L) return [];
+  const pre = chips && loc === 'issaquah' ? 'Issaquah ' : '';
+  return L.items.flatMap(it => {
+    const out = [{ key: it.raw, label: `${pre}${it.label} raw (lbs)`, step: 'any' }];
+    if (loc !== 'issaquah' || (qty && qty[it.cooked] != null))
+      out.push({ key: it.cooked, label: `${pre}${it.label} cooked (lbs)`, step: 'any', late: true, pairWith: it.raw, placeholder: 'After it cools (can add later)' });
+    return out;
+  });
+}
+// Cutting fields for a picked batch: whole batch weight, cut pieces, wastage (oz).
+function tikkaCutFields(batch) {
+  const it = tikkaItem(batch.item); if (!it) return [];
+  const dark = batch.color === 'dark';
+  return [
+    { key: it.cooked, label: 'Whole batch weight before cutting (lbs)', step: 'any' },
+    { key: tikkaCutKey(batch.color), label: 'Cut pieces (lbs)', step: 'any' },
+    { key: dark ? 'dark_wastage_oz' : 'white_wastage_oz', label: 'Wastage / dark pieces (oz)', step: 'any', convert: OZ_TO_LB }
+  ];
+}
+// Sessions logged before Oct 30 2026 have no location: work it out from what was entered.
+function tikkaInferLoc(qty) {
+  const keys = Object.keys(qty || {}).filter(k => qty[k] != null);
+  if (!keys.length) return '';
+  for (const loc of Object.keys(TIKKA_LOCS)) {
+    if (TIKKA_LOCS[loc].items.some(it => keys.includes(it.raw) || keys.includes(it.cooked))) return loc;
+  }
+  return '';
+}
+function tikkaLoc(s) { return s.location || tikkaInferLoc(s.qty); }
+function tikkaEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function tikkaNum(v) { return Math.round((Number(v) || 0) * 100) / 100; }
+function tikkaClock(t) {
+  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return '';
+  let [h, m] = t.split(':').map(Number); const ap = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, '0')}${ap}`;
+}
+function tikkaDayLabel(key) {
+  const t = new Date(); const tk = formatDate(t); t.setDate(t.getDate() - 1); const yk = formatDate(t);
+  if (key === tk) return 'Today'; if (key === yk) return 'Yesterday';
+  return new Date(key + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
+}
+
+// Sessions on the day before the date being viewed (for batches cooked yesterday).
+let tikkaPrev = { key: null, sessions: [] };
+async function loadTikkaPrevDay() {
+  const d = new Date(currentDate); d.setDate(d.getDate() - 1); const key = formatDate(d);
+  tikkaPrev = { key, sessions: [] };
+  if (!auth.currentUser) return;
+  try {
+    const doc = await db.doc(docPath(key)).get();
+    if (tikkaPrev.key !== key) return; // date changed while loading
+    const arr = doc.exists ? doc.data().sessions : null;
+    tikkaPrev.sessions = Array.isArray(arr) ? arr : [];
+  } catch (e) { console.warn('Tikka: could not load yesterday\'s batches:', e && e.message); }
+  const inst = PrepSessions.get('psMain'); if (inst && !inst.editing && !inst.lateEditing) inst.render();
+}
+
+// Issaquah batches cooked on the viewed day or the day before, newest first.
+function tikkaBatches(excludeSid) {
+  const inst = PrepSessions.get('psMain');
+  const days = [
+    { key: formatDate(currentDate), list: inst ? inst.fields().sessions : [] },
+    { key: tikkaPrev.key, list: tikkaPrev.sessions || [] }
+  ];
+  const out = [];
+  days.forEach(day => {
+    if (!day.key) return;
+    day.list.forEach(s => {
+      if (s.task !== 'cooking' || s.status === 'open' || tikkaLoc(s) !== 'issaquah') return;
+      TIKKA_LOCS.issaquah.items.forEach(it => {
+        const raw = tikkaNum(s.qty && s.qty[it.raw]);
+        if (!raw) return;
+        out.push({ id: `${day.key}|${s.id}|${it.item}`, date: day.key, sessionId: s.id, item: it.item,
+          label: it.label, color: it.color, raw, start: s.start || '', cut: 0 });
+      });
+    });
+  });
+  // How much of each batch has already been cut (logged cutting sessions on either day)
+  days.forEach(day => (day.list || []).forEach(s => {
+    if (s.task !== 'cutting' || !s.batch || s.id === excludeSid || s.status === 'open') return;
+    const b = out.find(x => x.id === s.batch.id); if (!b) return;
+    b.cut = tikkaNum(b.cut + (Number(s.qty && s.qty[tikkaCutKey(b.color)]) || 0));
+  }));
+  return out.sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start));
+}
+
+function tikkaPickBatch(sid, bid) {
+  const inst = PrepSessions.get('psMain'); if (!inst) return;
+  const s = inst.getSession(sid); if (!s) return;
+  const b = tikkaBatches(sid).find(x => x.id === bid); if (!b) return;
+  if (s.batch && s.batch.id !== b.id && s.qty) { // keep what was typed when switching batch
+    const from = tikkaCutFields(s.batch), to = tikkaCutFields(b);
+    const moved = {};
+    from.forEach((f, i) => { if (s.qty[f.key] != null && to[i]) moved[to[i].key] = s.qty[f.key]; delete s.qty[f.key]; });
+    Object.assign(s.qty, moved);
+  }
+  inst.setMeta(sid, 'batch', { id: b.id, date: b.date, sessionId: b.sessionId, item: b.item, label: b.label,
+    color: b.color, raw: b.raw, start: b.start });
+  inst.advance(sid);
+}
+
+function tikkaSessionQty(s) {
+  if (s.task === 'cooking') { const loc = tikkaLoc(s); return loc ? tikkaCookFields(loc, s.qty) : []; }
+  if (s.task === 'cutting') {
+    if (s.batch && tikkaItem(s.batch.item)) return tikkaCutFields(s.batch);
+    if (s.qty && TIKKA_CUT_ALL.some(f => s.qty[f.key] != null)) return TIKKA_CUT_ALL; // older session, no batch
+    return [];
+  }
+  if (s.task === 'raw') return TIKKA_LEGACY_RAW;
+  return [];
+}
+
+function tikkaReady(s) {
+  const q = s.qty || {};
+  if (s.task === 'cooking') {
+    if (!tikkaLoc(s)) return 'Pick the location this tikka was cooked for.';
+    if (s.location && !TIKKA_LOCS[s.location].items.some(it => Number(q[it.raw]) > 0))
+      return 'Enter the raw weight (lbs) weighed before cooking.';
+  }
+  if (s.task === 'cutting') {
+    const legacy = !s.batch && TIKKA_CUT_ALL.some(f => q[f.key] != null);
+    if (!s.batch && !legacy) return 'Pick the batch you cut.';
+    if (s.batch) {
+      const it = tikkaItem(s.batch.item);
+      if (it && !(Number(q[it.cooked]) > 0)) return 'Enter the whole batch weight before cutting.';
+      if (!(Number(q[tikkaCutKey(s.batch.color)]) > 0)) return 'Enter the weight of the cut pieces.';
+    }
+  }
+  return '';
+}
+
+function tikkaLocButtons(s, me) {
+  const loc = s.location || '';
+  return `<div class="ps-roster">` + Object.keys(TIKKA_LOCS).map(k =>
+    `<button type="button" class="ps-opt ps-big${loc === k ? ' on' : ''}" aria-pressed="${loc === k}" onclick="${me}.pick('${s.id}','location','${k}')"><b>${loc === k ? '✓ ' : ''}${TIKKA_LOCS[k].label}</b></button>`).join('') + `</div>`;
+}
+function tikkaBatchButtons(s) {
+  const sel = s.batch && s.batch.id;
+  const list = tikkaBatches(s.id);
+  if (sel && !list.some(b => b.id === sel)) list.unshift(Object.assign({ missing: true, cut: 0 }, s.batch));
+  if (!list.length) return `<div class="ps-info">No Issaquah tikka has been logged as cooked today or yesterday. Log the cooking session first, then pick the batch here.</div>`;
+  return list.map(b => {
+    const on = b.id === sel;
+    const bits = ['Cooked ' + tikkaDayLabel(b.date) + (b.start ? ' ' + tikkaClock(b.start) : '')];
+    if (b.cut) bits.push(`${b.cut} lb already cut`);
+    if (b.missing) bits.push('older batch');
+    return `<button type="button" class="ps-opt${on ? ' on' : ''}" aria-pressed="${on}" onclick="tikkaPickBatch('${s.id}','${tikkaEsc(b.id)}')"><b>${on ? '✓ ' : ''}${tikkaEsc(b.label)} · ${b.raw} lb raw</b><span>${tikkaEsc(bits.join(' · '))}</span></button>`;
+  }).join('');
+}
+
+// Full form (owner Edit of a logged session)
+function tikkaRenderExtra(s, me) {
+  if (s.task === 'cooking') return `<div class="ps-field ps-full"><label>Cooked for which location?</label>${tikkaLocButtons(s, me)}</div>`;
+  if (s.task === 'cutting') return `<div class="ps-field ps-full"><label>Which batch was cut?</label>${tikkaBatchButtons(s)}</div>`;
+  return '';
+}
+
+function tikkaLoggedExtra(s) {
+  const q = s.qty || {};
+  if (s.task === 'cooking') {
+    const loc = tikkaLoc(s);
+    if (!loc) return '';
+    const L = TIKKA_LOCS[loc];
+    const ylds = L.items.filter(it => Number(q[it.raw]) > 0 && q[it.cooked] != null)
+      .map(it => `${it.label} ${Math.round(Number(q[it.cooked]) / Number(q[it.raw]) * 100)}%`);
+    return `<div class="ps-info">Cooked for <b>${L.label}</b>${ylds.length ? `<br>Cooked yield: ${tikkaEsc(ylds.join(', '))}` : ''}</div>`;
+  }
+  if (s.task === 'cutting' && s.batch) {
+    const b = s.batch, it = tikkaItem(b.item);
+    const cooked = it ? Number(q[it.cooked]) || 0 : 0;
+    const cut = Number(q[tikkaCutKey(b.color)]) || 0;
+    const pct = (a, d) => d ? Math.round(a / d * 100) + '%' : '';
+    let line = `Batch: <b>${tikkaEsc(b.label)}</b> · ${b.raw} lb raw · cooked ${tikkaEsc(tikkaDayLabel(b.date))}${b.start ? ' ' + tikkaClock(b.start) : ''}`;
+    if (cooked) line += `<br>Cooked weight ${tikkaNum(cooked)} lb = ${pct(cooked, b.raw)} of raw`;
+    if (cut) line += `<br>Cut pieces <b>${tikkaNum(cut)} lb</b> = ${pct(cut, b.raw)} of raw${cooked ? `, ${pct(cut, cooked)} of cooked` : ''}`;
+    return `<div class="ps-info">${line}</div>`;
+  }
+  return '';
+}
+
+const TIKKA_DAY_KEYS = ["raw_white_line", "raw_dark_line", "raw_bulk_white", "raw_bulk_dark", "renton_dark_raw", "renton_white_raw", "bellevue_dark_raw", "bellevue_white_raw",
+  "cooked_white_line", "cooked_dark_line", "cooked_bulk_white", "cooked_bulk_dark", "renton_dark_cooked", "renton_white_cooked", "bellevue_dark_cooked", "bellevue_white_cooked",
+  "cut_dark", "dark_wastage_oz", "cut_white", "white_wastage_oz"];
+
 PrepSessions.create({
   mountId: 'psMain',
-  quantities: {"raw": [{"key": "raw_white_line", "label": "Raw white (from line)", "step": 0.5}, {"key": "raw_dark_line", "label": "Raw dark (from line)", "step": 0.5}, {"key": "raw_bulk_white", "label": "Raw bulk white", "step": 0.5}, {"key": "raw_bulk_dark", "label": "Raw bulk dark", "step": 0.5}, {"key": "renton_dark_raw", "label": "Renton dark raw", "step": 0.5}, {"key": "renton_white_raw", "label": "Renton white raw", "step": 0.5}], "cooking": [{"key": "cooked_white_line", "label": "Cooked white (from line)", "step": 0.5}, {"key": "cooked_dark_line", "label": "Cooked dark (from line)", "step": 0.5}, {"key": "cooked_bulk_white", "label": "Cooked bulk white", "step": 0.5}, {"key": "cooked_bulk_dark", "label": "Cooked bulk dark", "step": 0.5}, {"key": "renton_dark_cooked", "label": "Renton dark cooked", "step": 0.5}, {"key": "renton_white_cooked", "label": "Renton white cooked", "step": 0.5}], "cutting": [{"key": "cut_dark", "label": "Cut dark (lbs)", "step": 0.5}, {"key": "dark_wastage_oz", "label": "Dark wastage (oz)", "step": 0.1}, {"key": "cut_white", "label": "Cut white (lbs)", "step": 0.5}, {"key": "white_wastage_oz", "label": "White wastage (oz)", "step": 0.1}]},
-  onTotals: t => PrepSessions.applyDaySums(t, ["raw_white_line", "raw_dark_line", "raw_bulk_white", "raw_bulk_dark", "renton_dark_raw", "renton_white_raw", "cooked_white_line", "cooked_dark_line", "cooked_bulk_white", "cooked_bulk_dark", "renton_dark_cooked", "renton_white_cooked", "cut_dark", "dark_wastage_oz", "cut_white", "white_wastage_oz"], () => { calcTikkaRaw(); calcTikkaCooked(); calcTikkaCutting(); }),
+  // Used for the day-total chips; each session's own fields come from sessionQuantities.
+  quantities: {
+    cooking: Object.keys(TIKKA_LOCS).flatMap(l => tikkaCookFields(l, null, true)),
+    cutting: TIKKA_LOCS.issaquah.items.map(it => ({ key: it.cooked, label: `Issaquah ${it.label} cooked (lbs)` })).concat(TIKKA_CUT_ALL)
+  },
+  sessionQuantities: tikkaSessionQty,
+  sessionKeys: ['location', 'batch'],
+  renderExtra: tikkaRenderExtra,
+  renderLoggedExtra: tikkaLoggedExtra,
+  readyCheck: tikkaReady,
+  lateLabel: 'Add cooked weights',
+  loggedHideZero: true,
+  hideNotes: true,
+  qtyTitle: s => s.task === 'cutting' ? 'Weigh it' : 'Raw weight before cooking',
+  wizard: [
+    'task',
+    { key: 'location', title: 'Which location is it for?', show: s => s.task === 'cooking',
+      done: s => !!tikkaLoc(s), err: 'Pick a location.', summary: s => (TIKKA_LOCS[tikkaLoc(s)] || {}).label || '',
+      render: (s, me) => tikkaLocButtons(s, me) },
+    { key: 'batch', title: 'Which batch are you cutting?', show: s => s.task === 'cutting',
+      done: s => !!s.batch, err: 'Pick the batch.', summary: s => s.batch ? `${s.batch.label} ${s.batch.raw} lb` : '',
+      render: s => `<div class="ps-info" style="margin-bottom:8px">Issaquah tikka cooked today or yesterday</div>` + tikkaBatchButtons(s) },
+    'who', 'start', 'qty', 'end'
+  ],
+  legacyTasks: [{ key: 'raw', label: 'Raw tikka prep / marinating (old)' }],
+  onTotals: t => PrepSessions.applyDaySums(t, TIKKA_DAY_KEYS, () => { calcTikkaRaw(); calcTikkaCooked(); calcTikkaCutting(); }),
   extraWrites: ds => [{ path: docPath(ds), data: collectData() }],
   collectionPath: 'tikka-prep/nnc-iss/records',
   field: 'sessions', prefix: '',
-  tasks: [{"key": "raw", "label": "Raw tikka prep / marinating"}, {"key": "cooking", "label": "Cooking tikka"}, {"key": "cutting", "label": "Cutting tikka"}],
+  tasks: [{ key: 'cooking', label: 'Cooking tikka' }, { key: 'cutting', label: 'Cutting tikka' }],
   getDate: () => formatDate(currentDate),
   isLocked: () => isHistorical() && !isOwner(),
   onSaved: (ds, f) => {
