@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNC Issaquah — Fryer Oil Log</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --c:#b45309; --c2:#d97706; --cbg:#fffbeb; --boil:#0e7490; --boilbg:#ecfeff;
+  --danger:#dc2626; --ok:#16a34a;
+  --g50:#f9fafb; --g100:#f3f4f6; --g200:#e5e7eb; --g300:#d1d5db; --g400:#9ca3af; --g500:#6b7280; --g700:#374151; --g900:#111827;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--g50);color:var(--g900);min-height:100vh}
+button{font:inherit}
+.header{background:linear-gradient(135deg,#92400e,#d97706);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header h1{font-size:1.3rem;font-weight:700}
+.header .sub{opacity:.85;font-size:.85rem}
+.back{display:inline-block;margin-top:6px;color:rgba(255,255,255,.9);font-size:.8rem;font-weight:600;cursor:pointer;background:rgba(255,255,255,.14);padding:4px 12px;border-radius:6px;text-decoration:none}
+.btn{padding:9px 16px;border:none;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.wrap{max-width:900px;margin:0 auto;padding:18px 16px 60px}
+.card{background:#fff;border:1px solid var(--g200);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:18px;overflow:hidden}
+.card-h{padding:12px 16px;font-weight:800;font-size:.95rem;border-bottom:1px solid var(--g200);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.card-b{padding:14px 16px}
+.es{color:var(--g500);font-weight:500;font-size:.85em}
+
+.status{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.fry{background:#fff;border:1px solid var(--g200);border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.fry h3{font-size:1.1rem;margin-bottom:10px}
+.fry .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--g100)}
+.fry .ic{font-size:1.2rem;line-height:1.2}
+.fry .lbl{font-size:.75rem;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.4px}
+.fry .big{font-size:1.25rem;font-weight:800}
+.fry .meta{font-size:.82rem;color:var(--g500)}
+
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.act{border:none;border-radius:12px;padding:18px 12px;font-size:1.05rem;font-weight:800;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.act small{display:block;font-weight:600;opacity:.85;font-size:.8rem;margin-top:2px}
+.act.change{background:linear-gradient(135deg,#b45309,#d97706)}
+.act.boil{background:linear-gradient(135deg,#0e7490,#0891b2)}
+
+.f-row{margin-bottom:14px}
+.f-row > label{display:block;font-size:.85rem;font-weight:700;color:var(--g700);margin-bottom:6px}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{border:2px solid var(--g300);background:var(--g100);border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer;font-size:.95rem;color:var(--g700)}
+.pill.on{background:var(--c);border-color:var(--c);color:#fff}
+.boilmode .pill.on{background:var(--boil);border-color:var(--boil)}
+.pill.sm{padding:7px 12px;font-size:.88rem}
+input[type=text],input[type=number],input[type=date],input[type=time],input[type=email],input[type=password],select,textarea{padding:10px 12px;border:1px solid var(--g300);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--c2);box-shadow:0 0 0 3px rgba(217,119,6,.15)}
+.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+textarea{width:100%;min-height:60px}
+.chk{display:flex !important;gap:10px;align-items:center;font-weight:700;font-size:.92rem;background:var(--boilbg);border:1px solid #a5f3fc;border-radius:10px;padding:10px 12px;cursor:pointer}
+.chk input{width:20px;height:20px;flex:none}
+.f-msg{font-size:.88rem;font-weight:600;margin:6px 0 10px;min-height:1em}
+.f-msg.err{color:var(--danger)}
+.f-btns{display:flex;gap:10px;flex-wrap:wrap}
+.save{background:var(--c);color:#fff;padding:12px 22px;font-size:1rem}
+.boilmode .save{background:var(--boil)}
+.save:disabled{opacity:.5;cursor:default}
+.cancel{background:var(--g100);color:var(--g700);border:1px solid var(--g300)}
+.form-title.change{background:var(--cbg);color:#92400e}
+.form-title.boil{background:var(--boilbg);color:#155e75}
+
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--g500);padding:8px 10px;border-bottom:1px solid var(--g200);background:var(--g50)}
+td{padding:9px 10px;border-bottom:1px solid var(--g100);vertical-align:top}
+tr:nth-child(even) td{background:#fcfcfd}
+.tag{display:inline-block;font-size:.75rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tag.change{background:var(--cbg);color:#92400e;border:1px solid #fcd34d}
+.tag.boilout{background:var(--boilbg);color:#155e75;border:1px solid #67e8f9}
+.tag.edited{background:var(--g100);color:var(--g500);font-weight:600}
+.note{color:var(--g500);font-size:.8rem;margin-top:2px}
+.btncell{text-align:right}.btncell .rowbtn{display:block;margin:0 0 4px auto}
+.rowbtn{background:none;border:1px solid var(--g300);border-radius:6px;padding:4px 9px;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--g700);margin:2px 0}
+.rowbtn.del{color:var(--danger);border-color:#fecaca}
+.rowbtn.del.armed{background:var(--danger);color:#fff}
+.empty{padding:22px;text-align:center;color:var(--g500)}
+.more{display:block;margin:12px auto 4px;background:var(--g100);border:1px solid var(--g300);color:var(--g700)}
+
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{border:1px solid var(--g200);border-radius:10px;padding:12px}
+.stat h4{font-size:.95rem;margin-bottom:6px}
+.stat .l{display:flex;justify-content:space-between;gap:8px;font-size:.88rem;padding:3px 0}
+.stat .l b{font-weight:800;text-align:right}
+
+.login-overlay{display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#92400e,#d97706);z-index:1000;align-items:center;justify-content:center}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:12px;padding:36px;max-width:400px;width:90%;text-align:center}
+.login-box h2{color:var(--c);margin-bottom:6px}
+.login-box p{color:var(--g500);font-size:.9rem;margin-bottom:20px}
+.login-box input{width:100%;margin-bottom:12px}
+.login-box button{width:100%;padding:12px;background:var(--c);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer}
+.login-error{color:var(--danger);font-size:.85rem;margin-top:8px;display:none}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--g900);color:#fff;padding:12px 20px;border-radius:10px;font-weight:600;transition:transform .25s;z-index:2000;max-width:90%}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.noaccess{padding:40px 20px;text-align:center;color:var(--g500)}
+.viewonly{background:var(--g100);border:1px solid var(--g300);border-radius:10px;padding:10px 14px;font-size:.88rem;color:var(--g700);margin-bottom:18px}
+
+@media (max-width:640px){
+  .status,.actions,.stats{grid-template-columns:1fr}
+  .hide-sm{display:none}
+  table{font-size:.84rem}
+  td,th{padding:8px 6px}
+}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>🍟 NNC Inventory</h2>
+    <p>Fryer Oil Log — Sign in to continue</p>
+    <input type="text" id="loginEmail" placeholder="Email or username" autocomplete="username">
+    <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<div class="header">
+  <div>
+    <h1>🍟 Fryer Oil Log</h1>
+    <div class="sub">Naan N Curry Issaquah · Cambio de aceite y boil out</div>
+    <a class="back" onclick="goToDashboard()">← Back to Issaquah Dashboard</a>
+  </div>
+  <button class="btn btn-ghost" onclick="auth.signOut()">Logout</button>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="status" id="status"></div>
+
+  <div id="viewOnly" class="viewonly" style="display:none">View only. Your account can see the log but can't add entries.</div>
+
+  <div class="actions" id="actions">
+    <button class="act change" onclick="openForm('change')">🛢️ Log oil change<small>Cambio de aceite</small></button>
+    <button class="act boil" onclick="openForm('boilout')">🧽 Log boil out<small>Boil out / limpieza</small></button>
+  </div>
+
+  <div class="card" id="formCard" style="display:none">
+    <div class="card-h form-title" id="formTitle"></div>
+    <div class="card-b" id="formBody"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <span>History <span class="es">Historial</span></span>
+      <div class="filters" id="filters"></div>
+    </div>
+    <div id="history"><div class="empty">Loading…</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span>Last 90 days <span class="es">Últimos 90 días</span></span><span id="csvWrap"></span></div>
+    <div class="card-b"><div class="stats" id="stats"></div></div>
+  </div>
+</div>
+<div class="wrap noaccess" id="noAccess" style="display:none">You don't have access to the Fryer Oil Log. Ask the owner to turn it on in Manage Users.</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="shared.js?v=20261103"></script>
+<script src="prep-sessions.js?v=20261103c"></script>
+<script>
+// ============================================================================
+// Fryer Oil Log (Nov 3 2026)
+// One Firestore doc per event: fryer-oil/<location>/events/<autoId>
+//   { type:'change'|'boilout', date:'YYYY-MM-DD', time:'HH:MM', fryer:1|2,
+//     amount + unit (oil change only), staff:[names], notes, location,
+//     createdAt (server time), createdBy (uid), createdByName,
+//     linkedId (boil out logged together with an oil change),
+//     history:[{at,by,byName,before}] on owner edits, updatedAt/updatedBy }
+// Rules: anyone who can edit creates; owner edits; creator may delete within 12h.
+// Staff buttons come from STAFF_ROSTER in prep-sessions.js (PrepSessions.roster()).
+// ============================================================================
+const LOC = getParam('restaurant') || 'nnc-iss';
+const SHEET_KEY = 'nnc-fryer-oil';
+const FRYERS = [1, 2];
+const UNITS = [{ k: 'jugs', l: 'Jugs (35 lb)' }, { k: 'lbs', l: 'lbs' }, { k: 'gal', l: 'Gallons' }];
+const UNIT_KEY = 'nnc.fryerOil.unit';
+const NAMES_KEY = 'nnc.prepStaffNames'; // shared with prep pages
+const PAGE_SIZE = 200;
+const DELETE_WINDOW_MS = 12 * 3600 * 1000;
+
+const col = () => db.collection('fryer-oil').doc(LOC).collection('events');
+
+let events = [];          // loaded, newest first
+let lastSnap = null;      // for Load more
+let hasMore = false;
+let filterType = 'all', filterFryer = 'all';
+let oilForm = null;          // current oilForm state
+let armedDelete = null;
+
+// ---------- helpers ----------
+const pad = n => String(n).padStart(2, '0');
+const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const nowHHMM = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+function dayNum(key) { const [y, m, d] = key.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 86400000); }
+function daysAgo(key) { return dayNum(todayKey()) - dayNum(key); }
+function fmtDate(key) {
+  if (!key) return '';
+  const [y, m, d] = key.split('-').map(Number);
+  const o = { weekday: 'short', month: 'short', day: 'numeric' };
+  if (y !== new Date().getFullYear()) o.year = 'numeric';
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', o);
+}
+function fmtTime(t) { if (!t) return ''; let [h, m] = t.split(':').map(Number); const ap = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12; return `${h}:${pad(m)}${ap}`; }
+function agoText(key) { const n = daysAgo(key); return n === 0 ? 'Today · Hoy' : n === 1 ? '1 day ago' : `${n} days ago`; }
+function unitLabel(u, n) { if (u === 'jugs') return n === 1 ? 'jug' : 'jugs'; if (u === 'gal') return 'gal'; return u || ''; }
+function amountText(e) { return e.amount ? `${+e.amount} ${unitLabel(e.unit, +e.amount)}` : ''; }
+function titleCase(s) { return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase()); }
+function sortKey(e) { return (e.date || '') + ' ' + (e.time || '00:00'); }
+function isOwnerUser() { return !!(currentUserProfile && currentUserProfile.role === 'owner'); }
+function canWrite() { return !!(currentUserProfile && currentUserProfile.role !== 'driver'); }
+function myName() { return (currentUserProfile && currentUserProfile.displayName) || displayLogin(auth.currentUser && auth.currentUser.email); }
+function roster() {
+  const base = (window.PrepSessions && PrepSessions.roster) ? PrepSessions.roster() : [];
+  const all = base.slice();
+  const has = n => all.some(b => b.toLowerCase() === String(n).toLowerCase());
+  const extra = [];
+  lsGet(NAMES_KEY, []).map(titleCase).forEach(n => { if (n && !has(n)) { extra.push(n); all.push(n); } });
+  // Names already used in this log show up too, so a typed-in name only has to be typed once
+  events.forEach(e => (e.staff || []).forEach(n => { if (n && !has(n)) { extra.push(n); all.push(n); } }));
+  return base.concat(extra.sort());
+}
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(showToast._t); showToast._t = setTimeout(() => t.classList.remove('show'), 3000); }
+function canDelete(e) {
+  if (isOwnerUser()) return true;
+  if (!canWrite() || !auth.currentUser || e.createdBy !== auth.currentUser.uid || !e.createdAt) return false;
+  const t = e.createdAt.toMillis ? e.createdAt.toMillis() : +new Date(e.createdAt);
+  return Date.now() - t < DELETE_WINDOW_MS;
+}
+
+// ---------- data ----------
+async function loadEvents(more) {
+  let q = col().orderBy('date', 'desc').limit(PAGE_SIZE);
+  if (more && lastSnap) q = q.startAfter(lastSnap);
+  try {
+    const snap = await q.get();
+    const rows = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+    events = more ? events.concat(rows) : rows;
+    if (snap.docs.length) lastSnap = snap.docs[snap.docs.length - 1];
+    hasMore = snap.docs.length === PAGE_SIZE;
+    events.sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
+    renderAll();
+  } catch (err) {
+    console.error('Fryer oil load error:', err);
+    document.getElementById('history').innerHTML = `<div class="empty" style="color:var(--danger)">Couldn't load the log: ${esc(err.message)}</div>`;
+  }
+}
+
+// ---------- render ----------
+function renderAll() { renderStatus(); renderFilters(); renderHistory(); renderStats(); }
+
+function latest(type, fryer) { return events.find(e => e.type === type && +e.fryer === fryer); }
+
+function renderStatus() {
+  document.getElementById('status').innerHTML = FRYERS.map(f => {
+    const c = latest('change', f), b = latest('boilout', f);
+    const block = (ic, lbl, e, extra) => `<div class="row"><div class="ic">${ic}</div><div>
+      <div class="lbl">${lbl}</div>
+      ${e ? `<div class="big">${agoText(e.date)}</div><div class="meta">${fmtDate(e.date)}${e.time ? ' · ' + fmtTime(e.time) : ''}${extra && extra(e) ? ' · ' + extra(e) : ''}${(e.staff || []).length ? ' · ' + esc(e.staff.join(', ')) : ''}</div>`
+          : `<div class="big" style="color:var(--g400)">No record yet</div>`}
+    </div></div>`;
+    return `<div class="fry"><h3>Fryer ${f} <span class="es">Freidora ${f}</span></h3>
+      ${block('🛢️', 'Last oil change · Último cambio', c, e => esc(amountText(e)))}
+      ${block('🧽', 'Last boil out · Último boil out', b)}
+    </div>`;
+  }).join('');
+}
+
+function renderFilters() {
+  const p = (grp, k, l, cur) => `<button class="pill sm ${cur === k ? 'on' : ''}" onclick="setFilter('${grp}','${k}')">${l}</button>`;
+  document.getElementById('filters').innerHTML =
+    p('type', 'all', 'All', filterType) + p('type', 'change', 'Oil changes', filterType) + p('type', 'boilout', 'Boil outs', filterType) +
+    '<span style="width:8px"></span>' +
+    p('fryer', 'all', 'Both fryers', filterFryer) + FRYERS.map(f => p('fryer', String(f), 'Fryer ' + f, filterFryer)).join('');
+}
+function setFilter(grp, k) { if (grp === 'type') filterType = k; else filterFryer = k; renderFilters(); renderHistory(); }
+
+function renderHistory() {
+  const rows = events.filter(e => (filterType === 'all' || e.type === filterType) && (filterFryer === 'all' || String(e.fryer) === filterFryer));
+  const box = document.getElementById('history');
+  if (!rows.length) { box.innerHTML = `<div class="empty">${events.length ? 'Nothing matches this filter.' : 'No entries yet. Use the buttons above to log the first one.'}</div>`; return; }
+  box.innerHTML = `<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>What</th><th>Fryer</th><th>Oil</th><th>Who</th><th></th></tr></thead><tbody>
+    ${rows.map(e => `<tr>
+      <td><b>${fmtDate(e.date)}</b>${e.time ? `<div class="note">${fmtTime(e.time)}</div>` : ''}</td>
+      <td><span class="tag ${e.type === 'change' ? 'change' : 'boilout'}">${e.type === 'change' ? 'Oil change' : 'Boil out'}</span>${(e.history || []).length ? ' <span class="tag edited">Edited</span>' : ''}${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ''}</td>
+      <td>${esc(e.fryer)}</td>
+      <td>${esc(amountText(e)) || '<span class="note">—</span>'}</td>
+      <td>${esc((e.staff || []).join(', '))}${e.createdByName ? `<div class="note hide-sm">entered by ${esc(e.createdByName)}</div>` : ''}</td>
+      <td class="btncell">
+        ${isOwnerUser() ? `<button class="rowbtn" onclick="editEvent('${e.id}')">Edit</button>` : ''}
+        ${canDelete(e) ? `<button class="rowbtn del ${armedDelete === e.id ? 'armed' : ''}" onclick="deleteEvent('${e.id}')">${armedDelete === e.id ? 'Tap to confirm' : 'Delete'}</button>` : ''}
+      </td></tr>`).join('')}
+  </tbody></table></div>${hasMore ? `<button class="btn more" onclick="loadEvents(true)">Load older entries</button>` : ''}`;
+}
+
+function renderStats() {
+  const from = dayNum(todayKey()) - 90;
+  const recent = events.filter(e => e.date && dayNum(e.date) >= from);
+  document.getElementById('stats').innerHTML = FRYERS.map(f => {
+    const ch = recent.filter(e => e.type === 'change' && +e.fryer === f).sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+    const bo = recent.filter(e => e.type === 'boilout' && +e.fryer === f);
+    const byUnit = {};
+    ch.forEach(e => { if (e.amount) byUnit[e.unit || ''] = (byUnit[e.unit || ''] || 0) + +e.amount; });
+    const oil = Object.keys(byUnit).map(u => { const v = Math.round(byUnit[u] * 10) / 10; return `${v} ${unitLabel(u, v)}`; }).join(' + ') || '—';
+    const dates = [...new Set(ch.map(e => e.date))];
+    let gap = '—';
+    if (dates.length >= 2) gap = (Math.round((dayNum(dates[dates.length - 1]) - dayNum(dates[0])) / (dates.length - 1) * 10) / 10) + ' days';
+    return `<div class="stat"><h4>Fryer ${f}</h4>
+      <div class="l"><span>Oil changes</span><b>${ch.length}</b></div>
+      <div class="l"><span>Oil used</span><b>${oil}</b></div>
+      <div class="l"><span>Avg days between changes</span><b>${gap}</b></div>
+      <div class="l"><span>Boil outs</span><b>${bo.length}</b></div></div>`;
+  }).join('');
+  document.getElementById('csvWrap').innerHTML = isOwnerUser() && events.length ? `<button class="pill sm" onclick="exportCSV()">Export CSV</button>` : '';
+}
+
+// ---------- oilForm ----------
+function openForm(type, existing) {
+  if (!canWrite()) return;
+  const unit = lsGet(UNIT_KEY, 'jugs');
+  oilForm = existing ? {
+    type: existing.type, editId: existing.id, fryers: [+existing.fryer], date: existing.date, time: existing.time || '',
+    amount: existing.amount != null ? String(existing.amount) : '', unit: existing.unit || unit,
+    staff: (existing.staff || []).slice(), notes: existing.notes || '', alsoBoil: false
+  } : { type, fryers: [], date: todayKey(), time: nowHHMM(), amount: '', unit, staff: [], notes: '', alsoBoil: false };
+  renderForm();
+  const card = document.getElementById('formCard');
+  card.style.display = '';
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function closeForm() { oilForm = null; document.getElementById('formCard').style.display = 'none'; }
+
+function renderForm() {
+  if (!oilForm) return;
+  const isChange = oilForm.type === 'change';
+  document.getElementById('formCard').className = 'card' + (isChange ? '' : ' boilmode');
+  const t = document.getElementById('formTitle');
+  t.className = 'card-h form-title ' + (isChange ? 'change' : 'boil');
+  t.innerHTML = `<span>${oilForm.editId ? 'Edit · ' : ''}${isChange ? '🛢️ Oil change <span class="es">Cambio de aceite</span>' : '🧽 Boil out <span class="es">Limpieza de freidora</span>'}</span>`;
+  const names = roster();
+  const fryerPills = FRYERS.map(f => `<button class="pill ${oilForm.fryers.includes(f) ? 'on' : ''}" onclick="toggleFryer(${f})">Fryer ${f}</button>`).join('')
+    + (oilForm.editId ? '' : `<button class="pill ${oilForm.fryers.length === FRYERS.length ? 'on' : ''}" onclick="bothFryers()">Both · Las dos</button>`);
+  const typed = oilForm.staff.filter(n => !names.includes(n));
+  document.getElementById('formBody').innerHTML = `
+    <div class="f-row"><label>Which fryer? <span class="es">¿Cuál freidora?</span></label><div class="pills">${fryerPills}</div></div>
+    ${isChange ? `<div class="f-row"><label>How much oil? <span class="es">¿Cuánto aceite?</span>${oilForm.fryers.length > 1 ? ' <span class="es">(per fryer · por freidora)</span>' : ''}</label>
+      <div class="inline"><input type="number" id="fAmount" inputmode="decimal" min="0" step="any" style="width:120px" value="${esc(oilForm.amount)}" oninput="oilForm.amount=this.value;updateSave()">
+      <select id="fUnit" onchange="oilForm.unit=this.value">${UNITS.map(u => `<option value="${u.k}" ${oilForm.unit === u.k ? 'selected' : ''}>${u.l}</option>`).join('')}</select></div></div>` : ''}
+    <div class="f-row"><label>Who did it? <span class="es">¿Quién lo hizo?</span></label>
+      <div class="pills">${names.concat(typed).map(n => `<button class="pill sm ${oilForm.staff.includes(n) ? 'on' : ''}" onclick="toggleStaff(this.dataset.n)" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+      <div class="inline" style="margin-top:8px"><input type="text" id="fOther" placeholder="Someone not on the list?" style="flex:1;min-width:180px" onkeydown="if(event.key==='Enter')addOther()"><button class="pill sm" onclick="addOther()">Add</button></div></div>
+    <div class="f-row"><label>When? <span class="es">¿Cuándo?</span></label>
+      <div class="inline"><input type="date" id="fDate" max="${todayKey()}" value="${esc(oilForm.date)}" onchange="oilForm.date=this.value;updateSave()">
+      <input type="time" id="fTime" value="${esc(oilForm.time)}" onchange="oilForm.time=this.value"><button class="pill sm" onclick="oilForm.time=nowHHMM();document.getElementById('fTime').value=oilForm.time">Now</button></div></div>
+    ${isChange && !oilForm.editId ? `<div class="f-row"><label class="chk"><input type="checkbox" ${oilForm.alsoBoil ? 'checked' : ''} onchange="oilForm.alsoBoil=this.checked"> <span>Boil out done with this change too <span class="es">· También se hizo boil out</span></span></label></div>` : ''}
+    <div class="f-row"><label>Notes <span class="es">Notas (optional)</span></label><textarea id="fNotes" oninput="oilForm.notes=this.value">${esc(oilForm.notes)}</textarea></div>
+    <div class="f-msg" id="fMsg"></div>
+    <div class="f-btns"><button class="btn save" id="fSave" onclick="saveForm()">Save</button><button class="btn cancel" onclick="closeForm()">Cancel</button></div>`;
+  updateSave();
+}
+function toggleFryer(f) { oilForm.fryers = oilForm.editId ? [f] : (oilForm.fryers.includes(f) ? oilForm.fryers.filter(x => x !== f) : oilForm.fryers.concat(f).sort()); renderForm(); }
+function bothFryers() { oilForm.fryers = oilForm.fryers.length === FRYERS.length ? [] : FRYERS.slice(); renderForm(); }
+function toggleStaff(n) { oilForm.staff = oilForm.staff.includes(n) ? oilForm.staff.filter(x => x !== n) : oilForm.staff.concat(n); renderForm(); }
+function addOther() {
+  const el = document.getElementById('fOther'); const n = titleCase(el.value);
+  if (!n) return;
+  const match = roster().find(r => r.toLowerCase() === n.toLowerCase()) || n;
+  if (!oilForm.staff.includes(match)) oilForm.staff.push(match);
+  const saved = lsGet(NAMES_KEY, []);
+  if (!saved.some(s => String(s).toLowerCase() === n.toLowerCase())) { saved.push(n); lsSet(NAMES_KEY, saved); }
+  renderForm();
+}
+function problems() {
+  const p = [];
+  if (!oilForm.fryers.length) p.push('pick a fryer');
+  if (oilForm.type === 'change' && !(parseFloat(oilForm.amount) > 0)) p.push('how much oil');
+  if (!oilForm.staff.length) p.push('who did it');
+  if (!oilForm.date) p.push('the date');
+  else if (oilForm.date > todayKey()) p.push("a date that isn't in the future");
+  return p;
+}
+function updateSave() {
+  const p = problems(), msg = document.getElementById('fMsg'), btn = document.getElementById('fSave');
+  if (!msg || !btn) return;
+  btn.disabled = p.length > 0;
+  msg.className = 'f-msg' + (p.length ? ' err' : '');
+  msg.textContent = p.length ? 'Still needed · Falta: ' + p.join(', ') : '';
+}
+
+async function saveForm() {
+  const p = problems(); if (p.length) return updateSave();
+  const btn = document.getElementById('fSave'); btn.disabled = true; btn.textContent = 'Saving…';
+  const isChange = oilForm.type === 'change';
+  if (isChange) lsSet(UNIT_KEY, oilForm.unit);
+  const base = {
+    date: oilForm.date, time: oilForm.time || '', staff: oilForm.staff.slice(), notes: (oilForm.notes || '').trim(), location: LOC,
+    amount: isChange ? Math.round(parseFloat(oilForm.amount) * 100) / 100 : null, unit: isChange ? oilForm.unit : null
+  };
+  try {
+    if (oilForm.editId) {
+      const old = events.find(e => e.id === oilForm.editId) || {};
+      const before = {};
+      ['date', 'time', 'fryer', 'amount', 'unit', 'staff', 'notes'].forEach(k => { before[k] = old[k] == null ? null : old[k]; });
+      const upd = Object.assign({}, base, {
+        fryer: oilForm.fryers[0],
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: auth.currentUser.uid,
+        history: firebase.firestore.FieldValue.arrayUnion({ at: new Date(), by: auth.currentUser.uid, byName: myName(), before })
+      });
+      await col().doc(oilForm.editId).update(upd);
+      showToast('Saved · Guardado');
+    } else {
+      const batch = db.batch();
+      const stamp = { createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: auth.currentUser.uid, createdByName: myName() };
+      let n = 0;
+      oilForm.fryers.forEach(f => {
+        const ref = col().doc();
+        batch.set(ref, Object.assign({ type: oilForm.type, fryer: f }, base, stamp)); n++;
+        if (isChange && oilForm.alsoBoil) {
+          batch.set(col().doc(), Object.assign({ type: 'boilout', fryer: f, linkedId: ref.id }, base, { amount: null, unit: null, notes: '' }, stamp)); n++;
+        }
+      });
+      await batch.commit();
+      showToast(`Saved ${n} entr${n === 1 ? 'y' : 'ies'} · Guardado`);
+    }
+    closeForm();
+    await loadEvents(false);
+  } catch (err) {
+    console.error('Fryer oil save error:', err);
+    btn.disabled = false; btn.textContent = 'Save';
+    const msg = document.getElementById('fMsg'); msg.className = 'f-msg err';
+    msg.textContent = 'Not saved: ' + err.message + '. Check the connection and tap Save again.';
+  }
+}
+
+function editEvent(id) { const e = events.find(x => x.id === id); if (e && isOwnerUser()) openForm(e.type, e); }
+async function deleteEvent(id) {
+  if (armedDelete !== id) {
+    armedDelete = id; renderHistory();
+    setTimeout(() => { if (armedDelete === id) { armedDelete = null; renderHistory(); } }, 4000);
+    return;
+  }
+  armedDelete = null;
+  try { await col().doc(id).delete(); showToast('Deleted'); await loadEvents(false); }
+  catch (err) { console.error(err); showToast("Couldn't delete: " + err.message); renderHistory(); }
+}
+
+function exportCSV() {
+  const head = ['Date', 'Time', 'Type', 'Fryer', 'Amount', 'Unit', 'Who', 'Notes', 'Entered by', 'Edited'];
+  const rows = events.slice().sort((a, b) => sortKey(a).localeCompare(sortKey(b))).map(e => [e.date, e.time, e.type === 'change' ? 'Oil change' : 'Boil out', e.fryer, e.amount == null ? '' : e.amount, e.unit || '', (e.staff || []).join('; '), e.notes || '', e.createdByName || '', (e.history || []).length ? 'yes' : '']);
+  const csv = [head].concat(rows).map(r => r.map(v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `fryer-oil-${LOC}-${todayKey()}.csv`; a.click();
+}
+
+// ---------- auth ----------
+function doLogin() {
+  const email = toLoginEmail(document.getElementById('loginEmail').value);
+  const pw = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError'); errEl.style.display = 'none';
+  auth.signInWithEmailAndPassword(email, pw).catch(err => { errEl.textContent = err.message; errEl.style.display = 'block'; });
+}
+function goToDashboard() { window.location.href = 'index.html?open=' + LOC; }
+
+auth.onAuthStateChanged(async user => {
+  if (!user) { document.getElementById('loginOverlay').classList.remove('hidden'); return; }
+  document.getElementById('loginOverlay').classList.add('hidden');
+  const profile = await loadUserProfile();
+  if (!profile || !canAccessSheet(SHEET_KEY, profile)) { document.getElementById('noAccess').style.display = ''; return; }
+  document.getElementById('app').style.display = '';
+  if (!canWrite()) { document.getElementById('actions').style.display = 'none'; document.getElementById('viewOnly').style.display = ''; }
+  loadEvents(false);
+});
+</script>
+</body>
+</html>

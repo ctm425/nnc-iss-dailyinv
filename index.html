@@ -261,7 +261,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:.9rem;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none"></div>
 
-<script src="shared.js?v=20261029"></script>
+<script src="shared.js?v=20261103"></script>
 <script>
 let selectedRestaurant = null;
 let viewAsRole = ''; // empty = real role, otherwise simulated role for preview
@@ -697,7 +697,8 @@ function showIssaquahDetail(container, loc, color) {
 
   const dailyOps = section('Daily Operations', 'AM/PM Tracking', [
     tile('nnc-daily-kitchen', color, '👨‍🍳', 'Kitchen Daily Order', 'Cooked foods from Renton Main Kitchen — AM/PM counts & ordering', 'daily'),
-    tile('nnc-daily-produce', '#059669', '🥬', 'Produce Daily Order', 'Fresh produce inventory — AM/PM counts & ordering', 'daily')
+    tile('nnc-daily-produce', '#059669', '🥬', 'Produce Daily Order', 'Fresh produce inventory — AM/PM counts & ordering', 'daily'),
+    tile('nnc-fryer-oil', '#b45309', '🍟', 'Fryer Oil Log', 'Oil changes and boil outs — Fryer 1 & 2, how much, who', 'as needed')
   ], false);
 
   const usagePrep = section('Issaquah Daily Usage &amp; Prep Log', 'Daily Tracking', [

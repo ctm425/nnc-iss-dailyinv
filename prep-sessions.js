@@ -820,6 +820,8 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
     // Fields to merge into a page's own save. Pass a collectionPath to limit to one record type.
     fieldsAll: (path) => instances.filter(i => !path || i.opts.collectionPath === path)
       .reduce((o, i) => Object.assign(o, i.fields()), {}),
-    _internals: { toMin, fmtDur, cleanName }
+    _internals: { toMin, fmtDur, cleanName },
+    // Staff list, read-only copy (used by fryer-oil-log.html)
+    roster: () => STAFF_ROSTER.slice()
   };
 })();

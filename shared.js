@@ -293,6 +293,18 @@ const SHEET_TYPES = {
     restaurants: ['nnc-iss']
   },
 
+  // ---- NNC ISSAQUAH FRYER OIL LOG (Nov 3 2026) ----
+  'nnc-fryer-oil': {
+    name: 'Fryer Oil Log',
+    category: 'daily',
+    frequency: 'as needed',
+    icon: '🍟',
+    description: 'Oil changes and boil outs for Fryer 1 and 2.\nCambios de aceite y boil out de freidoras 1 y 2.',
+    allowedRoles: ['owner', 'manager', 'staff'],
+    page: 'fryer-oil-log.html',
+    restaurants: ['nnc-iss']
+  },
+
   // ---- NNC ISSAQUAH DAILY REPORT ----
   'nnc-daily-report': {
     name: 'Daily Kitchen Report',
@@ -472,6 +484,8 @@ async function setUserRole(uid, role, restaurants) {
 
 // ==================== ACCESS CONTROL ====================
 let rolePermissions = null; // loaded from Firestore, falls back to hardcoded allowedRoles
+// Pages added after role-permissions was first saved. Listed here = turned on once for their allowedRoles.
+const SEED_NEW_SHEETS = ['nnc-fryer-oil'];
 
 async function loadRolePermissions() {
   try {
@@ -493,7 +507,7 @@ async function loadRolePermissions() {
       });
       // Remove any role keys that no longer exist
       Object.keys(rolePermissions).forEach(r => {
-        if (!ROLES[r] && r !== '_migrated') { delete rolePermissions[r]; migrated = true; }
+        if (!ROLES[r] && r !== '_migrated' && r !== '_seeded') { delete rolePermissions[r]; migrated = true; }
       });
       // Seed roles added after the saved doc was created (e.g. driver) from
       // the hardcoded defaults, so the first toggle in Manage Users doesn't
@@ -504,6 +518,20 @@ async function loadRolePermissions() {
           (SHEET_TYPES[sk].allowedRoles || []).includes(role));
         migrated = true;
       });
+      // New pages added after Manage Users was set up: switch them on once for
+      // the roles in their allowedRoles. _seeded remembers what was offered so
+      // turning a page off in Manage Users is never undone.
+      const seeded = Array.isArray(rolePermissions._seeded) ? rolePermissions._seeded : [];
+      SEED_NEW_SHEETS.forEach(sk => {
+        if (seeded.includes(sk) || !SHEET_TYPES[sk]) return;
+        Object.keys(ROLES).forEach(role => {
+          if (role === 'owner' || !Array.isArray(rolePermissions[role])) return;
+          if ((SHEET_TYPES[sk].allowedRoles || []).includes(role) && !rolePermissions[role].includes(sk)) rolePermissions[role].push(sk);
+        });
+        seeded.push(sk);
+        migrated = true;
+      });
+      rolePermissions._seeded = seeded;
       // Only the owner may write config; other roles just use the merged copy.
       if (migrated && currentUserProfile && currentUserProfile.role === 'owner') {
         await db.collection('config').doc('role-permissions').set(rolePermissions);
@@ -520,6 +548,7 @@ async function loadRolePermissions() {
           }
         });
       });
+      rolePermissions._seeded = SEED_NEW_SHEETS.slice();
       await db.collection('config').doc('role-permissions').set(rolePermissions);
     }
   } catch (err) {
