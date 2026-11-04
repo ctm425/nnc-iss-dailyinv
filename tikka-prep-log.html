@@ -427,7 +427,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="toast" id="toast"></div>
 
 <script src="shared.js?v=20261029"></script>
-<script src="prep-sessions.js?v=20261030c"></script>
+<script src="prep-sessions.js?v=20261103"></script>
 <script>
 // ==================== STATE ====================
 let currentDate = new Date();
@@ -1203,7 +1203,15 @@ function tikkaPickBatch(sid, bid) {
 }
 
 function tikkaSessionQty(s) {
-  if (s.task === 'cooking') { const loc = tikkaLoc(s); return loc ? tikkaCookFields(loc, s.qty) : []; }
+  if (s.task === 'cooking') {
+    if (s.location) return tikkaCookFields(s.location, s.qty);
+    // No location saved (entered before Nov 3 2026, when the live site ran the old module and showed
+    // every location's boxes in one session): keep the boxes for EVERY location that has numbers,
+    // so saving the day never drops them. Picking a location in Edit narrows it to that location.
+    const q = s.qty || {};
+    const locs = Object.keys(TIKKA_LOCS).filter(l => TIKKA_LOCS[l].items.some(it => q[it.raw] != null || q[it.cooked] != null));
+    return locs.flatMap(l => tikkaCookFields(l, q, locs.length > 1));
+  }
   if (s.task === 'cutting') {
     if (s.batch && tikkaItem(s.batch.item)) return tikkaCutFields(s.batch);
     if (s.qty && TIKKA_CUT_ALL.some(f => s.qty[f.key] != null)) return TIKKA_CUT_ALL; // older session, no batch
