@@ -39,6 +39,27 @@
 //   Totals, labor fields and the day fields count LOGGED sessions only.
 //   Sessions saved before this change load as logged, except today's sessions with
 //   no end time, which stay open so staff can finish them.
+//
+// Per-session options (Oct 30 2026, used by tikka for location + batch). All optional:
+//   sessionQuantities:(s)=>[{key,label,step,late,placeholder}]  fields for THIS session
+//       (overrides quantities per session; quantities is still used for totals/chips).
+//       late:true = may be left blank when logging and filled in afterwards on the
+//       logged card by anyone ("Add ..." button, fills blanks only, stamps lateAt/By).
+//   sessionKeys:['location','batch']  extra session properties kept on save + in history
+//   renderExtra:(s, me)=>html          extra inputs on an open/editing card (use me.setMeta)
+//   renderLoggedExtra:(s)=>html        extra line on a logged card
+//   readyCheck:(s)=>'' | 'message'     extra rule before a session can be logged
+//   legacyTasks:[{key,label}]          old task keys: labels only, not offered for new sessions
+//   lateLabel:'Add cooked weights'
+//   field.pairWith:'rawKey'            a late field only counts as missing when its pair > 0
+//   loggedHideZero:true                logged cards list only fields with a value (or missing late ones)
+//   hideNotes:true                     no notes box
+//   field.convert:{factor,unit,decimals}  show a live conversion under the box (oz -> lb)
+//   wizard:[steps]                     open sessions are filled one step at a time (Back / Next).
+//       A step is a built-in key ('task','who','start','qty','end') or a page step
+//       {key, title, show:(s)=>bool, done:(s)=>bool, summary:(s)=>text, render:(s, me)=>html}.
+//       Page buttons call me.pick(id, key, value) to set a value and move to the next step.
+//       The owner's Edit of a logged session still uses the full form.
 // ============================================================================
 (function () {
   const NAMES_KEY = 'nnc.prepStaffNames';
@@ -61,6 +82,11 @@
   function cleanName(s) {
     return String(s || '').trim().replace(/\s+/g, ' ')
       .split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+  }
+  function convTxt(q, v) {
+    if (!q.convert || v === '' || v == null || isNaN(Number(v))) return '';
+    const f = Math.pow(10, q.convert.decimals == null ? 2 : q.convert.decimals);
+    return `= ${Math.round(Number(v) * q.convert.factor * f) / f} ${q.convert.unit}`;
   }
   function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
@@ -151,6 +177,28 @@
 .ps-total b{color:#0e7490}
 .ps-note{font-size:.78rem;color:#0f766e;font-weight:600;margin-bottom:10px}
 .ps-total-task{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#334155;margin:2px 0 6px}
+.ps-wiz{border-width:2px}
+.ps-bar{height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:-2px 0 10px}.ps-bar i{display:block;height:100%;background:#059669}
+.ps-crumbs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.ps-crumb{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:600;cursor:pointer}
+.ps-wtitle{font-size:1.15rem;font-weight:800;color:#0f172a;margin:4px 0 12px}
+.ps-wbody{margin-bottom:6px}
+.ps-big{padding:16px 14px}.ps-big b{font-size:1.1rem}
+.ps-wnav{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:12px}
+.ps-wnav .ps-btn{padding:14px;font-size:1rem}.ps-wlog{margin-top:0}
+.ps-qty-list>div{margin-bottom:12px}
+.ps-qty-list label{display:block;font-size:.9rem;font-weight:700;color:#334155;margin-bottom:4px}
+.ps-card .ps-qty-list input{width:100%;padding:12px;font-size:1.1rem;border:1.5px solid #cbd5e1;border-radius:8px;box-sizing:border-box}
+.ps-conv{font-size:.85rem;font-weight:700;color:#0f766e;margin-top:4px;min-height:1em}
+.ps-review{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.ps-lqty small{font-weight:600;color:#0f766e}
+.ps-late{border-top:1px dashed #cbd5e1;padding-top:8px}
+.ps-lateb{width:100%;padding:12px;background:#fff7ed;color:#9a3412;border:1.5px solid #fdba74;font-size:.95rem}
+.ps-pending{font-style:normal;color:#c2410c;font-weight:700}
+.ps-opt{display:block;width:100%;text-align:left;border:1.5px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;font-size:.9rem}
+.ps-opt.on{border-color:#059669;background:#ecfdf5;box-shadow:0 0 0 1px #059669 inset}
+.ps-opt b{display:block;font-size:.95rem}.ps-opt span{color:#475569;font-size:.8rem}
+.ps-info{font-size:.82rem;color:#334155;background:#f8fafc;border-radius:8px;padding:8px 10px}
 input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!important;color:#155e75!important;font-weight:700}
 @media (max-width:520px){.ps-grid{grid-template-columns:1fr}}
 `;
@@ -162,7 +210,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
   }
 
   // Pure calculation, also used by tests
-  function computeFields(sessions, prefix, tasks, qtyFor) {
+  function computeFields(sessions, prefix, tasks, qtyFor, keepKeys) {
     let labor = 0, clock = 0; const byTask = {}, byStaff = {};
     const clean = (sessions || []).map(s => {
       const a = toMin(s.start), b = toMin(s.end);
@@ -172,7 +220,8 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
         status: s.status === 'open' ? 'open' : 'logged' };
       ['loggedAt', 'loggedBy', 'loggedByName', 'editedAt', 'editedBy', 'editedByName'].forEach(k => { if (s[k]) out[k] = s[k]; });
       if (Array.isArray(s.history) && s.history.length) out.history = s.history;
-      const qf = qtyFor ? qtyFor(out.task) : [];
+      (keepKeys || []).forEach(k => { if (s[k] != null && s[k] !== '') out[k] = s[k]; });
+      const qf = qtyFor ? qtyFor(out.task, s) : [];
       if (qf.length) {
         out.qty = {};
         qf.forEach(q => { const v = s.qty ? s.qty[q.key] : undefined; if (v !== '' && v != null && !isNaN(Number(v))) out.qty[q.key] = Number(v); });
@@ -210,7 +259,8 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
     const P = { field: opts.field || 'sessions', p: opts.prefix || '' };
     const mount = () => document.getElementById(opts.mountId);
 
-    inst.qtyFor = task => {
+    inst.qtyFor = (task, s) => {
+      if (opts.sessionQuantities && s) { try { return opts.sessionQuantities(Object.assign({}, s, { task })) || []; } catch (e) { console.error(e); return []; } }
       const q = opts.quantities;
       if (!q) return [];
       if (Array.isArray(q)) return q;
@@ -223,7 +273,8 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       inst.tasks.forEach(t => (q[t.key] || []).forEach(f => { if (!seen.has(f.key)) { seen.add(f.key); out.push(f); } }));
       return out;
     };
-    inst.fields = () => computeFields(inst.sessions, P, inst.tasks, inst.qtyFor);
+    const KEEP = (opts.sessionKeys || []).concat(['lateAt', 'lateBy', 'lateByName']);
+    inst.fields = () => computeFields(inst.sessions, P, inst.tasks, inst.qtyFor, KEEP);
     inst.canEditLogged = () => {
       if (opts.canEditLogged) return !!opts.canEditLogged();
       try { return typeof isOwner === 'function' && !!isOwner(); } catch (e) { return false; }
@@ -242,9 +293,11 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
     });
     inst.readyToLog = s => {
       const a = toMin(s.start), b = toMin(s.end);
+      if (opts.wizard && !s.task) return 'Pick what is being done.';
       if (a == null) return 'Add a start time.';
       if (b == null) return 'Add an end time (or tap Now) to log it.';
       if (b <= a) return 'End time has to be after start time.';
+      if (opts.readyCheck) { const m = opts.readyCheck(s); if (m) return m; }
       if (!(s.staff || []).length) return 'Tap at least one name.';
       return '';
     };
@@ -263,13 +316,13 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       if (!opts.onTotals || !inst.loaded || inst.loadedFor !== opts.getDate()) return;
       try { opts.onTotals(inst.totals()); } catch (e) { console.error('Sessions totals error:', e); }
     };
-    inst.taskLabel = k => (inst.tasks.find(t => t.key === k) || {}).label || k || 'Session';
+    inst.taskLabel = k => (inst.tasks.concat(opts.legacyTasks || []).find(t => t.key === k) || {}).label || k || 'Session';
 
     inst.load = async function () {
       inst.flush();
       const key = opts.getDate();
       inst.loadedFor = key; inst.sessions = []; inst.failed = false; inst.lastSaved = null; inst.loaded = false;
-      inst.editing = null; inst.draft = null;
+      inst.editing = null; inst.draft = null; inst.lateEditing = null; inst.lateDraft = {};
       if (!inst.namesLearned && typeof auth !== 'undefined' && auth.currentUser) { inst.namesLearned = true; inst.learnNames(); }
       inst.render();
       if (typeof auth === 'undefined' || !auth.currentUser) return;
@@ -360,7 +413,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       const last = inst.sessions[inst.sessions.length - 1];
       if (inst.editing) return;
       inst.sessions.push({
-        id: newId(), task: last ? last.task : inst.tasks[0].key,
+        id: newId(), task: opts.wizard && inst.tasks.length > 1 ? '' : (last ? last.task : inst.tasks[0].key),
         start: viewingToday ? nowHHMM() : '', end: '',
         staff: last ? [...last.staff] : [], notes: '', qty: {}, status: 'open'
       });
@@ -375,8 +428,80 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       const s = find(id); if (!s) return;
       if (!s.qty) s.qty = {};
       if (value === '' || value == null) delete s.qty[key]; else s.qty[key] = Number(value);
+      const q = inst.qtyFor(s.task, s).find(x => x.key === key);
+      const cv = document.getElementById(`${opts.mountId}_cv_${id}_${key}`);
+      if (cv && q) cv.textContent = convTxt(q, s.qty[key]);
+      if (inst.wizErr && inst.wizErr[id]) { delete inst.wizErr[id]; const we = document.getElementById(`${opts.mountId}_we_${id}`); if (we) we.textContent = ''; }
       if (inst.editing === id) return; // keep focus while typing in the draft
       inst.changed(false);
+    };
+    inst.getSession = id => find(id);
+    inst.setMeta = function (id, key, value) {
+      const s = find(id); if (!s) return;
+      if (value === '' || value == null) delete s[key]; else s[key] = value;
+      touched(id);
+    };
+    // ---------- step-by-step entry ----------
+    inst.wiz = {}; inst.wizErr = {};
+    const BUILTIN = {
+      task: { key: 'task', title: 'What are you doing?', show: () => inst.tasks.length > 1, done: s => !!s.task,
+        summary: s => inst.taskLabel(s.task),
+        render: (s, me) => inst.tasks.map(t => `<button type="button" class="ps-opt ps-big${s.task === t.key ? ' on' : ''}" aria-pressed="${s.task === t.key}" onclick="${me}.pick('${s.id}','task','${esc(t.key)}')"><b>${s.task === t.key ? '✓ ' : ''}${esc(t.label)}</b></button>`).join('') },
+      who: { key: 'who', title: 'Who is working?', done: s => (s.staff || []).length > 0, err: 'Tap at least one name.',
+        summary: s => (s.staff || []).join(', '), render: (s, me) => whoHTML(s, me) },
+      start: { key: 'start', title: 'What time did you start?', done: s => toMin(s.start) != null, err: 'Add the start time (or tap Now).',
+        summary: s => 'Start ' + fmtTime(s.start),
+        render: (s, me) => `<div class="ps-timebox"><input type="time" value="${esc(s.start)}" onchange="${me}.set('${s.id}','start',this.value)"><button type="button" class="ps-btn ps-now" onclick="${me}.now('${s.id}','start')">Now</button></div>` },
+      qty: { key: 'qty', title: opts.qtyTitle || 'Enter the weights', show: s => opts.sessionQuantities ? !!s.task : inst.qtyFor(s.task, s).length > 0,
+        done: s => !opts.readyCheck || !opts.readyCheck(s), errFn: s => opts.readyCheck ? opts.readyCheck(s) : '',
+        summary: s => 'Weights', render: (s, me) => qtyGridHTML(s, inst.qtyFor(s.task, s), me, true) },
+      end: { key: 'end', title: 'Finished? Add the end time and log it', done: s => !inst.readyToLog(s),
+        render: (s, me) => `<div class="ps-timebox"><input type="time" value="${esc(s.end)}" onchange="${me}.set('${s.id}','end',this.value)"><button type="button" class="ps-btn ps-now" onclick="${me}.now('${s.id}','end')">Now</button></div>` +
+          `<div class="ps-review">${opts.renderLoggedExtra ? opts.renderLoggedExtra(s) : ''}${reviewQty(s)}</div>` +
+          (opts.hideNotes ? '' : `<div class="ps-field" style="margin-top:10px"><label>Notes (optional)</label><input type="text" value="${esc(s.notes)}" oninput="${me}.set('${s.id}','notes',this.value)"></div>`) }
+    };
+    inst.wizSteps = s => (opts.wizard || []).map(st => typeof st === 'string' ? BUILTIN[st] : st)
+      .filter(d => d && (!d.show || d.show(s)));
+    inst.wizIndex = s => {
+      const steps = inst.wizSteps(s);
+      let i = inst.wiz[s.id];
+      if (i == null) { i = steps.findIndex(d => d.done && !d.done(s)); if (i < 0) i = steps.length - 1; }
+      return Math.max(0, Math.min(i, steps.length - 1));
+    };
+    const wizOn = id => opts.wizard && inst.editing !== id;
+    inst.go = function (id, i) { inst.wiz[id] = i; delete inst.wizErr[id]; inst.render(); };
+    inst.back = function (id) { const s = find(id); if (!s) return; inst.go(id, inst.wizIndex(s) - 1); };
+    inst.next = function (id) {
+      const s = inst.fields()[P.field].find(x => x.id === id); if (!s) return;
+      const steps = inst.wizSteps(s), i = inst.wizIndex(s), d = steps[i];
+      if (d && d.done && !d.done(s)) { inst.wizErr[id] = (d.errFn && d.errFn(s)) || d.err || 'Finish this step first.'; inst.render(); return; }
+      inst.go(id, i + 1);
+    };
+    inst.advance = function (id) { if (wizOn(id)) { const s = find(id); if (s) { inst.wiz[id] = inst.wizIndex(s) + 1; delete inst.wizErr[id]; inst.render(); } } };
+    inst.pick = function (id, key, value) {
+      const s = find(id); if (!s) return;
+      const before = wizOn(id) ? inst.wizIndex(s) : 0;
+      if (value === '' || value == null) delete s[key]; else s[key] = value;
+      if (key === 'task' && opts.sessionKeys) opts.sessionKeys.forEach(k => { delete s[k]; }); // new task: clear location/batch
+      if (wizOn(id)) { inst.wiz[id] = before + 1; delete inst.wizErr[id]; }
+      touched(id);
+    };
+    // Late entry: fill blank "late" fields on a logged session (e.g. cooked weight after cooling)
+    inst.lateOpen = function (id) { if (inst.editing) return; inst.lateEditing = id; inst.lateDraft = {}; inst.render(); };
+    inst.lateCancel = function () { inst.lateEditing = null; inst.lateDraft = {}; inst.render(); };
+    inst.lateSet = function (key, value) { if (value === '' || value == null) delete inst.lateDraft[key]; else inst.lateDraft[key] = Number(value); };
+    inst.lateSave = function (id) {
+      const s = inst.sessions.find(x => x.id === id); if (!s) return inst.lateCancel();
+      if (opts.isLocked && opts.isLocked()) return inst.lateCancel();
+      if (!s.qty) s.qty = {};
+      const late = inst.qtyFor(s.task, s).filter(q => q.late);
+      let n = 0;
+      late.forEach(q => { const v = inst.lateDraft[q.key]; if (s.qty[q.key] == null && v != null && !isNaN(v) && v >= 0) { s.qty[q.key] = v; n++; } });
+      inst.lateEditing = null; inst.lateDraft = {};
+      if (!n) { inst.render(); return; }
+      const w = inst.who();
+      s.lateAt = new Date().toISOString(); s.lateBy = w.email; s.lateByName = w.name;
+      inst.changed();
     };
     inst.now = function (id, field) { const s = find(id); if (!s) return; s[field] = nowHHMM(); touched(id); };
     inst.addPerson = function (id, inputId, refocus) {
@@ -419,7 +544,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       inst.render();
     };
     inst.cancelEdit = function () { inst.editing = null; inst.draft = null; inst.render(); };
-    const SNAP_KEYS = ['task', 'start', 'end', 'staff', 'qty', 'notes'];
+    const SNAP_KEYS = ['task', 'start', 'end', 'staff', 'qty', 'notes'].concat(opts.sessionKeys || []);
     inst.saveEdit = function () {
       const id = inst.editing; const d = inst.draft; if (!id || !d) return;
       if (inst.readyToLog(d)) { inst.render(); return; }
@@ -436,6 +561,49 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       inst.changed();
     };
 
+    function whoHTML(s, me) {
+      const inId = `${opts.mountId}_p_${s.id}`;
+      const onRoster = n => STAFF_ROSTER.some(r => r.toLowerCase() === n.toLowerCase());
+      const picked = n => (s.staff || []).some(x => x.toLowerCase() === n.toLowerCase());
+      const others = (s.staff || []).map((n, idx) => ({ n, idx })).filter(o => !onRoster(o.n));
+      return `<div class="ps-roster">` +
+        STAFF_ROSTER.map((n, i) => `<button type="button" class="ps-pick${picked(n) ? ' on' : ''}" aria-pressed="${picked(n)}" onclick="${me}.togglePerson('${s.id}',${i})">${picked(n) ? '✓ ' : ''}${esc(n)}</button>`).join('') + `</div>` +
+        (others.length ? `<div class="ps-people">` + others.map(o => `<span class="ps-person">${esc(o.n)}<button type="button" aria-label="Remove ${esc(o.n)}" onclick="${me}.removePerson('${s.id}',${o.idx})">×</button></span>`).join('') + `</div>` : '') +
+        `<details class="ps-other"${others.length ? ' open' : ''}><summary>Someone not on the list?</summary><div class="ps-addrow"><input type="text" id="${inId}" list="psStaffNames" placeholder="Type their name" autocomplete="off"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();${me}.addPerson('${s.id}','${inId}',true)}"
+          onblur="if(this.value.trim())${me}.addPerson('${s.id}','${inId}')"><button type="button" class="ps-btn ps-addp" onmousedown="event.preventDefault()" onclick="${me}.addPerson('${s.id}','${inId}',true)">Add</button></div></details>`;
+    }
+    function qtyGridHTML(s, qf, me, single) {
+      return `<div class="${single ? 'ps-qty-list' : 'ps-qty-grid'}">` + qf.map(q => {
+        const v = s.qty && s.qty[q.key] != null ? s.qty[q.key] : '';
+        return `<div><label>${esc(q.label)}</label><input type="number" inputmode="decimal" min="0" step="${q.step || 'any'}" placeholder="${esc(q.placeholder || '')}" value="${esc(v)}" oninput="${me}.setQty('${s.id}','${q.key}',this.value)">` +
+          (q.convert ? `<div class="ps-conv" id="${opts.mountId}_cv_${s.id}_${q.key}">${convTxt(q, v)}</div>` : '') + `</div>`;
+      }).join('') + `</div>`;
+    }
+    function reviewQty(s) {
+      const qf = inst.qtyFor(s.task, s).filter(q => s.qty && s.qty[q.key] != null && s.qty[q.key] !== '');
+      if (!qf.length) return '';
+      return `<div class="ps-lqty">${qf.map(q => `<div><span>${esc(q.label)}</span><b>${esc(s.qty[q.key])}${q.convert ? ' <small>(' + esc(convTxt(q, s.qty[q.key]).replace('= ', '')) + ')</small>' : ''}</b></div>`).join('')}</div>`;
+    }
+    inst.wizardHTML = function (s, i, me) {
+      const steps = inst.wizSteps(s), k = inst.wizIndex(s), d = steps[k], last = k === steps.length - 1;
+      const done = steps.slice(0, k).filter(x => x.summary).map(x => ({ x, idx: steps.indexOf(x) }));
+      const why = inst.readyToLog(s);
+      inst.wiz[s.id] = k; // stay on this step while it is being filled in
+      const total = s.task ? steps.length : inst.wizSteps(Object.assign({}, s, { task: inst.tasks[0].key })).length;
+      const title = typeof d.title === 'function' ? d.title(s) : d.title;
+      let h = `<div class="ps-card ps-wiz${s.start && !s.end ? ' ps-live' : ''}">`;
+      h += `<div class="ps-head"><span class="ps-title">Session ${i + 1}${s.task ? ' · ' + esc(inst.taskLabel(s.task)) : ''}</span><span class="ps-badge open">Step ${k + 1} of ${total}</span></div>`;
+      h += `<div class="ps-bar"><i style="width:${Math.round((k + 1) / total * 100)}%"></i></div>`;
+      if (done.length) h += `<div class="ps-crumbs">${done.map(o => { let t = ''; try { t = o.x.summary(s) || ''; } catch (e) {} return t ? `<button type="button" class="ps-crumb" onclick="${me}.go('${s.id}',${o.idx})">${esc(t)}</button>` : ''; }).join('')}</div>`;
+      h += `<div class="ps-wtitle">${esc(title)}</div><div class="ps-wbody">${d.render(s, me) || ''}</div>`;
+      h += `<div class="ps-warn" id="${opts.mountId}_we_${s.id}">${esc(inst.wizErr[s.id] || (last && why ? why : ''))}</div>`;
+      h += `<div class="ps-wnav">${k > 0 ? `<button type="button" class="ps-btn ps-cancel" onclick="${me}.back('${s.id}')">‹ Back</button>` : '<span></span>'}` +
+        (last ? `<button type="button" class="ps-btn ps-log ps-wlog" onclick="${me}.log('${s.id}')" ${why ? 'disabled' : ''}>Log session</button>`
+              : `<button type="button" class="ps-btn ps-save" onclick="${me}.next('${s.id}')">Next ›</button>`) + `</div>`;
+      h += `<div style="text-align:right;margin-top:6px"><button type="button" class="ps-btn ps-remove${inst.confirmRemove === s.id ? ' ps-confirm' : ''}" onclick="${me}.remove('${s.id}')">${inst.confirmRemove === s.id ? 'Tap again to delete' : 'Delete session'}</button></div>`;
+      return h + `</div>`;
+    };
     inst.render = function () {
       const el = mount(); if (!el) return;
       const locked = opts.isLocked && opts.isLocked();
@@ -457,7 +625,8 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
         if (b.start !== a.start) out.push(`start ${fmtTime(b.start) || '—'} → ${fmtTime(a.start) || '—'}`);
         if (b.end !== a.end) out.push(`end ${fmtTime(b.end) || '—'} → ${fmtTime(a.end) || '—'}`);
         if ((b.staff || []).join(', ') !== (a.staff || []).join(', ')) out.push(`staff ${esc((b.staff || []).join(', ') || 'none')} → ${esc((a.staff || []).join(', ') || 'none')}`);
-        inst.qtyFor(a.task).concat(b.task !== a.task ? inst.qtyFor(b.task) : []).forEach(q => {
+        if (opts.sessionKeys) opts.sessionKeys.forEach(k => { if (JSON.stringify(b[k] == null ? '' : b[k]) !== JSON.stringify(a[k] == null ? '' : a[k])) out.push(k + ' changed'); });
+        inst.qtyFor(a.task, a).concat(inst.qtyFor(b.task, b)).filter((q, i, arr) => arr.findIndex(x => x.key === q.key) === i).forEach(q => {
           const x = b.qty ? b.qty[q.key] : undefined, y = a.qty ? a.qty[q.key] : undefined;
           if ((x == null ? '' : x) !== (y == null ? '' : y)) out.push(`${esc(q.label)} ${x == null ? '—' : x} → ${y == null ? '—' : y}`);
         });
@@ -471,17 +640,32 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
           const s = s0;
           const durTxt = s.minutes != null ? fmtDur(s.minutes) : (s.start && s.end ? 'End is before start' : '');
           const labor = s.minutes != null && s.staff.length > 1 ? `${fmtDur(s.labor_minutes)} staff time` : '';
-          const qf = inst.qtyFor(s.task);
+          const qf = inst.qtyFor(s.task, s);
           const isOpenPast = s.status !== 'logged';
+          const hasV = k => s.qty && s.qty[k] != null && s.qty[k] !== '';
+          const blanksLate = qf.filter(q => q.late && !hasV(q.key) && (!q.pairWith || Number(s.qty && s.qty[q.pairWith]) > 0));
+          const shownQf = opts.loggedHideZero ? qf.filter(q => (hasV(q.key) && Number(s.qty[q.key]) !== 0) || blanksLate.includes(q)) : qf;
           let foot = isOpenPast ? 'Never logged' : (s.loggedAt ? `Logged ${when(s.loggedAt)}${s.loggedByName ? ' by ' + esc(s.loggedByName) : ''}` : 'Logged');
           if (s.editedAt) foot += ` · Edited ${when(s.editedAt)}${s.editedByName ? ' by ' + esc(s.editedByName) : ''}`;
+          if (s.lateAt) foot += ` · Weights added ${when(s.lateAt)}${s.lateByName ? ' by ' + esc(s.lateByName) : ''}`;
+          let lateHTML = '';
+          if (!isOpenPast && !locked && blanksLate.length && !inst.editing) {
+            if (inst.lateEditing === s.id) {
+              lateHTML = `<div class="ps-late"><div class="ps-qty-grid">` + blanksLate.map(q => `<div><label>${esc(q.label)}</label><input type="number" inputmode="decimal" min="0" step="${q.step || 'any'}" placeholder="${esc(q.placeholder || '')}" oninput="${me}.lateSet('${q.key}',this.value)"></div>`).join('') +
+                `</div><div class="ps-editbar"><button type="button" class="ps-btn ps-cancel" onclick="${me}.lateCancel()">Cancel</button><button type="button" class="ps-btn ps-save" onclick="${me}.lateSave('${s.id}')">Save weights</button></div></div>`;
+            } else {
+              lateHTML = `<button type="button" class="ps-btn ps-lateb" onclick="${me}.lateOpen('${s.id}')">+ ${esc(opts.lateLabel || 'Add missing weights')}</button>`;
+            }
+          }
           h += `<div class="ps-card ps-logged">
             <div class="ps-lhead"><span class="ps-title"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Session ${i + 1} · ${esc(inst.taskLabel(s.task))}</span>
             ${canEdit && !inst.editing ? `<button type="button" class="ps-btn ps-edit" onclick="${me}.edit('${s.id}')">Edit</button>` : ''}</div>
             <div class="ps-lbody">
               <div class="ps-ltime"><b>${fmtTime(s.start) || '?'} – ${fmtTime(s.end) || '?'}</b><span class="ps-dur">${durTxt}</span></div>
               <div class="ps-chips">${s.staff.length ? s.staff.map(n => `<span class="ps-chip">${esc(n)}</span>`).join('') : '<span class="ps-lfoot">No name</span>'}${labor ? `<span class="ps-lfoot">${labor}</span>` : ''}</div>
-              ${qf.length ? `<div class="ps-lqty">${qf.map(q => `<div><span>${esc(q.label)}</span><b>${s.qty && s.qty[q.key] != null ? esc(s.qty[q.key]) : 0}</b></div>`).join('')}</div>` : ''}
+              ${opts.renderLoggedExtra ? opts.renderLoggedExtra(s) : ''}
+              ${shownQf.length ? `<div class="ps-lqty">${shownQf.map(q => `<div><span>${esc(q.label)}</span><b>${s.qty && s.qty[q.key] != null ? esc(s.qty[q.key]) + (q.convert ? ' <small>(' + esc(convTxt(q, s.qty[q.key]).replace('= ', '')) + ')</small>' : '') : (q.late ? '<em class="ps-pending">not yet</em>' : 0)}</b></div>`).join('')}</div>` : ''}
+              ${lateHTML}
               ${s.notes ? `<div class="ps-lfoot">Note: ${esc(s.notes)}</div>` : ''}
               <div class="ps-lfoot">${foot}</div>
               ${s.history && s.history.length && inst.canEditLogged() ? `<details class="ps-hist"><summary>Changes (${s.history.length})</summary><ul>${s.history.slice().reverse().map((hh, k, arr) => {
@@ -491,6 +675,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
             </div></div>`;
           return;
         }
+        if (opts.wizard && !editingThis) { h += inst.wizardHTML(s0, i, me); return; }
         const s = editingThis ? Object.assign({}, inst.draft, (() => { const a = toMin(inst.draft.start), b = toMin(inst.draft.end); const m = a != null && b != null && b > a ? b - a : null; return { minutes: m, labor_minutes: m != null ? m * Math.max((inst.draft.staff || []).length, 1) : null }; })()) : s0;
         s.staff = s.staff || [];
         const isLive = s.start && !s.end, isBad = s.start && s.end && s.minutes == null;
@@ -501,8 +686,9 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
         h += `<div class="ps-grid">`;
         if (inst.tasks.length > 1) {
           h += `<div class="ps-field ps-full"><label>What was done</label><select onchange="${me}.set('${s.id}','task',this.value)">` +
-            inst.tasks.map(t => `<option value="${esc(t.key)}"${t.key === s.task ? ' selected' : ''}>${esc(t.label)}</option>`).join('') + `</select></div>`;
+            inst.tasks.concat((opts.legacyTasks || []).filter(t => t.key === s.task)).map(t => `<option value="${esc(t.key)}"${t.key === s.task ? ' selected' : ''}>${esc(t.label)}</option>`).join('') + `</select></div>`;
         }
+        if (opts.renderExtra) { try { h += opts.renderExtra(s, me) || ''; } catch (e) { console.error('Sessions extra render error:', e); } }
         h += `<div class="ps-field"><label>Start</label><div class="ps-timebox"><input type="time" value="${esc(s.start)}" onchange="${me}.set('${s.id}','start',this.value)"><button type="button" class="ps-btn ps-now" onclick="${me}.now('${s.id}','start')">Now</button></div></div>`;
         h += `<div class="ps-field"><label>End</label><div class="ps-timebox"><input type="time" value="${esc(s.end)}" onchange="${me}.set('${s.id}','end',this.value)"><button type="button" class="ps-btn ps-now" onclick="${me}.now('${s.id}','end')">Now</button></div></div>`;
         const inId = `${opts.mountId}_p_${s.id}`;
@@ -517,13 +703,13 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
             onkeydown="if(event.key==='Enter'){event.preventDefault();${me}.addPerson('${s.id}','${inId}',true)}"
             onblur="if(this.value.trim())${me}.addPerson('${s.id}','${inId}')"><button type="button" class="ps-btn ps-addp" onmousedown="event.preventDefault()" onclick="${me}.addPerson('${s.id}','${inId}',true)">Add</button></div></details>
             ${!s.staff.length ? '<div class="ps-warn">Tap at least one name</div>' : ''}</div>`;
-        const qf = inst.qtyFor(s.task);
+        const qf = inst.qtyFor(s.task, s);
         if (qf.length) {
           h += `<div class="ps-qty"><div class="ps-qty-title">What was done this session</div><div class="ps-qty-grid">` +
-            qf.map(q => `<div><label>${esc(q.label)}</label><input type="number" inputmode="decimal" min="0" step="${q.step || 'any'}" value="${s.qty && s.qty[q.key] != null ? esc(s.qty[q.key]) : ''}" oninput="${me}.setQty('${s.id}','${q.key}',this.value)"></div>`).join('') +
+            qtyGridHTML(s, qf, me).replace(/^<div class="ps-qty-grid">/, '').replace(/<\/div>$/, '') +
             `</div></div>`;
         }
-        h += `<div class="ps-field ps-full"><label>Notes (optional)</label><input type="text" value="${esc(s.notes)}" oninput="${me}.set('${s.id}','notes',this.value)"></div>`;
+        if (!opts.hideNotes) h += `<div class="ps-field ps-full"><label>Notes (optional)</label><input type="text" value="${esc(s.notes)}" oninput="${me}.set('${s.id}','notes',this.value)"></div>`;
         h += `</div>`;
         const why = inst.readyToLog(s);
         if (why) h += `<div class="ps-warn" style="margin-top:6px">${esc(why)}</div>`;
