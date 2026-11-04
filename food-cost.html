@@ -359,7 +359,28 @@ function toBase(qty, unit, base, alt) {
   if (alt && alt.qty > 0 && alt.unit) { const a = convert(qty, unit, alt.unit); if (a !== null) return a / alt.qty; }
   return null;
 }
-function altOf(x) { return x && n(x.altQty) > 0 && x.altUnit ? { qty: n(x.altQty), unit: x.altUnit } : null; }
+// Conversion for an item: "1 <unit> = qty <alt unit>". For batches, a cooked weight
+// (whole batch) wins over the typed "1 tray weighs" box: 3 trays, 42 lb cooked -> 1 tray = 14 lb.
+function cookedAlt(x) {
+  if (!x || !(n(x.cookedQty) > 0) || !(n(x.yieldQty) > 0)) return null;
+  const yf = UNITS[nu(x.yieldUnit)];
+  if (yf && yf[0] === 'w') return null;                 // batch already counted by weight
+  return { qty: n(x.cookedQty) / n(x.yieldQty), unit: nu(x.cookedUnit || 'lb') };
+}
+function altOf(x) { return cookedAlt(x) || (x && n(x.altQty) > 0 && x.altUnit ? { qty: n(x.altQty), unit: x.altUnit } : null); }
+const BATCH_UNITS = ['tray', 'half tray', 'container', 'bottle', 'bag', 'case', 'batch'];
+function yieldUnitOptions(val) {
+  const v = nu(val); const custom = [...BATCH_UNITS]; if (v && !UNITS[v] && !custom.includes(v)) custom.push(v);
+  return `<optgroup label="Pans and containers">${custom.map(u => `<option value="${esc(u)}"${u === v ? ' selected' : ''}>${esc(u)}</option>`).join('')}</optgroup>` + unitOptionsHtml(UNITS[v] ? v : '');
+}
+// cost per lb / per oz tiles when the batch can be converted to weight
+function weightTiles(it, c) {
+  if (c.perUnit == null) return '';
+  const base = nu(it.yieldUnit), a = altOf(it);
+  const perLb = toBase(1, 'lb', base, a); if (perLb == null) return '';
+  const lb = c.perUnit * perLb, oz = lb / 16;
+  return `${base === 'lb' ? '' : `<div class="tot"><div class="k">Per lb</div><div class="v">${money4(lb)}</div></div>`}<div class="tot"><div class="k">Per oz</div><div class="v">${money4(oz)}</div></div>`;
+}
 
 // ---------- catalog ----------
 function emptyCatalog() {
@@ -1022,9 +1043,12 @@ function laborTable(t, it, title) {
 function warnList(c) { return c.warns.length ? `<div class="banner warn" style="margin-top:12px">${c.warns.map(esc).join('<br>')}</div>` : ''; }
 function yieldBlock(t, it) {
   const P = `${t}.${it.id}`;
-  const yu = nu(it.yieldUnit), a = altOf(it);
-  return `<div class="ff"><label>Batch makes</label><div class="eq">${inp(P + '.yieldQty', it.yieldQty, { num: true, ph: '3', style: 'width:80px' })} ${inp(P + '.yieldUnit', it.yieldUnit, { list: 'unitList', ph: 'tray', style: 'width:100px' })}</div>${seeAs(P + '.seeYield', it.yieldQty, yu, yu, a, it.seeYield)}</div>
-    <div class="ff"><label>1 ${esc(unitLabel(yu) || 'unit')} weighs / holds (optional)</label><div class="eq">${inp(P + '.altQty', it.altQty, { num: true, ph: '12', style: 'width:80px' })} ${inp(P + '.altUnit', it.altUnit, { list: 'unitList', ph: 'lb', style: 'width:100px' })}</div>${a ? seeAs(P + '.seeAlt', it.altQty, a.unit, a.unit, null, it.seeAlt) : ''}</div>`;
+  const yu = nu(it.yieldUnit), ca = cookedAlt(it), a = altOf(it);
+  const yieldIsWeight = UNITS[yu] && UNITS[yu][0] === 'w';
+  const cooked = yieldIsWeight ? '' : `<div class="ff"><label>Cooked weight (whole batch)</label><div class="eq">${inp(P + '.cookedQty', it.cookedQty, { num: true, ph: '42', style: 'width:80px' })}<select id="${fid(P + '.cookedUnit')}" data-p="${P}.cookedUnit" style="width:90px">${unitOptionsHtml(it.cookedUnit || 'lb', ['lb', 'oz', 'kg', 'g'])}</select></div>${n(it.cookedQty) > 0 ? seeAs(P + '.seeCooked', it.cookedQty, it.cookedUnit || 'lb', it.cookedUnit || 'lb', null, it.seeCooked) : ''}${ca ? `<div class="small" style="margin-top:3px;color:var(--gray-700)">1 ${esc(unitLabel(yu))} = <b>${fmtQty(ca.qty)} ${esc(unitLabel(ca.unit))}</b>${ca.unit === 'lb' ? ` (${fmtQty(ca.qty * 16)} oz)` : ''}</div>` : ''}</div>`;
+  const manual = ca ? '' : `<div class="ff"><label>${yieldIsWeight ? `1 ${esc(unitLabel(yu))} holds (for cups and spoons)` : `Or: 1 ${esc(unitLabel(yu) || 'unit')} weighs / holds`}</label><div class="eq">${inp(P + '.altQty', it.altQty, { num: true, ph: '14', style: 'width:80px' })} ${inp(P + '.altUnit', it.altUnit, { list: 'unitList', ph: 'lb', style: 'width:90px' })}</div>${a ? seeAs(P + '.seeAlt', it.altQty, a.unit, a.unit, null, it.seeAlt) : ''}</div>`;
+  return `<div class="ff"><label>Batch makes</label><div class="eq">${inp(P + '.yieldQty', it.yieldQty, { num: true, ph: '3', style: 'width:80px' })}<select id="${fid(P + '.yieldUnit')}" data-p="${P}.yieldUnit" style="width:110px">${yieldUnitOptions(it.yieldUnit)}</select></div>${seeAs(P + '.seeYield', it.yieldQty, yu, yu, a, it.seeYield)}</div>
+    ${cooked}${manual}`;
 }
 
 // ===== BULK COOKING =====
@@ -1048,7 +1072,7 @@ function renderBulk(view) {
       </div>
       ${linesTable('prep', it, ['ing', 'prep'], 'What goes in (one batch)')}
       ${laborTable('prep', it, 'Labor (one batch)')}
-      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div><div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${altOf(it) ? `<div class="tot"><div class="k">Per ${esc(nu(it.altUnit))}</div><div class="v">${money4(c.perUnit == null ? null : c.perUnit / n(it.altQty))}</div></div>` : ''}</div>
+      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div><div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${weightTiles(it, c)}</div>
       ${warnList(c)}
       <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
       <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('prep','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('prep','${it.id}')">Delete</button></div>`;
@@ -1079,7 +1103,7 @@ function renderBulk(view) {
       ${FEATURES.billing && linked[it.dailyId] > 1 ? `<div class="banner warn" style="margin-top:10px">Another bulk item is linked to the same daily order item. Billing will count it twice.</div>` : ''}
       ${linesTable('bulk', it, ['ing', 'prep', 'bulk'], 'What goes in (one batch)')}
       ${laborTable('bulk', it, 'Labor (one batch)')}
-      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div>${c.trans ? `<div class="tot"><div class="k">Transport</div><div class="v">${money(c.trans)}</div></div>` : ''}<div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${altOf(it) ? `<div class="tot"><div class="k">Per ${esc(nu(it.altUnit))}</div><div class="v">${money4(c.perUnit == null ? null : c.perUnit / n(it.altQty))}</div></div>` : ''}<div class="tot"><div class="k">Labor share</div><div class="v">${pct(c.total ? c.lab / c.total : null)}</div></div></div>
+      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div>${c.trans ? `<div class="tot"><div class="k">Transport</div><div class="v">${money(c.trans)}</div></div>` : ''}<div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${weightTiles(it, c)}<div class="tot"><div class="k">Labor share</div><div class="v">${pct(c.total ? c.lab / c.total : null)}</div></div></div>
       ${warnList(c)}
       <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
       <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('bulk','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('bulk','${it.id}')">Delete</button></div>`;
