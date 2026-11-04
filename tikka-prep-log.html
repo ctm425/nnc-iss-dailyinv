@@ -427,7 +427,7 @@ body.historical-mode input.auto{background:#fefce8!important;border-color:#fbbf2
 <div class="toast" id="toast"></div>
 
 <script src="shared.js?v=20261029"></script>
-<script src="prep-sessions.js?v=20261103"></script>
+<script src="prep-sessions.js?v=20261103b"></script>
 <script>
 // ==================== STATE ====================
 let currentDate = new Date();
@@ -1191,7 +1191,7 @@ function tikkaPickBatch(sid, bid) {
   const inst = PrepSessions.get('psMain'); if (!inst) return;
   const s = inst.getSession(sid); if (!s) return;
   const b = tikkaBatches(sid).find(x => x.id === bid); if (!b) return;
-  if (s.batch && s.batch.id !== b.id && s.qty) { // keep what was typed when switching batch
+  if (s.batch && !s.batch.na && s.batch.id !== b.id && s.qty) { // keep what was typed when switching batch
     const from = tikkaCutFields(s.batch), to = tikkaCutFields(b);
     const moved = {};
     from.forEach((f, i) => { if (s.qty[f.key] != null && to[i]) moved[to[i].key] = s.qty[f.key]; delete s.qty[f.key]; });
@@ -1199,6 +1199,15 @@ function tikkaPickBatch(sid, bid) {
   }
   inst.setMeta(sid, 'batch', { id: b.id, date: b.date, sessionId: b.sessionId, item: b.item, label: b.label,
     color: b.color, raw: b.raw, start: b.start });
+  inst.advance(sid);
+}
+
+// Owner only (Nov 3 2026): "N/A, not tracked" for cuts where staff didn't record the batch.
+// Stored as s.batch = {id:'na', na:true}. Fields = the four plain cut/wastage boxes.
+function tikkaPickNA(sid) {
+  if (!isOwner()) return;
+  const inst = PrepSessions.get('psMain'); if (!inst) return;
+  inst.setMeta(sid, 'batch', { id: 'na', na: true, label: 'Not tracked' });
   inst.advance(sid);
 }
 
@@ -1213,6 +1222,7 @@ function tikkaSessionQty(s) {
     return locs.flatMap(l => tikkaCookFields(l, q, locs.length > 1));
   }
   if (s.task === 'cutting') {
+    if (s.batch && s.batch.na) return TIKKA_CUT_ALL;
     if (s.batch && tikkaItem(s.batch.item)) return tikkaCutFields(s.batch);
     if (s.qty && TIKKA_CUT_ALL.some(f => s.qty[f.key] != null)) return TIKKA_CUT_ALL; // older session, no batch
     return [];
@@ -1231,7 +1241,9 @@ function tikkaReady(s) {
   if (s.task === 'cutting') {
     const legacy = !s.batch && TIKKA_CUT_ALL.some(f => q[f.key] != null);
     if (!s.batch && !legacy) return 'Pick the batch you cut.';
-    if (s.batch) {
+    if (s.batch && s.batch.na) {
+      if (!(Number(q.cut_dark) > 0 || Number(q.cut_white) > 0)) return 'Enter the cut pieces (dark or white).';
+    } else if (s.batch) {
       const it = tikkaItem(s.batch.item);
       if (it && !(Number(q[it.cooked]) > 0)) return 'Enter the whole batch weight before cutting.';
       if (!(Number(q[tikkaCutKey(s.batch.color)]) > 0)) return 'Enter the weight of the cut pieces.';
@@ -1248,15 +1260,16 @@ function tikkaLocButtons(s, me) {
 function tikkaBatchButtons(s) {
   const sel = s.batch && s.batch.id;
   const list = tikkaBatches(s.id);
-  if (sel && !list.some(b => b.id === sel)) list.unshift(Object.assign({ missing: true, cut: 0 }, s.batch));
-  if (!list.length) return `<div class="ps-info">No Issaquah tikka has been logged as cooked today or yesterday. Log the cooking session first, then pick the batch here.</div>`;
+  if (sel && sel !== 'na' && !list.some(b => b.id === sel)) list.unshift(Object.assign({ missing: true, cut: 0 }, s.batch));
+  const na = isOwner() ? `<button type="button" class="ps-opt${sel === 'na' ? ' on' : ''}" aria-pressed="${sel === 'na'}" onclick="tikkaPickNA('${s.id}')"><b>${sel === 'na' ? '✓ ' : ''}N/A, batch not tracked</b><span>Owner only. Enter the cut weights without a batch.</span></button>` : '';
+  if (!list.length) return `<div class="ps-info">No Issaquah tikka has been logged as cooked today or yesterday. Log the cooking session first, then pick the batch here.</div>` + na;
   return list.map(b => {
     const on = b.id === sel;
     const bits = ['Cooked ' + tikkaDayLabel(b.date) + (b.start ? ' ' + tikkaClock(b.start) : '')];
     if (b.cut) bits.push(`${b.cut} lb already cut`);
     if (b.missing) bits.push('older batch');
     return `<button type="button" class="ps-opt${on ? ' on' : ''}" aria-pressed="${on}" onclick="tikkaPickBatch('${s.id}','${tikkaEsc(b.id)}')"><b>${on ? '✓ ' : ''}${tikkaEsc(b.label)} · ${b.raw} lb raw</b><span>${tikkaEsc(bits.join(' · '))}</span></button>`;
-  }).join('');
+  }).join('') + na;
 }
 
 // Full form (owner Edit of a logged session)
@@ -1276,6 +1289,7 @@ function tikkaLoggedExtra(s) {
       .map(it => `${it.label} ${Math.round(Number(q[it.cooked]) / Number(q[it.raw]) * 100)}%`);
     return `<div class="ps-info">Cooked for <b>${L.label}</b>${ylds.length ? `<br>Cooked yield: ${tikkaEsc(ylds.join(', '))}` : ''}</div>`;
   }
+  if (s.task === 'cutting' && s.batch && s.batch.na) return `<div class="ps-info">Batch: <b>N/A, not tracked</b></div>`;
   if (s.task === 'cutting' && s.batch) {
     const b = s.batch, it = tikkaItem(b.item);
     const cooked = it ? Number(q[it.cooked]) || 0 : 0;
@@ -1315,7 +1329,7 @@ PrepSessions.create({
       done: s => !!tikkaLoc(s), err: 'Pick a location.', summary: s => (TIKKA_LOCS[tikkaLoc(s)] || {}).label || '',
       render: (s, me) => tikkaLocButtons(s, me) },
     { key: 'batch', title: 'Which batch are you cutting?', show: s => s.task === 'cutting',
-      done: s => !!s.batch, err: 'Pick the batch.', summary: s => s.batch ? `${s.batch.label} ${s.batch.raw} lb` : '',
+      done: s => !!s.batch, err: 'Pick the batch.', summary: s => s.batch ? (s.batch.na ? 'Batch N/A' : `${s.batch.label} ${s.batch.raw} lb`) : '',
       render: s => `<div class="ps-info" style="margin-bottom:8px">Issaquah tikka cooked today or yesterday</div>` + tikkaBatchButtons(s) },
     'who', 'start', 'qty', 'end'
   ],

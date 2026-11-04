@@ -432,10 +432,19 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
       const cv = document.getElementById(`${opts.mountId}_cv_${id}_${key}`);
       if (cv && q) cv.textContent = convTxt(q, s.qty[key]);
       if (inst.wizErr && inst.wizErr[id]) { delete inst.wizErr[id]; const we = document.getElementById(`${opts.mountId}_we_${id}`); if (we) we.textContent = ''; }
-      if (inst.editing === id) return; // keep focus while typing in the draft
+      if (inst.editing === id) { inst.refreshEditState(); return; } // keep focus while typing in the draft
       inst.changed(false);
     };
     inst.getSession = id => find(id);
+    // Owner Edit: update the Save button + message without re-rendering (keeps the box being typed in)
+    inst.refreshEditState = function () {
+      if (!inst.editing || !inst.draft) return;
+      const why = inst.readyToLog(inst.draft);
+      const btn = document.querySelector(`#${opts.mountId} .ps-editing .ps-save`);
+      if (btn) btn.disabled = !!why;
+      const w = document.getElementById(`${opts.mountId}_ew`);
+      if (w) w.textContent = why;
+    };
     inst.setMeta = function (id, key, value) {
       const s = find(id); if (!s) return;
       if (value === '' || value == null) delete s[key]; else s[key] = value;
@@ -712,7 +721,7 @@ input.ps-from-sessions{background:#ecfeff!important;border-color:#67e8f9!importa
         if (!opts.hideNotes) h += `<div class="ps-field ps-full"><label>Notes (optional)</label><input type="text" value="${esc(s.notes)}" oninput="${me}.set('${s.id}','notes',this.value)"></div>`;
         h += `</div>`;
         const why = inst.readyToLog(s);
-        if (why) h += `<div class="ps-warn" style="margin-top:6px">${esc(why)}</div>`;
+        h += `<div class="ps-warn" style="margin-top:6px"${editingThis ? ` id="${opts.mountId}_ew"` : ''}>${esc(why)}</div>`;
         if (editingThis) {
           h += `<div class="ps-editbar"><button type="button" class="ps-btn ps-cancel" onclick="${me}.cancelEdit()">Cancel</button><button type="button" class="ps-btn ps-save" onclick="${me}.saveEdit()" ${why ? 'disabled' : ''}>Save changes</button></div>`;
         } else {
