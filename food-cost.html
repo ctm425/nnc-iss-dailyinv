@@ -694,11 +694,22 @@ document.addEventListener('change', e => {
     res.obj.priceDate = dk(new Date());
   }
   if (/^ingredients\.[^.]+\.w(Top|Bottom|Total)$/.test(p) && v !== '' && res.obj.wUnit === 'oz') { res.obj[res.last] = Math.round(v * G_PER_OZ * 100) / 100; }
+  if (/^ingredients\.[^.]+\.innerQtyText$/.test(p)) {
+    const q = parseQty(v);
+    if (v !== '' && (q == null || !(q > 0))) { toast('Use a number like 2, 0.5 or 1/2'); res.obj.innerQtyText = res.before; }
+    else { res.obj.innerQty = q == null ? '' : q; if (res.obj.caseCount === undefined) res.obj.caseCount = 1; syncCase(res.obj); }
+  }
+  if (/^ingredients\.[^.]+\.(caseCount|innerQty)$/.test(p)) {
+    if (res.last === 'caseCount' && !(n(v) > 0)) res.obj.caseCount = 1;
+    // first time an older item gets a case count: keep the same total, split across the units (40 lb -> 4 x 10 lb)
+    if (res.last === 'caseCount' && res.obj.innerQty === undefined && n(res.obj.packQty) > 0) res.obj.innerQty = Math.round(n(res.obj.packQty) / n(res.obj.caseCount) * 10000) / 10000;
+    syncCase(res.obj);
+  }
   if (/^ingredients\.[^.]+\.unitPrice$/.test(p)) {
     // price typed per view unit -> pack price
     const ing = res.obj; delete ing.unitPrice;
     if (v !== '' && v != null) {
-      if (!(n(ing.packQty) > 0)) ing.packQty = 1;
+      if (!(n(ing.packQty) > 0)) { ing.caseCount = n(ing.caseCount) > 0 ? ing.caseCount : 1; ing.innerQty = 1; syncCase(ing); }
       _memo = {};
       const u = unitInfo('ing:' + ing.id);
       const vu = viewUnitOf(ing);
@@ -910,14 +921,14 @@ function seeUnitsFor(unit, base, alt) {
   return [...Object.keys(UNITS), ...pnames].filter(x => x !== u && x !== k && toBase(1, x, base, alt) != null && (toBase(1, unit, base, alt) != null));
 }
 function fmtQty(v) { if (v == null || isNaN(v)) return '—'; const a = Math.abs(v); return fmt(v, a === 0 || a >= 0.1 ? 1 : a >= 0.01 ? 2 : 3); }
-function seeAs(path, qty, unit, base, alt, cur) {
+function seeAs(path, qty, unit, base, alt, cur, label) {
   const list = seeUnitsFor(unit, base, alt); const q = n(qty);
   if (!list.length || isNaN(q)) return '';
   const ck = String(cur || '').trim().toLowerCase();
   const pick = list.includes(ck) ? ck : list.includes(nu(cur)) ? nu(cur) : (list.includes(SEE_DEFAULT[nu(unit)]) ? SEE_DEFAULT[nu(unit)] : (list.includes('oz') ? 'oz' : list[0]));
   const inBase = toBase(q, unit, base, alt); const per = toBase(1, pick, base, alt);
   const v = inBase != null && per ? inBase / per : null;
-  return `<div class="eq small muted" style="white-space:nowrap;margin-top:3px">= <b style="color:var(--gray-700)">${fmtQty(v)}</b><select id="${fid(path)}" data-p="${path}" style="width:auto;min-height:28px;padding:2px 4px;font-size:.78rem">${unitOptionsHtml(pick, list)}</select></div>`;
+  return `<div class="eq small muted" style="white-space:nowrap;margin-top:3px">${label || '='} <b style="color:var(--gray-700)">${fmtQty(v)}</b><select id="${fid(path)}" data-p="${path}" style="width:auto;min-height:28px;padding:2px 4px;font-size:.78rem">${unitOptionsHtml(pick, list)}</select></div>`;
 }
 function toggleIngCat(k) { ingCollapsed.has(k) ? ingCollapsed.delete(k) : ingCollapsed.add(k); ls('nnc.foodcost.ingCollapsed', JSON.stringify([...ingCollapsed])); render(); }
 function setAllIngCats(open) { ingCollapsed = open ? new Set() : new Set(C.ingredients.map(i => i.category || 'No category')); ls('nnc.foodcost.ingCollapsed', JSON.stringify([...ingCollapsed])); render(); }
@@ -929,6 +940,23 @@ function viewUnitsFor(i) {
   if (pu) { const k = out.indexOf(pu); if (k > -1) out.splice(k, 1); out.unshift(pu); }
   return out;
 }
+// ---- case structure: case of <caseCount> <innerName> x <innerQty> <packUnit>; packQty = total per case ----
+const INNER_TYPES = ['carton', 'bag', 'bottle', 'can', 'jar', 'jug', 'box', 'tub', 'bucket', 'pack', 'block', 'sleeve', 'tray', 'each'];
+// "1/2", "1 1/2", "0.5", "2" -> number (null if not a number)
+function parseQty(t) {
+  t = String(t == null ? '' : t).trim(); if (!t) return null;
+  let m = t.match(/^(\d+)\s+(\d+)\/(\d+)$/); if (m) return +m[1] + (+m[3] ? +m[2] / +m[3] : NaN);
+  m = t.match(/^(\d+)\/(\d+)$/); if (m) return +m[2] ? +m[1] / +m[2] : null;
+  const v = Number(t); return isNaN(v) ? null : v;
+}
+function caseOf(i) {
+  const cc = n(i.caseCount) > 0 ? n(i.caseCount) : 1;
+  const inner = i.innerQty !== undefined && i.innerQty !== '' ? i.innerQty : (cc === 1 ? i.packQty : '');
+  return { cc, inner, text: i.innerQtyText != null && i.innerQtyText !== '' && parseQty(i.innerQtyText) === n(inner) ? i.innerQtyText : inner, name: i.innerName || (cc > 1 ? 'carton' : 'each') };
+}
+function syncCase(i) { const c = caseOf(i); const q = n(c.inner); i.packQty = q > 0 ? Math.round(c.cc * q * 10000) / 10000 : ''; }
+// money in price inputs: to the cent; under a cent keep 4 decimals so it never reads 0.00
+function money2(v) { if (v == null || isNaN(v)) return ''; const a = Math.abs(v); return a > 0 && a < 0.01 ? Math.round(v * 10000) / 10000 : Math.round(v * 100) / 100; }
 function viewUnitOf(i) { const vus = viewUnitsFor(i); const pu = nu(i.packUnit); const v = nu(i.viewUnit); return vus.includes(v) ? v : (vus.includes(pu) ? pu : (vus[0] || pu)); }
 function renderIngredients() {
   const q = ingSearch.toLowerCase();
@@ -946,13 +974,15 @@ function renderIngredients() {
     const alt = `<div class="eq small" style="white-space:nowrap">1 ${esc(unitLabel(pu) || 'unit')} = ${inp(P + '.altQty', i.altQty, { num: true, ph: 'qty', style: 'width:64px' })} ${inp(P + '.altUnit', i.altUnit, { list: 'unitList', ph: 'cup', style: 'width:70px' })}</div>`;
     return `<tr>
       <td style="min-width:210px">${inp(P + '.name', i.name, { ph: 'e.g. Chicken thigh, boneless' })}</td>
-      <td style="width:130px">${inp(P + '.brand', i.brand, { ph: 'Brand', list: 'brandList' })}</td>
-      <td style="width:130px">${inp(P + '.category', i.category, { ph: 'Meat, Spice…', list: 'catList' })}</td>
-      <td style="width:130px">${inp(P + '.vendor', i.vendor, { ph: 'Vendor', list: 'vendorList' })}</td>
-      <td style="width:170px"><div class="eq">${inp(P + '.packQty', i.packQty, { num: true, ph: '40', style: 'width:66px' })}<select id="${fid(P + '.packUnit')}" data-p="${P}.packUnit" style="width:92px">${unitOptionsHtml(pu)}</select></div>${seeAs(P + '.seePack', i.packQty, pu, pu, altOf(i), i.seePack)}</td>
-      <td style="width:110px">${inp(P + '.packPrice', i.packPrice, { num: true, ph: '$' })}${i.prevPrice !== undefined && i.prevPrice !== '' ? `<div class="muted small">was ${money(n(i.prevPrice))}</div>` : ''}</td>
-      <td style="width:190px"><div class="eq">${inp(P + '.unitPrice', perView == null ? '' : (perView < 0.1 ? Math.round(perView * 1e6) / 1e6 : r4(perView)), { num: true, ph: '$', style: 'width:92px' })}<span class="small muted">per</span><select id="${fid(P + '.viewUnit')}" data-p="${P}.viewUnit" style="width:84px">${unitOptionsHtml(vu, vus)}</select></div></td>
-      <td>${alt}</td>
+      <td style="min-width:130px">${inp(P + '.brand', i.brand, { ph: 'Brand', list: 'brandList' })}</td>
+      <td style="min-width:140px">${inp(P + '.category', i.category, { ph: 'Meat, Spice…', list: 'catList' })}</td>
+      <td style="min-width:130px">${inp(P + '.vendor', i.vendor, { ph: 'Vendor', list: 'vendorList' })}</td>
+      <td style="min-width:250px">${(() => { const cs = caseOf(i); const each = n(cs.inner); const tot = n(i.packQty); const pr = n(i.packPrice);
+        return `<div class="eq">${inp(P + '.caseCount', n(i.caseCount) > 0 ? i.caseCount : 1, { num: true, ph: '6', style: 'width:52px' })}<span class="muted">×</span><input id="${fid(P + '.innerQtyText')}" data-p="${P}.innerQtyText" type="text" inputmode="decimal" value="${esc(cs.text)}" placeholder="1/2" style="width:58px;padding:7px 8px;border:1px solid var(--gray-300);border-radius:7px;min-height:36px;text-align:right"><select id="${fid(P + '.packUnit')}" data-p="${P}.packUnit" style="width:92px">${unitOptionsHtml(pu)}</select></div>
+        ${each > 0 ? seeAs(P + '.seeInner', each, pu, pu, altOf(i), i.seeInner || (pu === 'gal' || pu === 'qt' || pu === 'pt' ? 'fl oz' : ''), (cs.cc > 1 ? 'each =' : '=')) : ''}
+        ${tot > 0 ? `<div class="small" style="margin-top:3px;color:var(--gray-700)">= <b>${fmtQty(tot)} ${esc(unitLabel(pu))}</b> per case${cs.cc > 1 && pr > 0 ? ` · ${money(pr / cs.cc)} each` : ''}</div>` : ''}`; })()}</td>
+      <td style="width:120px">${inp(P + '.packPrice', money2(n(i.packPrice)), { num: true, ph: '$' })}${i.prevPrice !== undefined && i.prevPrice !== '' ? `<div class="muted small">was ${money(n(i.prevPrice))}</div>` : ''}</td>
+      <td style="width:190px"><div class="eq">${inp(P + '.unitPrice', perView == null ? '' : money2(perView), { num: true, ph: '$', style: 'width:92px' })}<span class="small muted">per</span><select id="${fid(P + '.viewUnit')}" data-p="${P}.viewUnit" style="width:84px">${unitOptionsHtml(vu, vus)}</select></div></td>
       <td style="white-space:nowrap">${i.priceDate ? `<span class="tag ${stale ? 'stale' : ''}">${esc(i.priceDate)}</span>` : '<span class="muted small">—</span>'}</td>
       <td class="small">${used.length ? `<span title="${esc(used.join(', '))}">${used.length} recipe${used.length > 1 ? 's' : ''}</span>` : '<span class="muted">not used</span>'}</td>
       <td><button class="btn-x" title="Delete" onclick="delItem('ing','${i.id}')">✕</button></td>
@@ -974,8 +1004,8 @@ function renderIngredients() {
       <td style="width:120px">${inp(P + '.brand', i.brand, { ph: 'Brand', list: 'brandList' })}</td>
       <td style="min-width:120px">${inp(P + '.vendor', i.vendor, { ph: 'Vendor', list: 'vendorList' })}</td>
       <td style="width:170px"><div class="eq">${inp(P + '.packQty', i.packQty, { num: true, ph: '240', style: 'width:66px' })}<select id="${fid(P + '.packUnit')}" data-p="${P}.packUnit" style="width:92px">${unitOptionsHtml(pu)}</select></div><div class="muted small">per case</div></td>
-      <td style="width:100px">${inp(P + '.packPrice', i.packPrice, { num: true, ph: '$' })}${i.prevPrice !== undefined && i.prevPrice !== '' ? `<div class="muted small">was ${money(n(i.prevPrice))}</div>` : ''}</td>
-      <td style="width:120px"><div class="eq">${inp(P + '.unitPrice', perView == null ? '' : r4(perView), { num: true, ph: '$', style: 'width:76px' })}<span class="small muted">${esc(unitLabel(vu))}</span></div></td>
+      <td style="width:100px">${inp(P + '.packPrice', money2(n(i.packPrice)), { num: true, ph: '$' })}${i.prevPrice !== undefined && i.prevPrice !== '' ? `<div class="muted small">was ${money(n(i.prevPrice))}</div>` : ''}</td>
+      <td style="width:120px"><div class="eq">${inp(P + '.unitPrice', perView == null ? '' : money2(perView), { num: true, ph: '$', style: 'width:76px' })}<span class="small muted">${esc(unitLabel(vu))}</span></div></td>
       <td style="min-width:150px"><div class="eq">${inp(P + '.capQty', i.capQty, { num: true, ph: '32', style: 'width:64px' })}<select id="${fid(P + '.capUnit')}" data-p="${P}.capUnit" style="width:80px">${unitOptionsHtml(i.capUnit || 'fl oz', ['fl oz', 'cup', 'pt', 'qt', 'ml', 'l', 'oz', 'lb', 'g'])}</select></div>${seeAs(P + '.seeCap', i.capQty, i.capUnit || 'fl oz', i.capUnit || 'fl oz', null, i.seeCap)}</td>
       <td style="width:95px"><select id="${fid(P + '.wUnit')}" data-p="${P}.wUnit">${opts([['g', 'grams'], ['oz', 'oz']], oz ? 'oz' : 'g')}</select></td>
       ${wCell(i, 'wTop')}${wCell(i, 'wBottom')}
@@ -990,7 +1020,7 @@ function renderIngredients() {
   rows.forEach(i => { const k = catKey(i.category); (groups[k] = groups[k] || []).push(i); });
   if (!q) { if (!groups[PKG_CAT]) groups[PKG_CAT] = []; savedCats().forEach(c => { if (!groups[c]) groups[c] = []; }); }
   const keys = Object.keys(groups).sort((a, b) => a === 'No category' ? 1 : b === 'No category' ? -1 : a.localeCompare(b));
-  const head = `<thead><tr><th>Name</th><th>Brand</th><th>Category</th><th>Vendor</th><th>Pack size</th><th class="num">Pack price</th><th>Price per unit</th><th>Conversion (optional)</th><th>Price date</th><th>Used in</th><th></th></tr></thead>`;
+  const head = `<thead><tr><th>Name</th><th>Brand</th><th>Category</th><th>Vendor</th><th>Case size</th><th class="num">Case price</th><th>Price per unit</th><th>Price date</th><th>Used in</th><th></th></tr></thead>`;
   const sections = keys.map(k => {
     const list = groups[k]; const closed = ingCollapsed.has(k) && !q;
     const miss = list.filter(i => unitInfo('ing:' + i.id).cost == null).length;
@@ -1015,7 +1045,7 @@ function renderIngredients() {
       <button class="btn btn-white" onclick="startAddCat()">+ Add category</button>
       <button class="btn btn-primary" onclick="addItem('ing')">+ Add ingredient</button></div></div>
     ${addingCat ? `<div class="banner info" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><b>New category</b><input id="newCatBox" placeholder="e.g. Dry Ingredients, Oils, Frozen" style="padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;min-height:38px;min-width:240px" onkeydown="if(event.key==='Enter')saveNewCat();if(event.key==='Escape'){addingCat=false;render()}"><button class="btn btn-primary btn-sm" onclick="saveNewCat()">Add</button><button class="btn btn-white btn-sm" onclick="addingCat=false;render()">Cancel</button></div>` : ''}
-    <p class="desc">One price list for everything. Enter either the pack price (for example $90.40 for a 40 lb case) or the price per unit (for example $2.26 per lbs); the other one is worked out. Change the unit next to the price to see it per gram, oz, lbs, cup, tbsp, mL and more; the small "=" line under a quantity shows it in another unit. Containers go in Take Out Packaging with their lid, bottom and total weights. If a recipe measures in cups but you buy by weight, fill in "1 lbs = ? cup" so the two can be converted. Prices older than ${STALE_DAYS} days are marked in amber.</p>
+    <p class="desc">One price list for everything. Describe the case as how many, how big, and what they come in (for example heavy cream: 6 × 1/2 gallon), then enter either the case price or the price per unit; the other one is worked out. Change the unit next to the price to see it per gram, oz, lbs, cup, tbsp, mL and more; the small "=" line under a quantity shows it in another unit. Containers go in Take Out Packaging with their lid, bottom and total weights. Prices older than ${STALE_DAYS} days are marked in amber.</p>
     ${noPrice ? `<div class="banner warn" style="margin-bottom:10px">${noPrice} ingredient${noPrice > 1 ? 's have' : ' has'} no price yet. Recipes using them will show too low a cost.</div>` : ''}
     ${staleCount ? `<div class="banner warn" style="margin-bottom:10px">${staleCount} price${staleCount > 1 ? 's are' : ' is'} over ${STALE_DAYS} days old.</div>` : ''}
     ${keys.length > 1 ? `<div style="display:flex;gap:6px;margin-bottom:8px"><button class="btn-link" onclick="setAllIngCats(true)">Open all</button><button class="btn-link" onclick="setAllIngCats(false)">Close all</button></div>` : ''}
@@ -1064,7 +1094,7 @@ function applyPaste() {
     const ex = C.ingredients.find(i => i.name.toLowerCase() === r.name.toLowerCase() && (!r.brand || (i.brand || '').toLowerCase() === r.brand.toLowerCase()));
     if (ex) {
       if (r.packPrice !== '' && r.packPrice !== ex.packPrice) { ex.prevPrice = ex.packPrice; ex.packPrice = r.packPrice; ex.priceDate = today; }
-      if (r.packQty) ex.packQty = r.packQty; if (r.packUnit) ex.packUnit = r.packUnit;
+      if (r.packQty) { ex.packQty = r.packQty; ex.caseCount = 1; ex.innerQty = r.packQty; } if (r.packUnit) ex.packUnit = r.packUnit;
       if (r.vendor) ex.vendor = r.vendor; if (r.category) ex.category = r.category; if (r.brand) ex.brand = r.brand;
     } else C.ingredients.push(Object.assign({ id: newId(), notes: '', priceDate: r.packPrice !== '' ? today : '' }, r));
   });
