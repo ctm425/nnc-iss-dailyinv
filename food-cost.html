@@ -200,10 +200,11 @@ const UNITS = {
   lb: ['w', 1], oz: ['w', 1 / 16], kg: ['w', 2.20462262], g: ['w', 0.00220462262], mg: ['w', 0.00000220462262],
   gal: ['v', 128], qt: ['v', 32], pt: ['v', 16], cup: ['v', 8], 'fl oz': ['v', 1], tbsp: ['v', 0.5], tsp: ['v', 1 / 6],
   l: ['v', 33.8140227], ml: ['v', 0.0338140227], dash: ['v', 1 / 48], pinch: ['v', 1 / 96],
-  each: ['c', 1], dozen: ['c', 12]
+  each: ['c', 1], dozen: ['c', 12],
+  in: ['len', 1], ft: ['len', 12], yd: ['len', 36], cm: ['len', 0.393700787], m: ['len', 39.3700787]
 };
-const UNIT_LABELS = { g: 'gram', kg: 'kg', mg: 'mg', lb: 'lbs', oz: 'oz', ml: 'mL', l: 'L', 'fl oz': 'fl oz', cup: 'cup', tbsp: 'tbsp', tsp: 'tsp', pinch: 'pinch', dash: 'dash', gal: 'gallon', qt: 'quart', pt: 'pint', each: 'each', dozen: 'dozen' };
-const UNIT_GROUPS = [['Weight', ['g', 'kg', 'oz', 'lb', 'mg']], ['Volume', ['tsp', 'tbsp', 'fl oz', 'cup', 'pt', 'qt', 'gal', 'ml', 'l', 'pinch', 'dash']], ['Count', ['each', 'dozen']]];
+const UNIT_LABELS = { g: 'gram', kg: 'kg', mg: 'mg', lb: 'lbs', oz: 'oz', ml: 'mL', l: 'L', 'fl oz': 'fl oz', cup: 'cup', tbsp: 'tbsp', tsp: 'tsp', pinch: 'pinch', dash: 'dash', gal: 'gallon', qt: 'quart', pt: 'pint', each: 'each', dozen: 'dozen', in: 'inch', ft: 'feet', yd: 'yard', cm: 'cm', m: 'meter' };
+const UNIT_GROUPS = [['Weight', ['g', 'kg', 'oz', 'lb', 'mg']], ['Volume', ['tsp', 'tbsp', 'fl oz', 'cup', 'pt', 'qt', 'gal', 'ml', 'l', 'pinch', 'dash']], ['Count', ['each', 'dozen']], ['Length', ['in', 'ft', 'yd', 'cm', 'm']]];
 // <option>s grouped Weight / Volume / Count; `only` limits to those units; an unknown current value is kept
 function unitOptionsHtml(val, only) {
   const v = nu(val); let found = false;
@@ -212,7 +213,7 @@ function unitOptionsHtml(val, only) {
   const extraHtml = extra.length ? `<optgroup label="Portions and other">${extra.map(u => { if (u === v) found = true; return `<option value="${esc(u)}"${u === v ? ' selected' : ''}>${esc(u)}</option>`; }).join('')}</optgroup>` : '';
   return groups + extraHtml + (v && !found ? `<option value="${esc(v)}" selected>${esc(v)}</option>` : '');
 }
-const UNIT_ALIASES = { lbs: 'lb', pound: 'lb', pounds: 'lb', ounce: 'oz', ounces: 'oz', gallon: 'gal', gallons: 'gal', quart: 'qt', quarts: 'qt', pint: 'pt', pints: 'pt', cups: 'cup', floz: 'fl oz', 'fl. oz': 'fl oz', tablespoon: 'tbsp', tablespoons: 'tbsp', teaspoon: 'tsp', teaspoons: 'tsp', liter: 'l', litre: 'l', liters: 'l', gram: 'g', grams: 'g', kilogram: 'kg', kgs: 'kg', trays: 'tray', containers: 'container', cases: 'case', ea: 'each', pcs: 'each', pc: 'each', piece: 'each', pieces: 'each', dz: 'dozen', doz: 'dozen', pinches: 'pinch', dashes: 'dash', milligram: 'mg', milligrams: 'mg', ml: 'ml', mls: 'ml', milliliter: 'ml', milliliters: 'ml', 'fluid ounce': 'fl oz', 'fluid ounces': 'fl oz', bags: 'bag', bottles: 'bottle', bunches: 'bunch', batches: 'batch' };
+const UNIT_ALIASES = { lbs: 'lb', pound: 'lb', pounds: 'lb', ounce: 'oz', ounces: 'oz', gallon: 'gal', gallons: 'gal', quart: 'qt', quarts: 'qt', pint: 'pt', pints: 'pt', cups: 'cup', floz: 'fl oz', 'fl. oz': 'fl oz', tablespoon: 'tbsp', tablespoons: 'tbsp', teaspoon: 'tsp', teaspoons: 'tsp', liter: 'l', litre: 'l', liters: 'l', gram: 'g', grams: 'g', kilogram: 'kg', kgs: 'kg', trays: 'tray', containers: 'container', cases: 'case', ea: 'each', pcs: 'each', pc: 'each', piece: 'each', pieces: 'each', dz: 'dozen', doz: 'dozen', inch: 'in', inches: 'in', feet: 'ft', foot: 'ft', yard: 'yd', yards: 'yd', meter: 'm', meters: 'm', pinches: 'pinch', dashes: 'dash', milligram: 'mg', milligrams: 'mg', ml: 'ml', mls: 'ml', milliliter: 'ml', milliliters: 'ml', 'fluid ounce': 'fl oz', 'fluid ounces': 'fl oz', bags: 'bag', bottles: 'bottle', bunches: 'bunch', batches: 'batch' };
 const UNIT_SUGGEST = ['lb', 'oz', 'g', 'kg', 'mg', 'gal', 'qt', 'pt', 'cup', 'fl oz', 'tbsp', 'tsp', 'l', 'ml', 'pinch', 'dash', 'each', 'dozen', 'tray', 'half tray', 'container', 'case', 'bag', 'bunch', 'bottle', 'batch'];
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const STALE_DAYS = 90;
@@ -458,7 +459,8 @@ function laborCost(l, loc) {
   return r == null ? 0 : m / 60 * (isNaN(p) || p <= 0 ? 1 : p) * r;
 }
 function batchCost(it, depth = 0) {
-  let ing = 0, lab = 0, trans = 0; const warns = [];
+  let ing = 0, lab = 0, trans = 0, pkg = 0; const warns = [];
+  (it.packaging || []).forEach(l => { const c = lineCost(l, depth); pkg += c.cost; if (c.err) warns.push('Packaging: ' + c.err); else if (c.warn) warns.push('Packaging: ' + c.warn); });
   (it.lines || []).forEach(l => { const c = lineCost(l, depth); ing += c.cost; if (c.err) warns.push(c.err); else if (c.warn) warns.push(c.warn); });
   (it.labor || []).forEach(l => {
     if (l.type === 'transport') {
@@ -468,9 +470,9 @@ function batchCost(it, depth = 0) {
     }
     lab += laborCost(l, it.location); if (!isNaN(n(l.minutes)) && laborRate(l, it.location) == null) warns.push(`No labor rate for ${LOCS[l.location || it.location] || 'this location'} (Rates tab)`);
   });
-  const total = ing + lab + trans;
+  const total = ing + lab + trans + pkg;
   const y = n(it.yieldQty);
-  return { ing, lab, trans, total, perUnit: it.yieldQty === undefined ? total : (y > 0 ? total / y : null), warns: [...new Set(warns)] };
+  return { ing, lab, trans, pkg, total, perUnit: it.yieldQty === undefined ? total : (y > 0 ? total / y : null), warns: [...new Set(warns)] };
 }
 function menuCost(it) { const c = batchCost(Object.assign({}, it, { yieldQty: 1 })); const p = n(it.price); c.price = p; c.fcPct = p > 0 ? c.ing / p : null; return c; } // fcPct = food only, labor excluded
 // Cost of 1 unit of `unit` for a ref (e.g. per lb for a tray item)
@@ -550,7 +552,7 @@ function portionsSection(it) {
 }
 function usedIn(ref) {
   const out = [];
-  [['prep', C.prep], ['bulk', C.bulk], ['menu', C.menu]].forEach(([t, l]) => l.forEach(it => { if ((it.lines || []).some(x => x.ref === ref)) out.push(it.name || '(unnamed)'); }));
+  [['prep', C.prep], ['bulk', C.bulk], ['menu', C.menu]].forEach(([t, l]) => l.forEach(it => { if ((it.lines || []).some(x => x.ref === ref) || (it.packaging || []).some(x => x.ref === ref)) out.push(it.name || '(unnamed)'); }));
   return out;
 }
 
@@ -736,7 +738,7 @@ document.addEventListener('change', e => {
   }
   if (/^bulk\.[^.]+\.(split|meatQty|sauceQty|cookedQty|cookedUnit|yieldUnit)$/.test(p)) syncYield(res.obj);
   if (/^bulk\.[^.]+\.group$/.test(p)) { res.obj.groupSet = true; toast(`${res.obj.name || 'Item'} moved to ${v ? 'Bulk Raw Inputs: ' + rawLabel(v) : 'Bulk Cooking'}`); }
-  if (/\.lines\.\d+\.ref$/.test(p)) { _memo = {}; const u = unitInfo(v); res.obj.unit = u && !u.missing ? u.base : ''; }
+  if (/\.(lines|packaging)\.\d+\.ref$/.test(p)) { _memo = {}; const u = unitInfo(v); res.obj.unit = u && !u.missing ? u.base : ''; }
   if (p.startsWith('inv.')) queueInvoiceSave(); else queueSave();
   rerenderKeepFocus();
 });
@@ -826,9 +828,10 @@ function addLine(t, id, key) {
   const it = listFor(t).find(x => x.id === id); if (!it) return;
   if (key === 'labor') it.labor.push({ task: '', minutes: '', people: 1, rate: '' });
   else if (key === 'transport') { key = 'labor'; const from = (LOCS[it.location] || '').toLowerCase(); const ks = Object.keys(routeStats); const r = ks.find(k => k.toLowerCase().startsWith(from + ' →')) || ks[0] || ''; it.labor.push({ type: 'transport', task: 'Delivery run', route: r, share: '', rate: '' }); }
+  else if (key === 'packaging') (it.packaging = it.packaging || []).push({ ref: '', qty: '', unit: '' });
   else it.lines.push({ ref: '', qty: '', unit: '' });
   queueSave(); render();
-  setTimeout(() => { const i = (key === 'labor' ? it.labor : it.lines).length - 1; const el = document.getElementById(fid(`${t}.${id}.${key}.${i}.${key === 'labor' ? 'task' : 'ref'}`)); if (el) el.focus(); }, 30);
+  setTimeout(() => { const i = (key === 'labor' ? it.labor : key === 'packaging' ? it.packaging : it.lines).length - 1; const el = document.getElementById(fid(`${t}.${id}.${key}.${i}.${key === 'labor' ? 'task' : 'ref'}`)); if (el) el.focus(); }, 30);
 }
 function delLine(t, id, key, i) { const it = listFor(t).find(x => x.id === id); if (!it) return; it[key].splice(i, 1); queueSave(); render(); }
 function toggleOpen(id) { openIds.has(id) ? openIds.delete(id) : openIds.add(id); render(); }
@@ -980,7 +983,7 @@ function renderIngredients() {
       <td style="min-width:250px">${(() => { const cs = caseOf(i); const each = n(cs.inner); const tot = n(i.packQty); const pr = n(i.packPrice);
         return `<div class="eq">${inp(P + '.caseCount', n(i.caseCount) > 0 ? i.caseCount : 1, { num: true, ph: '6', style: 'width:52px' })}<span class="muted">×</span><input id="${fid(P + '.innerQtyText')}" data-p="${P}.innerQtyText" type="text" inputmode="decimal" value="${esc(cs.text)}" placeholder="1/2" style="width:58px;padding:7px 8px;border:1px solid var(--gray-300);border-radius:7px;min-height:36px;text-align:right"><select id="${fid(P + '.packUnit')}" data-p="${P}.packUnit" style="width:92px">${unitOptionsHtml(pu)}</select></div>
         ${each > 0 ? seeAs(P + '.seeInner', each, pu, pu, altOf(i), i.seeInner || (pu === 'gal' || pu === 'qt' || pu === 'pt' ? 'fl oz' : ''), (cs.cc > 1 ? 'each =' : '=')) : ''}
-        ${tot > 0 ? `<div class="small" style="margin-top:3px;color:var(--gray-700)">= <b>${fmtQty(tot)} ${esc(unitLabel(pu))}</b> per case${cs.cc > 1 && pr > 0 ? ` · ${money(pr / cs.cc)} each` : ''}</div>` : ''}`; })()}</td>
+        ${tot > 0 && cs.cc > 1 ? `<div class="small" style="margin-top:3px;color:var(--gray-700)">= <b>${fmtQty(tot)} ${esc(unitLabel(pu))}</b> per case${cs.cc > 1 && pr > 0 ? ` · ${money(pr / cs.cc)} each` : ''}</div>` : ''}`; })()}</td>
       <td style="width:120px">${inp(P + '.packPrice', money2(n(i.packPrice)), { num: true, ph: '$' })}${i.prevPrice !== undefined && i.prevPrice !== '' ? `<div class="muted small">was ${money(n(i.prevPrice))}</div>` : ''}</td>
       <td style="width:190px"><div class="eq">${inp(P + '.unitPrice', perView == null ? '' : money2(perView), { num: true, ph: '$', style: 'width:92px' })}<span class="small muted">per</span><select id="${fid(P + '.viewUnit')}" data-p="${P}.viewUnit" style="width:84px">${unitOptionsHtml(vu, vus)}</select></div></td>
       <td style="white-space:nowrap">${i.priceDate ? `<span class="tag ${stale ? 'stale' : ''}">${esc(i.priceDate)}</span>` : '<span class="muted small">—</span>'}</td>
@@ -1108,33 +1111,35 @@ function refOptions(val, types) {
   let h = `<option value="">Choose…</option>`;
   if (types.includes('bulk')) { RAW_GROUPS.forEach(([g, l]) => { h += grp('Raw inputs: ' + l, 'bulk', C.bulk.filter(b => b.group === g)); }); h += grp('Bulk items', 'bulk', C.bulk.filter(b => !isRaw(b))); }
   if (types.includes('prep')) h += grp('Prep items', 'prep', FEATURES.prep ? C.prep : C.prep.filter(x => val === 'prep:' + x.id));
+  if (types.includes('pkg')) { const isP = x => /packaging/i.test(x.category || ''); h += grp('Packaging', 'ing', C.ingredients.filter(isP)); h += grp('Other ingredients', 'ing', C.ingredients.filter(x => !isP(x))); }
   if (types.includes('ing')) h += grp('Ingredients', 'ing', C.ingredients);
   return h;
 }
-function linesTable(t, it, types, title) {
+function linesTable(t, it, types, title, key = 'lines', hint = '') {
   const P = `${t}.${it.id}`;
-  const rows = it.lines.map((l, i) => {
+  const arr = it[key] || [];
+  const rows = arr.map((l, i) => {
     const c = lineCost(l);
     const units = unitsFor(l.ref);
     const u = l.ref ? unitInfo(l.ref) : null;
-    const unitSel = l.ref ? `<select id="${fid(P + '.lines.' + i + '.unit')}" data-p="${P}.lines.${i}.unit">${unitOptionsHtml(l.unit || (u && u.base), units)}</select>` : '<span class="muted small">—</span>';
-    const same = l.ref && u && !u.missing ? seeAs(P + '.lines.' + i + '.seeUnit', l.qty, l.unit || u.base, u.base, u.alt, l.seeUnit) : '';
+    const unitSel = l.ref ? `<select id="${fid(P + '.' + key + '.' + i + '.unit')}" data-p="${P}.${key}.${i}.unit">${unitOptionsHtml(l.unit || (u && u.base), units)}</select>` : '<span class="muted small">—</span>';
+    const same = l.ref && u && !u.missing ? seeAs(P + '.' + key + '.' + i + '.seeUnit', l.qty, l.unit || u.base, u.base, u.alt, l.seeUnit) : '';
     const per = u && !u.missing && u.cost != null ? `<div class="muted small">${money4(u.cost)}/${esc(u.base)}</div>` : '';
     return `<tr>
-      <td style="min-width:200px"><select id="${fid(P + '.lines.' + i + '.ref')}" data-p="${P}.lines.${i}.ref">${refOptions(l.ref, types)}</select>${c.err ? `<div class="err-t">${esc(c.err)}</div>${c.needFix ? quickFix(l, P + '.lines.' + i) : ''}` : c.warn ? `<div class="warn-t">${esc(c.warn)}</div>` : ''}</td>
-      <td class="w-s">${inp(P + '.lines.' + i + '.qty', l.qty, { num: true })}</td>
+      <td style="min-width:200px"><select id="${fid(P + '.' + key + '.' + i + '.ref')}" data-p="${P}.${key}.${i}.ref">${refOptions(l.ref, types)}</select>${c.err ? `<div class="err-t">${esc(c.err)}</div>${c.needFix ? quickFix(l, P + '.' + key + '.' + i) : ''}` : c.warn ? `<div class="warn-t">${esc(c.warn)}</div>` : ''}</td>
+      <td class="w-s">${inp(P + '.' + key + '.' + i + '.qty', l.qty, { num: true })}</td>
       <td style="width:150px">${unitSel}${same}</td>
       <td class="num">${money(c.cost)}${per}</td>
-      <td style="width:40px"><button class="btn-x" title="Remove" onclick="delLine('${t}','${it.id}','lines',${i})">✕</button></td>
+      <td style="width:40px"><button class="btn-x" title="Remove" onclick="delLine('${t}','${it.id}','${key}',${i})">✕</button></td>
     </tr>`;
   }).join('');
-  const total = it.lines.reduce((s, l) => s + lineCost(l).cost, 0);
-  return `<h3>${title}</h3><div class="table-box"><table class="t">
+  const total = arr.reduce((s, l) => s + lineCost(l).cost, 0);
+  return `<h3>${title}</h3>${hint ? `<div class="small muted" style="margin:-4px 0 6px">${hint}</div>` : ''}<div class="table-box"><table class="t">
     <thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Cost</th><th></th></tr></thead>
     <tbody>${rows || `<tr><td colspan="5" class="muted small" style="padding:12px">Nothing added yet.</td></tr>`}</tbody>
     ${rows ? `<tfoot><tr><td colspan="3">Total</td><td class="num">${money(total)}</td><td></td></tr></tfoot>` : ''}
   </table></div>
-  <button class="btn-link" onclick="addLine('${t}','${it.id}','lines')">+ Add line</button>`;
+  <button class="btn-link" onclick="addLine('${t}','${it.id}','${key}')">+ Add ${key === 'packaging' ? 'packaging' : 'line'}</button>`;
 }
 // Cost center = where a task's cost lands: a location (labor at that location's rate) or Transport
 // (a delivery run, priced from Delivery Data).
@@ -1282,10 +1287,11 @@ function renderBulk(view) {
       ${FEATURES.billing && unitMismatch ? `<div class="banner warn" style="margin-top:10px">The daily order counts ${esc(di.name)} in <b>${esc(di.unit)}</b> but this batch is measured in <b>${esc(u)}</b>. Set the batch unit to ${esc(nu(di.unit))}, or fill in the "weighs / holds" box so billing can convert.</div>` : ''}
       ${FEATURES.billing && linked[it.dailyId] > 1 ? `<div class="banner warn" style="margin-top:10px">Another bulk item is linked to the same daily order item. Billing will count it twice.</div>` : ''}
       ${linesTable('bulk', it, ['ing', 'prep', 'bulk'], 'What goes in (one batch)')}
+      ${linesTable('bulk', it, ['pkg'], 'Packaging (one batch)', 'packaging', 'Plastic film over each tray, foil pans, lids, bags. Enter the amount for the whole batch, for example 3 trays × 2 ft of film = 6 ft.')}
       ${laborTable('bulk', it, 'Labor (one batch)')}
       ${isRaw(it) ? '' : yieldSection(it)}
       ${portionsSection(it)}
-      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div>${c.trans ? `<div class="tot"><div class="k">Transport</div><div class="v">${money(c.trans)}</div></div>` : ''}<div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${weightTiles(it, c)}<div class="tot"><div class="k">Labor share</div><div class="v">${pct(c.total ? c.lab / c.total : null)}</div></div></div>
+      <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div>${c.pkg ? `<div class="tot"><div class="k">Packaging</div><div class="v">${money(c.pkg)}</div></div>` : ''}${c.trans ? `<div class="tot"><div class="k">Transport</div><div class="v">${money(c.trans)}</div></div>` : ''}<div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${weightTiles(it, c)}<div class="tot"><div class="k">Labor share</div><div class="v">${pct(c.total ? c.lab / c.total : null)}</div></div></div>
       ${warnList(c)}
       <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
       <div class="card-actions"><button class="btn btn-white btn-sm" onclick="dupItem('bulk','${it.id}')">Duplicate</button><button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="delItem('bulk','${it.id}')">Delete</button></div>`;
