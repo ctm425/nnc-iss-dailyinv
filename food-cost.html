@@ -209,7 +209,7 @@ function unitOptionsHtml(val, only) {
   const v = nu(val); let found = false;
   const groups = UNIT_GROUPS.map(([g, us]) => { const list = us.filter(u => !only || only.includes(u)); if (!list.length) return ''; return `<optgroup label="${g}">${list.map(u => { if (u === v) found = true; return `<option value="${esc(u)}"${u === v ? ' selected' : ''}>${esc(UNIT_LABELS[u] || u)}</option>`; }).join('')}</optgroup>`; }).join('');
   const extra = (only || []).filter(u => !UNITS[u]);
-  const extraHtml = extra.length ? `<optgroup label="Other">${extra.map(u => { if (u === v) found = true; return `<option value="${esc(u)}"${u === v ? ' selected' : ''}>${esc(u)}</option>`; }).join('')}</optgroup>` : '';
+  const extraHtml = extra.length ? `<optgroup label="Portions and other">${extra.map(u => { if (u === v) found = true; return `<option value="${esc(u)}"${u === v ? ' selected' : ''}>${esc(u)}</option>`; }).join('')}</optgroup>` : '';
   return groups + extraHtml + (v && !found ? `<option value="${esc(v)}" selected>${esc(v)}</option>` : '');
 }
 const UNIT_ALIASES = { lbs: 'lb', pound: 'lb', pounds: 'lb', ounce: 'oz', ounces: 'oz', gallon: 'gal', gallons: 'gal', quart: 'qt', quarts: 'qt', pint: 'pt', pints: 'pt', cups: 'cup', floz: 'fl oz', 'fl. oz': 'fl oz', tablespoon: 'tbsp', tablespoons: 'tbsp', teaspoon: 'tsp', teaspoons: 'tsp', liter: 'l', litre: 'l', liters: 'l', gram: 'g', grams: 'g', kilogram: 'kg', kgs: 'kg', trays: 'tray', containers: 'container', cases: 'case', ea: 'each', pcs: 'each', pc: 'each', piece: 'each', pieces: 'each', dz: 'dozen', doz: 'dozen', pinches: 'pinch', dashes: 'dash', milligram: 'mg', milligrams: 'mg', ml: 'ml', mls: 'ml', milliliter: 'ml', milliliters: 'ml', 'fluid ounce': 'fl oz', 'fluid ounces': 'fl oz', bags: 'bag', bottles: 'bottle', bunches: 'bunch', batches: 'batch' };
@@ -355,6 +355,8 @@ function convert(qty, from, to) {
 }
 // qty in `unit` -> qty in base unit. alt = {qty, unit}: "1 base = qty unit"
 function toBase(qty, unit, base, alt) {
+  // named portion units on bulk items (e.g. 1 ladle = 3 oz) ride along on alt.portions
+  if (alt && alt.portions) { const k = String(unit || '').trim().toLowerCase(); const pp = alt.portions.find(x => x.key === k); if (pp) return toBase(qty * pp.qty, pp.unit, base, alt.qty > 0 ? { qty: alt.qty, unit: alt.unit } : null); }
   const v = convert(qty, unit, base); if (v !== null) return v;
   if (alt && alt.qty > 0 && alt.unit) { const a = convert(qty, unit, alt.unit); if (a !== null) return a / alt.qty; }
   return null;
@@ -426,7 +428,7 @@ function unitInfo(ref, depth = 0) {
     out = { name: r.item.name, base: nu(r.item.packUnit), alt: altOf(r.item), cost: q > 0 && !isNaN(p) ? p / q : null };
   } else {
     const c = batchCost(r.item, depth + 1);
-    out = { name: r.item.name, base: nu(r.item.yieldUnit), alt: altOf(r.item), cost: c.perUnit };
+    out = { name: r.item.name, base: nu(r.item.yieldUnit), alt: withPortions(altOf(r.item), r.item), cost: c.perUnit };
   }
   _memo[ref] = out;
   return out;
@@ -439,7 +441,7 @@ function lineCost(line, depth = 0) {
   if (isNaN(q)) return { cost: 0, warn: 'Enter a quantity' };
   if (u.cost == null) return { cost: 0, warn: 'No cost yet for ' + u.name };
   const b = toBase(q, line.unit || u.base, u.base, u.alt);
-  if (b == null) return { cost: 0, err: `Can't convert ${line.unit} to ${u.base}. Add "1 ${u.base} = ? ${line.unit}" on ${u.name}.` };
+  if (b == null) return { cost: 0, needFix: true, err: `${u.name} is counted in ${unitLabel(u.base)}, so ${unitLabel(line.unit)} can't be priced yet.` };
   return { cost: b * u.cost };
 }
 function laborRate(l, loc) { const o = n(l.rate); if (!isNaN(o)) return o; const r = n((C.settings.laborRates || {})[l.location || loc]); return isNaN(r) ? null : r; }
@@ -474,8 +476,74 @@ function unitsFor(ref) {
   const u = unitInfo(ref); if (!u || u.missing) return [];
   const out = []; const add = x => { x = nu(x); if (x && !out.includes(x)) out.push(x); };
   const fam = x => { add(x); const f = UNITS[nu(x)]; if (f) Object.keys(UNITS).filter(k => UNITS[k][0] === f[0]).forEach(add); };
-  fam(u.base); if (u.alt) fam(u.alt.unit);
+  fam(u.base); if (u.alt && u.alt.unit) fam(u.alt.unit);
+  if (u.alt && u.alt.portions) u.alt.portions.forEach(pp => { if (!out.includes(pp.key)) out.push(pp.key); });
+  // every standard unit is offered, even if it can't be priced yet; the line then shows a quick fix
+  Object.keys(UNITS).forEach(add);
   return out;
+}
+// ---- quick fix on a recipe line whose unit can't be priced yet ----
+// Item has no weight yet  -> "1 container = [ ] oz"   (sets the item's weighs/holds box)
+// Item already has weight -> "1 cup = [ ] oz"         (adds a portion unit named after the unit)
+function quickFix(l, L) {
+  const r = findRef(l.ref); if (!r) return '';
+  const it = r.item; const unit = String(l.unit || '').trim().toLowerCase();
+  const base = r.type === 'ing' ? nu(it.packUnit) : nu(it.yieldUnit);
+  const hasWeight = toBase(1, 'oz', base, altOf(it)) != null;
+  const box = 'style="width:70px;min-height:30px;padding:3px 6px;display:inline-block"';
+  if (r.type === 'bulk' && hasWeight) {
+    return `<div class="small" style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">Quick fix: 1 ${esc(unitLabel(unit))} of ${esc(it.name)} =
+      <input type="number" step="any" inputmode="decimal" data-fix="portion" data-ref="${esc(l.ref)}" data-name="${esc(unit)}" id="${fid(L + '.fix')}" placeholder="oz" ${box}> oz <span class="muted">(weigh one)</span></div>`;
+  }
+  if (cookedAlt(it)) return `<div class="small muted" style="margin-top:4px">Add a portion unit on ${esc(it.name)} (Bulk Cooking) to use ${esc(unitLabel(unit))}.</div>`;
+  const tgt = UNITS[unit] ? unit : 'oz';
+  return `<div class="small" style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">Quick fix: 1 ${esc(unitLabel(base))} of ${esc(it.name)} =
+    <input type="number" step="any" inputmode="decimal" data-fix="alt" data-ref="${esc(l.ref)}" data-unit="${esc(tgt)}" id="${fid(L + '.fix')}" placeholder="${esc(unitLabel(tgt))}" ${box}> ${esc(unitLabel(tgt))}</div>`;
+}
+document.addEventListener('change', e => {
+  const el = e.target; if (!el.dataset || !el.dataset.fix) return;
+  const v = Number(el.value); if (!(v > 0)) return;
+  const r = findRef(el.dataset.ref); if (!r) return;
+  if (el.dataset.fix === 'alt') { r.item.altQty = v; r.item.altUnit = el.dataset.unit; toast(`Saved on ${r.item.name}: 1 ${unitLabel(r.type === 'ing' ? r.item.packUnit : r.item.yieldUnit)} = ${v} ${unitLabel(el.dataset.unit)}`); }
+  else { const name = el.dataset.name; r.item.portions = r.item.portions || []; const ex = r.item.portions.find(pp => portionKey(pp.name) === name); if (ex) { ex.qty = v; ex.unit = 'oz'; } else r.item.portions.push({ name, qty: v, unit: 'oz' }); toast(`Saved on ${r.item.name}: 1 ${unitLabel(name)} = ${v} oz`); }
+  _memo = {}; queueSave(); rerenderKeepFocus();
+});
+// ---- portion units on bulk items: [{name, qty, unit}] e.g. ladle = 3 oz ----
+function portionKey(name) { return String(name || '').trim().toLowerCase(); }
+function portionNameClash(name) { const k = portionKey(name); return !!(k && (UNITS[k] || UNITS[nu(k)])); }
+function portionClashFor(it, name) { if (!portionNameClash(name)) return false; return toBase(1, portionKey(name), nu(it.yieldUnit), altOf(it)) != null; }
+function validPortions(it) {
+  return (it.portions || []).filter(pp => portionKey(pp.name) && !portionClashFor(it, pp.name) && n(pp.qty) > 0 && pp.unit)
+    .map(pp => ({ key: portionKey(pp.name), name: String(pp.name).trim(), qty: n(pp.qty), unit: nu(pp.unit) }));
+}
+function withPortions(alt, it) {
+  const ps = validPortions(it); if (!ps.length) return alt;
+  return Object.assign({ qty: alt ? alt.qty : 0, unit: alt ? alt.unit : '' }, { portions: ps });
+}
+function addPortion(id) { const it = C.bulk.find(b => b.id === id); if (!it) return; (it.portions = it.portions || []).push({ name: '', qty: '', unit: 'oz' }); queueSave(); render(); setTimeout(() => { const el = document.getElementById(fid('bulk.' + id + '.portions.' + (it.portions.length - 1) + '.name')); if (el) el.focus(); }, 30); }
+function delPortion(id, i) { const it = C.bulk.find(b => b.id === id); if (!it) return; const name = portionKey((it.portions[i] || {}).name); const users = [...C.menu, ...C.bulk].filter(x => (x.lines || []).some(l => l.ref === 'bulk:' + id && portionKey(l.unit) === name)); if (name && users.length) { toast(`Used in ${users.slice(0, 3).map(x => x.name).join(', ')}. Change those lines first.`); return; } it.portions.splice(i, 1); queueSave(); render(); }
+function portionsSection(it) {
+  const P = 'bulk.' + it.id; const list = it.portions || [];
+  const base = nu(it.yieldUnit), a = altOf(it);
+  const c = batchCost(it);
+  const rows = list.map((pp, i) => {
+    const L = P + '.portions.' + i;
+    const clash = portionClashFor(it, pp.name);
+    const inBase = n(pp.qty) > 0 ? toBase(n(pp.qty), pp.unit, base, a) : null;
+    const cost = inBase != null && c.perUnit != null ? inBase * c.perUnit : null;
+    const perBatch = inBase > 0 && n(it.yieldQty) > 0 ? n(it.yieldQty) / inBase : null;
+    const why = clash ? '<div class="err-t">That unit already converts on its own. Use a kitchen name like ladle, scoop or spoodle.</div>' : (n(pp.qty) > 0 && inBase == null ? `<div class="warn-t">Can't convert ${esc(unitLabel(pp.unit))} to ${esc(unitLabel(base))}. Fill in the total yield${UNITS[nu(pp.unit)] && UNITS[nu(pp.unit)][0] === 'v' ? ' and "1 ' + esc(unitLabel(base)) + ' holds"' : ''}.</div>` : '');
+    return `<tr>
+      <td style="min-width:160px">${inp(L + '.name', pp.name, { ph: 'e.g. ladle, 4 oz scoop' })}${why}</td>
+      <td style="width:190px"><div class="eq"><span class="small muted">=</span>${inp(L + '.qty', pp.qty, { num: true, ph: '3', style: 'width:70px' })}<select id="${fid(L + '.unit')}" data-p="${L}.unit" style="width:84px">${unitOptionsHtml(pp.unit || 'oz', ['oz', 'lb', 'g', 'kg', 'fl oz', 'cup', 'tbsp', 'tsp', 'ml', 'l'])}</select></div></td>
+      <td class="num">${cost == null ? '—' : money4(cost)}</td>
+      <td class="num small">${perBatch == null ? '—' : fmtQty(perBatch) + ' per batch'}</td>
+      <td style="width:40px"><button class="btn-x" title="Remove" onclick="delPortion('${it.id}',${i})">✕</button></td></tr>`;
+  }).join('');
+  return `<h3>Portion units (for Line Cooking)</h3>
+    <div class="small muted" style="margin:-4px 0 6px">What the cooks actually use: a ladle, a scoop, a spoodle. Weigh one level portion of this ${esc(it.name || 'item')} and enter it here; Line Cooking can then use "2 ladle" instead of ounces.</div>
+    ${rows ? `<div class="table-box"><table class="t" style="min-width:560px"><thead><tr><th>Name</th><th>One portion is</th><th class="num">Cost each</th><th class="num">Portions</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    <button class="btn-link" onclick="addPortion('${it.id}')">+ Add portion unit</button>`;
 }
 function usedIn(ref) {
   const out = [];
@@ -810,14 +878,16 @@ function unitLabel(u) { return UNIT_LABELS[nu(u)] || u; }
 // ---- "same as" converter: shows a quantity in another unit (choice saved on the item) ----
 const SEE_DEFAULT = { lb: 'oz', oz: 'g', g: 'oz', kg: 'lb', mg: 'g', gal: 'qt', qt: 'cup', pt: 'cup', cup: 'tbsp', 'fl oz': 'ml', tbsp: 'tsp', tsp: 'tbsp', l: 'cup', ml: 'tsp', pinch: 'tsp', dash: 'tsp', each: 'dozen', dozen: 'each' };
 function seeUnitsFor(unit, base, alt) {
-  const u = nu(unit);
-  return Object.keys(UNITS).filter(x => x !== u && toBase(1, x, base, alt) != null && (toBase(1, u, base, alt) != null));
+  const u = nu(unit); const k = String(unit || '').trim().toLowerCase();
+  const pnames = alt && alt.portions ? alt.portions.map(pp => pp.key) : [];
+  return [...Object.keys(UNITS), ...pnames].filter(x => x !== u && x !== k && toBase(1, x, base, alt) != null && (toBase(1, unit, base, alt) != null));
 }
 function fmtQty(v) { if (v == null || isNaN(v)) return '—'; const a = Math.abs(v); return fmt(v, a >= 100 ? 1 : a >= 1 ? 2 : a >= 0.01 ? 3 : 5); }
 function seeAs(path, qty, unit, base, alt, cur) {
   const list = seeUnitsFor(unit, base, alt); const q = n(qty);
   if (!list.length || isNaN(q)) return '';
-  const pick = list.includes(nu(cur)) ? nu(cur) : (list.includes(SEE_DEFAULT[nu(unit)]) ? SEE_DEFAULT[nu(unit)] : list[0]);
+  const ck = String(cur || '').trim().toLowerCase();
+  const pick = list.includes(ck) ? ck : list.includes(nu(cur)) ? nu(cur) : (list.includes(SEE_DEFAULT[nu(unit)]) ? SEE_DEFAULT[nu(unit)] : (list.includes('oz') ? 'oz' : list[0]));
   const inBase = toBase(q, unit, base, alt); const per = toBase(1, pick, base, alt);
   const v = inBase != null && per ? inBase / per : null;
   return `<div class="eq small muted" style="white-space:nowrap;margin-top:3px">= <b style="color:var(--gray-700)">${fmtQty(v)}</b><select id="${fid(path)}" data-p="${path}" style="width:auto;min-height:28px;padding:2px 4px;font-size:.78rem">${unitOptionsHtml(pick, list)}</select></div>`;
@@ -987,7 +1057,7 @@ function linesTable(t, it, types, title) {
     const same = l.ref && u && !u.missing ? seeAs(P + '.lines.' + i + '.seeUnit', l.qty, l.unit || u.base, u.base, u.alt, l.seeUnit) : '';
     const per = u && !u.missing && u.cost != null ? `<div class="muted small">${money4(u.cost)}/${esc(u.base)}</div>` : '';
     return `<tr>
-      <td style="min-width:200px"><select id="${fid(P + '.lines.' + i + '.ref')}" data-p="${P}.lines.${i}.ref">${refOptions(l.ref, types)}</select>${c.err ? `<div class="err-t">${esc(c.err)}</div>` : c.warn ? `<div class="warn-t">${esc(c.warn)}</div>` : ''}</td>
+      <td style="min-width:200px"><select id="${fid(P + '.lines.' + i + '.ref')}" data-p="${P}.lines.${i}.ref">${refOptions(l.ref, types)}</select>${c.err ? `<div class="err-t">${esc(c.err)}</div>${c.needFix ? quickFix(l, P + '.lines.' + i) : ''}` : c.warn ? `<div class="warn-t">${esc(c.warn)}</div>` : ''}</td>
       <td class="w-s">${inp(P + '.lines.' + i + '.qty', l.qty, { num: true })}</td>
       <td style="width:150px">${unitSel}${same}</td>
       <td class="num">${money(c.cost)}${per}</td>
@@ -1150,6 +1220,7 @@ function renderBulk(view) {
       ${linesTable('bulk', it, ['ing', 'prep', 'bulk'], 'What goes in (one batch)')}
       ${laborTable('bulk', it, 'Labor (one batch)')}
       ${isRaw(it) ? '' : yieldSection(it)}
+      ${portionsSection(it)}
       <div class="totals"><div class="tot"><div class="k">Ingredients</div><div class="v">${money(c.ing)}</div></div><div class="tot"><div class="k">Labor</div><div class="v">${money(c.lab)}</div></div>${c.trans ? `<div class="tot"><div class="k">Transport</div><div class="v">${money(c.trans)}</div></div>` : ''}<div class="tot"><div class="k">Batch total</div><div class="v">${money(c.total)}</div></div><div class="tot hi"><div class="k">Per ${esc(u)}</div><div class="v">${money4(c.perUnit)}</div></div>${weightTiles(it, c)}<div class="tot"><div class="k">Labor share</div><div class="v">${pct(c.total ? c.lab / c.total : null)}</div></div></div>
       ${warnList(c)}
       <div class="ff" style="margin-top:12px"><label>Notes</label>${inp(P + '.notes', it.notes, { ph: 'Optional' })}</div>
