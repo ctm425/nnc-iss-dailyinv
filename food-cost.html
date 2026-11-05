@@ -269,6 +269,7 @@ function seedStarter() {
     doneX.add(x.name);
   });
   S.seeded.extras = [...doneX];
+  if (!S.seeded.dryCat) { S.ingCategories = S.ingCategories || []; if (!S.ingCategories.some(c => c.toLowerCase() === 'dry ingredients')) { S.ingCategories.push('Dry Ingredients'); } S.seeded.dryCat = dk(new Date()); }
   if (!S.seeded.spices) {
     mkSpiceSuggestions().forEach(x => { added++; const m = String(x.name).match(/\(([^)]*)\)\s*$/); C.ingredients.push({ id: newId(), name: mkSpiceName(x.name), category: 'Spice', vendor: '', packQty: '', packUnit: 'lb', packPrice: '', notes: m ? 'Main kitchen inventory: ' + m[1] : 'Main kitchen inventory' }); });
     S.seeded.spices = dk(new Date());
@@ -306,8 +307,10 @@ const BILL = {};         // month -> {days, chicken, loadedAt}
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function n(v) { if (v === '' || v == null) return NaN; return Number(v); }
 function money(v, d = 2) { if (v == null || isNaN(v)) return '—'; return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
-function money4(v) { if (v == null || isNaN(v)) return '—'; return Math.abs(v) < 1 ? money(v, 4) : money(v, 2); }
-function fmt(v, d = 2) { if (v == null || isNaN(v)) return '—'; return (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d }); }
+// Display rounding (Nov 5): quantities, weights and percents to 0.1; money to the cent.
+// Unit prices under $0.10 keep a third decimal so they don't show as $0.00. Math uses full precision.
+function money4(v) { if (v == null || isNaN(v)) return '—'; return Math.abs(v) > 0 && Math.abs(v) < 0.1 ? money(v, 3) : money(v, 2); }
+function fmt(v, d = 1) { if (v == null || isNaN(v)) return '—'; return (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d }); }
 function pct(v) { return v == null || isNaN(v) || !isFinite(v) ? '—' : (v * 100).toFixed(1) + '%'; }
 function r2(v) { return Math.round(v * 100) / 100; }
 function byName(a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base', numeric: true }); }
@@ -859,6 +862,30 @@ let ingCollapsed = new Set();
 const PKG_CAT = 'Take Out Packaging';
 const G_PER_OZ = 28.3495;
 function isPkg(i) { return (i.category || '').trim().toLowerCase() === PKG_CAT.toLowerCase(); }
+// ---- ingredient categories you create (C.settings.ingCategories), shown even when empty ----
+let addingCat = false;
+function savedCats() { return (C.settings.ingCategories || []).filter(Boolean); }
+function catKey(name) { const t = String(name || '').trim(); if (!t) return 'No category'; if (t.toLowerCase() === PKG_CAT.toLowerCase()) return PKG_CAT; const sc = savedCats().find(c => c.toLowerCase() === t.toLowerCase()); return sc || t; }
+function startAddCat() { addingCat = true; render(); setTimeout(() => { const el = document.getElementById('newCatBox'); if (el) el.focus(); }, 30); }
+function saveNewCat() {
+  const el = document.getElementById('newCatBox'); const v = el ? el.value.trim() : '';
+  if (!v) { addingCat = false; render(); return; }
+  if (v.toLowerCase() === PKG_CAT.toLowerCase() || v.toLowerCase() === 'no category' || savedCats().some(c => c.toLowerCase() === v.toLowerCase())) { toast('That category already exists'); return; }
+  C.settings.ingCategories = [...savedCats(), v]; addingCat = false; ingCollapsed.delete(v); queueSave(); render(); toast('Added ' + v);
+}
+function removeCat(ev, name) {
+  ev.stopPropagation();
+  if (C.ingredients.some(i => catKey(i.category) === name)) { toast('Move or delete its ingredients first'); return; }
+  if (!confirmInline('cat-' + name)) return;
+  C.settings.ingCategories = savedCats().filter(c => c !== name); queueSave(); render();
+}
+function addIngIn(ev, cat) {
+  ev.stopPropagation();
+  const id = newId();
+  C.ingredients.push({ id, name: '', brand: '', category: cat, vendor: '', packQty: '', packUnit: 'lb', packPrice: '', notes: '' });
+  ingCollapsed.delete(cat); ingSearch = ''; queueSave(); render();
+  setTimeout(() => { const el = document.getElementById(fid('ingredients.' + id + '.name')); if (el) el.focus(); }, 30);
+}
 function addPackaging(ev) {
   if (ev) ev.stopPropagation();
   const id = newId();
@@ -871,7 +898,7 @@ function addPackaging(ev) {
 function wCell(i, key) {
   const P = 'ingredients.' + i.id; const g = n(i[key]); const oz = i.wUnit === 'oz';
   const shown = isNaN(g) ? '' : (oz ? Math.round(g / G_PER_OZ * 100) / 100 : Math.round(g * 10) / 10);
-  const other = isNaN(g) ? '' : (oz ? fmt(g, 1) + ' g' : fmt(g / G_PER_OZ, 2) + ' oz');
+  const other = isNaN(g) ? '' : (oz ? fmt(g, 1) + ' g' : fmt(g / G_PER_OZ, 1) + ' oz');
   return `<td style="min-width:100px">${inp(P + '.' + key, shown, { num: true, ph: oz ? 'oz' : 'g' })}<div class="muted small" style="white-space:nowrap">${other ? '= ' + other : '&nbsp;'}</div></td>`;
 }
 function unitLabel(u) { return UNIT_LABELS[nu(u)] || u; }
@@ -882,7 +909,7 @@ function seeUnitsFor(unit, base, alt) {
   const pnames = alt && alt.portions ? alt.portions.map(pp => pp.key) : [];
   return [...Object.keys(UNITS), ...pnames].filter(x => x !== u && x !== k && toBase(1, x, base, alt) != null && (toBase(1, unit, base, alt) != null));
 }
-function fmtQty(v) { if (v == null || isNaN(v)) return '—'; const a = Math.abs(v); return fmt(v, a >= 100 ? 1 : a >= 1 ? 2 : a >= 0.01 ? 3 : 5); }
+function fmtQty(v) { if (v == null || isNaN(v)) return '—'; const a = Math.abs(v); return fmt(v, a === 0 || a >= 0.1 ? 1 : a >= 0.01 ? 2 : 3); }
 function seeAs(path, qty, unit, base, alt, cur) {
   const list = seeUnitsFor(unit, base, alt); const q = n(qty);
   if (!list.length || isNaN(q)) return '';
@@ -905,7 +932,7 @@ function viewUnitsFor(i) {
 function viewUnitOf(i) { const vus = viewUnitsFor(i); const pu = nu(i.packUnit); const v = nu(i.viewUnit); return vus.includes(v) ? v : (vus.includes(pu) ? pu : (vus[0] || pu)); }
 function renderIngredients() {
   const q = ingSearch.toLowerCase();
-  const rows = ord(C.ingredients, 'ing').filter(i => !q || (i.name + ' ' + (i.category || '') + ' ' + (i.vendor || '')).toLowerCase().includes(q));
+  const rows = ord(C.ingredients, 'ing').filter(i => !q || (i.name + ' ' + (i.brand || '') + ' ' + (i.category || '') + ' ' + (i.vendor || '')).toLowerCase().includes(q));
   const today = new Date();
   const rowHtml = i => {
     const P = 'ingredients.' + i.id;
@@ -919,6 +946,7 @@ function renderIngredients() {
     const alt = `<div class="eq small" style="white-space:nowrap">1 ${esc(unitLabel(pu) || 'unit')} = ${inp(P + '.altQty', i.altQty, { num: true, ph: 'qty', style: 'width:64px' })} ${inp(P + '.altUnit', i.altUnit, { list: 'unitList', ph: 'cup', style: 'width:70px' })}</div>`;
     return `<tr>
       <td style="min-width:210px">${inp(P + '.name', i.name, { ph: 'e.g. Chicken thigh, boneless' })}</td>
+      <td style="width:130px">${inp(P + '.brand', i.brand, { ph: 'Brand', list: 'brandList' })}</td>
       <td style="width:130px">${inp(P + '.category', i.category, { ph: 'Meat, Spice…', list: 'catList' })}</td>
       <td style="width:130px">${inp(P + '.vendor', i.vendor, { ph: 'Vendor', list: 'vendorList' })}</td>
       <td style="width:170px"><div class="eq">${inp(P + '.packQty', i.packQty, { num: true, ph: '40', style: 'width:66px' })}<select id="${fid(P + '.packUnit')}" data-p="${P}.packUnit" style="width:92px">${unitOptionsHtml(pu)}</select></div>${seeAs(P + '.seePack', i.packQty, pu, pu, altOf(i), i.seePack)}</td>
@@ -940,9 +968,10 @@ function renderIngredients() {
     const sum = !isNaN(t) && !isNaN(b) ? t + b : null;
     const diff = sum != null && !isNaN(tot) ? tot - sum : null;
     const oz = i.wUnit === 'oz';
-    const check = sum == null ? '' : `<div class="small ${diff != null && Math.abs(diff) > 2 ? 'warn-t' : 'muted'}" style="line-height:1.3">top + bottom = ${oz ? fmt(sum / G_PER_OZ, 2) + ' oz' : fmt(sum, 1) + ' g'}${diff != null && Math.abs(diff) > 2 ? ` (off by ${oz ? fmt(Math.abs(diff) / G_PER_OZ, 2) + ' oz' : fmt(Math.abs(diff), 1) + ' g'})` : ''}</div>`;
+    const check = sum == null ? '' : `<div class="small ${diff != null && Math.abs(diff) > 2 ? 'warn-t' : 'muted'}" style="line-height:1.3">top + bottom = ${oz ? fmt(sum / G_PER_OZ, 1) + ' oz' : fmt(sum, 1) + ' g'}${diff != null && Math.abs(diff) > 2 ? ` (off by ${oz ? fmt(Math.abs(diff) / G_PER_OZ, 1) + ' oz' : fmt(Math.abs(diff), 1) + ' g'})` : ''}</div>`;
     return `<tr>
       <td style="min-width:180px">${inp(P + '.name', i.name, { ph: 'e.g. 32 oz round deli container' })}</td>
+      <td style="width:120px">${inp(P + '.brand', i.brand, { ph: 'Brand', list: 'brandList' })}</td>
       <td style="min-width:120px">${inp(P + '.vendor', i.vendor, { ph: 'Vendor', list: 'vendorList' })}</td>
       <td style="width:170px"><div class="eq">${inp(P + '.packQty', i.packQty, { num: true, ph: '240', style: 'width:66px' })}<select id="${fid(P + '.packUnit')}" data-p="${P}.packUnit" style="width:92px">${unitOptionsHtml(pu)}</select></div><div class="muted small">per case</div></td>
       <td style="width:100px">${inp(P + '.packPrice', i.packPrice, { num: true, ph: '$' })}${i.prevPrice !== undefined && i.prevPrice !== '' ? `<div class="muted small">was ${money(n(i.prevPrice))}</div>` : ''}</td>
@@ -950,39 +979,42 @@ function renderIngredients() {
       <td style="min-width:150px"><div class="eq">${inp(P + '.capQty', i.capQty, { num: true, ph: '32', style: 'width:64px' })}<select id="${fid(P + '.capUnit')}" data-p="${P}.capUnit" style="width:80px">${unitOptionsHtml(i.capUnit || 'fl oz', ['fl oz', 'cup', 'pt', 'qt', 'ml', 'l', 'oz', 'lb', 'g'])}</select></div>${seeAs(P + '.seeCap', i.capQty, i.capUnit || 'fl oz', i.capUnit || 'fl oz', null, i.seeCap)}</td>
       <td style="width:95px"><select id="${fid(P + '.wUnit')}" data-p="${P}.wUnit">${opts([['g', 'grams'], ['oz', 'oz']], oz ? 'oz' : 'g')}</select></td>
       ${wCell(i, 'wTop')}${wCell(i, 'wBottom')}
-      <td style="min-width:100px;max-width:140px">${inp(P + '.wTotal', isNaN(tot) ? '' : (oz ? Math.round(tot / G_PER_OZ * 100) / 100 : Math.round(tot * 10) / 10), { num: true, ph: oz ? 'oz' : 'g' })}<div class="muted small" style="white-space:nowrap">${isNaN(tot) ? '&nbsp;' : '= ' + (oz ? fmt(tot, 1) + ' g' : fmt(tot / G_PER_OZ, 2) + ' oz')}</div>${check}</td>
+      <td style="min-width:100px;max-width:140px">${inp(P + '.wTotal', isNaN(tot) ? '' : (oz ? Math.round(tot / G_PER_OZ * 100) / 100 : Math.round(tot * 10) / 10), { num: true, ph: oz ? 'oz' : 'g' })}<div class="muted small" style="white-space:nowrap">${isNaN(tot) ? '&nbsp;' : '= ' + (oz ? fmt(tot, 1) + ' g' : fmt(tot / G_PER_OZ, 1) + ' oz')}</div>${check}</td>
       <td class="small">${used.length ? `<span title="${esc(used.join(', '))}">${used.length} dish${used.length > 1 ? 'es' : ''}</span>` : '<span class="muted">not used</span>'}</td>
       <td><button class="btn-x" title="Delete" onclick="delItem('ing','${i.id}')">✕</button></td>
     </tr>`;
   };
-  const pkgHead = `<thead><tr><th>Container</th><th>Vendor</th><th>Pack size</th><th class="num">Pack price</th><th>Price each</th><th>Capacity</th><th>Weigh in</th><th>Top (lid)</th><th>Bottom</th><th>Total (weighed)</th><th>Used in</th><th></th></tr></thead>`;
+  const pkgHead = `<thead><tr><th>Container</th><th>Brand</th><th>Vendor</th><th>Pack size</th><th class="num">Pack price</th><th>Price each</th><th>Capacity</th><th>Weigh in</th><th>Top (lid)</th><th>Bottom</th><th>Total (weighed)</th><th>Used in</th><th></th></tr></thead>`;
   // group by category (A to Z, "No category" last), collapsible; Take Out Packaging always shown
   const groups = {};
-  rows.forEach(i => { const k = isPkg(i) ? PKG_CAT : ((i.category || '').trim() || 'No category'); (groups[k] = groups[k] || []).push(i); });
-  if (!q && !groups[PKG_CAT]) groups[PKG_CAT] = [];
+  rows.forEach(i => { const k = catKey(i.category); (groups[k] = groups[k] || []).push(i); });
+  if (!q) { if (!groups[PKG_CAT]) groups[PKG_CAT] = []; savedCats().forEach(c => { if (!groups[c]) groups[c] = []; }); }
   const keys = Object.keys(groups).sort((a, b) => a === 'No category' ? 1 : b === 'No category' ? -1 : a.localeCompare(b));
-  const head = `<thead><tr><th>Name</th><th>Category</th><th>Vendor</th><th>Pack size</th><th class="num">Pack price</th><th>Price per unit</th><th>Conversion (optional)</th><th>Price date</th><th>Used in</th><th></th></tr></thead>`;
+  const head = `<thead><tr><th>Name</th><th>Brand</th><th>Category</th><th>Vendor</th><th>Pack size</th><th class="num">Pack price</th><th>Price per unit</th><th>Conversion (optional)</th><th>Price date</th><th>Used in</th><th></th></tr></thead>`;
   const sections = keys.map(k => {
     const list = groups[k]; const closed = ingCollapsed.has(k) && !q;
     const miss = list.filter(i => unitInfo('ing:' + i.id).cost == null).length;
     const pk = k === PKG_CAT;
     const body = pk
-      ? (list.length ? `<table class="t" style="min-width:1360px">${pkgHead}<tbody>${list.map(pkgRow).join('')}</tbody></table>` : '<div class="muted small" style="padding:14px">No containers yet. Add each container with its price, how much it holds, and its weights (lid, bottom, and the two together).</div>')
-      : `<table class="t" style="min-width:1320px">${head}<tbody>${list.map(rowHtml).join('')}</tbody></table>`;
-    return `<div class="card ${closed ? '' : 'open'}" style="margin-bottom:10px"><div class="card-h" onclick="toggleIngCat('${esc(k).replace(/'/g, '&#39;')}')"><span class="chev">›</span><div class="nm">${esc(k)}<span class="s">${list.length} item${list.length === 1 ? '' : 's'}${miss ? ` · <span style="color:var(--amber)">${miss} without a price</span>` : ''}</span></div>${pk ? '<button class="btn btn-white btn-sm" onclick="addPackaging(event)">+ Add container</button>' : ''}</div>
+      ? (list.length ? `<table class="t" style="min-width:1480px">${pkgHead}<tbody>${list.map(pkgRow).join('')}</tbody></table>` : '<div class="muted small" style="padding:14px">No containers yet. Add each container with its price, how much it holds, and its weights (lid, bottom, and the two together).</div>')
+      : (list.length ? `<table class="t" style="min-width:1450px">${head}<tbody>${list.map(rowHtml).join('')}</tbody></table>` : `<div class="muted small" style="padding:14px">Nothing in ${esc(k)} yet.</div>`);
+    return `<div class="card ${closed ? '' : 'open'}" style="margin-bottom:10px"><div class="card-h" onclick="toggleIngCat('${esc(k).replace(/'/g, '&#39;')}')"><span class="chev">›</span><div class="nm">${esc(k)}<span class="s">${list.length} item${list.length === 1 ? '' : 's'}${miss ? ` · <span style="color:var(--amber)">${miss} without a price</span>` : ''}</span></div>${pk ? '<button class="btn btn-white btn-sm" onclick="addPackaging(event)">+ Add container</button>' : `${!list.length && savedCats().includes(k) ? `<button class="btn btn-white btn-sm" style="color:var(--danger)" onclick="removeCat(event,'${esc(k).replace(/'/g, '&#39;')}')">Remove</button>` : ''}<button class="btn btn-white btn-sm" onclick="addIngIn(event,'${esc(k === 'No category' ? '' : k).replace(/'/g, '&#39;')}')">+ Add</button>`}</div>
       ${closed ? '' : `<div class="table-box" style="border:none;border-top:1px solid var(--gray-200);border-radius:0">${body}</div>`}</div>`;
   }).join('');
-  const cats = [...new Set(C.ingredients.map(i => i.category).filter(Boolean))];
+  const cats = [...new Set([...savedCats(), PKG_CAT, ...C.ingredients.map(i => i.category).filter(Boolean)])];
   const vendors = [...new Set(C.ingredients.map(i => i.vendor).filter(Boolean))];
+  const brands = [...new Set(C.ingredients.map(i => i.brand).filter(Boolean))];
   const staleCount = C.ingredients.filter(i => i.priceDate && (today - parseDk(i.priceDate)) / 864e5 > STALE_DAYS).length;
   const noPrice = C.ingredients.filter(i => unitInfo('ing:' + i.id).cost == null).length;
   return `<div class="panel">
     <div class="sec-h"><h2>Ingredients</h2><div class="toolbar" style="margin:0">
       ${sortCtl('ing')}
-      <input type="search" placeholder="Search name, category, vendor" value="${esc(ingSearch)}" oninput="ingSearch=this.value;clearTimeout(window._sq);window._sq=setTimeout(()=>{render();const s=document.querySelector('input[type=search]');s.focus();s.setSelectionRange(s.value.length,s.value.length)},250)">
+      <input type="search" placeholder="Search name, brand, category, vendor" value="${esc(ingSearch)}" oninput="ingSearch=this.value;clearTimeout(window._sq);window._sq=setTimeout(()=>{render();const s=document.querySelector('input[type=search]');s.focus();s.setSelectionRange(s.value.length,s.value.length)},250)">
       ${mkSpiceSuggestions().length ? `<button class="btn btn-white" onclick="addMkSpices()">+ Main kitchen spices (${mkSpiceSuggestions().length})</button>` : ''}
       <button class="btn btn-white" onclick="openPaste()">Paste from spreadsheet</button>
+      <button class="btn btn-white" onclick="startAddCat()">+ Add category</button>
       <button class="btn btn-primary" onclick="addItem('ing')">+ Add ingredient</button></div></div>
+    ${addingCat ? `<div class="banner info" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><b>New category</b><input id="newCatBox" placeholder="e.g. Dry Ingredients, Oils, Frozen" style="padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;min-height:38px;min-width:240px" onkeydown="if(event.key==='Enter')saveNewCat();if(event.key==='Escape'){addingCat=false;render()}"><button class="btn btn-primary btn-sm" onclick="saveNewCat()">Add</button><button class="btn btn-white btn-sm" onclick="addingCat=false;render()">Cancel</button></div>` : ''}
     <p class="desc">One price list for everything. Enter either the pack price (for example $90.40 for a 40 lb case) or the price per unit (for example $2.26 per lbs); the other one is worked out. Change the unit next to the price to see it per gram, oz, lbs, cup, tbsp, mL and more; the small "=" line under a quantity shows it in another unit. Containers go in Take Out Packaging with their lid, bottom and total weights. If a recipe measures in cups but you buy by weight, fill in "1 lbs = ? cup" so the two can be converted. Prices older than ${STALE_DAYS} days are marked in amber.</p>
     ${noPrice ? `<div class="banner warn" style="margin-bottom:10px">${noPrice} ingredient${noPrice > 1 ? 's have' : ' has'} no price yet. Recipes using them will show too low a cost.</div>` : ''}
     ${staleCount ? `<div class="banner warn" style="margin-bottom:10px">${staleCount} price${staleCount > 1 ? 's are' : ' is'} over ${STALE_DAYS} days old.</div>` : ''}
@@ -990,6 +1022,7 @@ function renderIngredients() {
     ${sections || `<div class="muted" style="padding:24px;text-align:center">${q ? 'No match.' : 'No ingredients yet. Add one, or paste your price list from a spreadsheet.'}</div>`}
     <datalist id="catList">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
     <datalist id="vendorList">${vendors.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+    <datalist id="brandList">${brands.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
   </div>`;
 }
 
@@ -997,7 +1030,7 @@ function renderIngredients() {
 function openPaste() {
   document.getElementById('modalRoot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">
     <h3>Paste ingredients from a spreadsheet</h3>
-    <p class="desc" style="margin:0">Copy rows from Excel or Google Sheets and paste below. Columns in this order: <b>Name, Pack qty, Unit, Pack price, Vendor, Category</b> (vendor and category optional). A header row is skipped. If a name already exists, its price is updated instead of adding a duplicate.</p>
+    <p class="desc" style="margin:0">Copy rows from Excel or Google Sheets and paste below. Columns in this order: <b>Name, Pack qty, Unit, Pack price, Vendor, Category, Brand</b> (vendor, category and brand optional). A header row is skipped. If a name already exists, its price is updated instead of adding a duplicate.</p>
     <textarea id="pasteBox" placeholder="Chicken thigh boneless	40	lb	96.00	Sysco	Meat"></textarea>
     <div id="pastePrev" class="small muted"></div>
     <div class="card-actions"><button class="btn btn-white" onclick="closeModal()">Cancel</button><button class="btn btn-white" onclick="previewPaste()">Preview</button><button class="btn btn-primary" onclick="applyPaste()">Import</button></div>
@@ -1014,24 +1047,25 @@ function parsePaste() {
     const qty = Number(String(c[1] || '').replace(/[^0-9.]/g, ''));
     const price = Number(String(c[3] || '').replace(/[^0-9.\-]/g, ''));
     if (!c[0] || (!qty && !price)) return; // header or junk
-    rows.push({ name: c[0], packQty: qty || '', packUnit: nu(c[2] || 'lb'), packPrice: isNaN(price) ? '' : price, vendor: c[4] || '', category: c[5] || '' });
+    rows.push({ name: c[0], packQty: qty || '', packUnit: nu(c[2] || 'lb'), packPrice: isNaN(price) ? '' : price, vendor: c[4] || '', category: c[5] || '', brand: c[6] || '' });
   });
   return rows;
 }
 function previewPaste() {
   const rows = parsePaste();
-  const upd = rows.filter(r => C.ingredients.some(i => i.name.toLowerCase() === r.name.toLowerCase())).length;
+  const upd = rows.filter(r => C.ingredients.some(i => i.name.toLowerCase() === r.name.toLowerCase() && (!r.brand || (i.brand || '').toLowerCase() === r.brand.toLowerCase()))).length;
   document.getElementById('pastePrev').innerHTML = rows.length ? `${rows.length} rows read: ${rows.length - upd} new, ${upd} price updates. First: <b>${esc(rows[0].name)}</b> ${rows[0].packQty} ${esc(rows[0].packUnit)} for ${money(rows[0].packPrice)}` : 'Nothing readable yet.';
 }
 function applyPaste() {
   const rows = parsePaste(); if (!rows.length) { previewPaste(); return; }
   const today = dk(new Date());
   rows.forEach(r => {
-    const ex = C.ingredients.find(i => i.name.toLowerCase() === r.name.toLowerCase());
+    // same name + same brand = update; a different brand of the same item is its own ingredient
+    const ex = C.ingredients.find(i => i.name.toLowerCase() === r.name.toLowerCase() && (!r.brand || (i.brand || '').toLowerCase() === r.brand.toLowerCase()));
     if (ex) {
       if (r.packPrice !== '' && r.packPrice !== ex.packPrice) { ex.prevPrice = ex.packPrice; ex.packPrice = r.packPrice; ex.priceDate = today; }
       if (r.packQty) ex.packQty = r.packQty; if (r.packUnit) ex.packUnit = r.packUnit;
-      if (r.vendor) ex.vendor = r.vendor; if (r.category) ex.category = r.category;
+      if (r.vendor) ex.vendor = r.vendor; if (r.category) ex.category = r.category; if (r.brand) ex.brand = r.brand;
     } else C.ingredients.push(Object.assign({ id: newId(), notes: '', priceDate: r.packPrice !== '' ? today : '' }, r));
   });
   C.ingredients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
