@@ -307,10 +307,11 @@ const BILL = {};         // month -> {days, chicken, loadedAt}
 // ---------- small helpers ----------
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function n(v) { if (v === '' || v == null) return NaN; return Number(v); }
-function money(v, d = 2) { if (v == null || isNaN(v)) return '—'; return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+// Money always shows to the cent; anything above $0 but under $0.01 shows as $0.01 (display only, math stays exact)
+function money(v, d = 2) { if (v == null || isNaN(v)) return '—'; let a = Math.abs(v); if (d === 2 && a > 0 && a < 0.01) a = 0.01; return (v < 0 ? '-$' : '$') + a.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
 // Display rounding (Nov 5): quantities, weights and percents to 0.1; money to the cent.
 // Unit prices under $0.10 keep a third decimal so they don't show as $0.00. Math uses full precision.
-function money4(v) { if (v == null || isNaN(v)) return '—'; return Math.abs(v) > 0 && Math.abs(v) < 0.1 ? money(v, 3) : money(v, 2); }
+function money4(v) { return money(v, 2); }
 function fmt(v, d = 1) { if (v == null || isNaN(v)) return '—'; return (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d }); }
 function pct(v) { return v == null || isNaN(v) || !isFinite(v) ? '—' : (v * 100).toFixed(1) + '%'; }
 function r2(v) { return Math.round(v * 100) / 100; }
@@ -959,7 +960,7 @@ function caseOf(i) {
 }
 function syncCase(i) { const c = caseOf(i); const q = n(c.inner); i.packQty = q > 0 ? Math.round(c.cc * q * 10000) / 10000 : ''; }
 // money in price inputs: to the cent; under a cent keep 4 decimals so it never reads 0.00
-function money2(v) { if (v == null || isNaN(v)) return ''; const a = Math.abs(v); return a > 0 && a < 0.01 ? Math.round(v * 10000) / 10000 : Math.round(v * 100) / 100; }
+function money2(v) { if (v == null || isNaN(v)) return ''; const a = Math.abs(v); return a > 0 && a < 0.01 ? (v < 0 ? -0.01 : 0.01) : Math.round(v * 100) / 100; }
 function viewUnitOf(i) { const vus = viewUnitsFor(i); const pu = nu(i.packUnit); const v = nu(i.viewUnit); return vus.includes(v) ? v : (vus.includes(pu) ? pu : (vus[0] || pu)); }
 function renderIngredients() {
   const q = ingSearch.toLowerCase();
